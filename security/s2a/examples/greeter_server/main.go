@@ -27,6 +27,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
+	"os"
 
 	"google.golang.org/grpc"
 	pb "google.golang.org/grpc/security/s2a/examples/helloworld"
@@ -48,17 +49,25 @@ func (s *server) SayHello(ctx context.Context, in *pb.HelloRequest) (*pb.HelloRe
 }
 
 func main() {
+	if len(os.Args) != 4 {
+		log.Fatalf("Invalid number of arguments provided: %v", len(os.Args))
+	}
+	rootCert := os.Args[1]
+	certFile := os.Args[2]
+	keyFile := os.Args[3]
+
 	// Load TLS keys.
 	certificate, err := tls.LoadX509KeyPair(
-		"service.pem",
-		"service.key",
+		certFile,
+		keyFile,
 	)
 	if err != nil {
 		log.Fatalf("Failed to setup TLS certificate: %v", err)
 	}
 
+	// Load root certs.
 	certPool := x509.NewCertPool()
-	clientPem, err := ioutil.ReadFile("../greeter_client/client.pem")
+	clientPem, err := ioutil.ReadFile(rootCert)
 	if err != nil {
 		log.Fatalf("Failed to read client pem: %s", err)
 	}
@@ -72,6 +81,7 @@ func main() {
 		ClientAuth:   tls.RequireAndVerifyClientCert,
 		Certificates: []tls.Certificate{certificate},
 		ClientCAs:    certPool,
+		MinVersion:   tls.VersionTLS13,
 	}
 	creds := credentials.NewTLS(config)
 

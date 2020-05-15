@@ -22,7 +22,9 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"google.golang.org/grpc/credentials"
+	"io/ioutil"
 	"log"
 	"os"
 	"time"
@@ -32,28 +34,48 @@ import (
 )
 
 const (
-	address     = "localhost:50051"
+	port        = "50051"
 	defaultName = "world"
 )
 
 func main() {
+	if len(os.Args) != 5 {
+		log.Fatalf("Invalid number of arguments provided: %v", len(os.Args))
+	}
+	address := os.Args[1]
+	rootCert := os.Args[2]
+	certFile := os.Args[3]
+	keyFile := os.Args[4]
+
 	certificate, err := tls.LoadX509KeyPair(
-		"client.pem",
-		"client.key",
+		certFile,
+		keyFile,
 	)
 	if err != nil {
 		log.Fatalf("Failed to setup TLS certificate: %v", err)
 	}
 
+	// Load root certs.
+	certPool := x509.NewCertPool()
+	clientPem, err := ioutil.ReadFile(rootCert)
+	if err != nil {
+		log.Fatalf("Failed to read client pem: %s", err)
+	}
+	ok := certPool.AppendCertsFromPEM(clientPem)
+	if !ok {
+		log.Fatal("Failed to append client pem")
+	}
+
 	// Set up TLS config.
 	config := &tls.Config{
-		// Accept any certificate, since this is an example.
-		InsecureSkipVerify: true,
 		Certificates: []tls.Certificate{certificate},
+		RootCAs:      certPool,
+		MinVersion:   tls.VersionTLS13,
 	}
 
 	// Set up a connection to the server.
-	conn, err := grpc.Dial(address, grpc.WithTransportCredentials(credentials.NewTLS(config)), grpc.WithBlock())
+	fullAddress := address + ":" + port
+	conn, err := grpc.Dial(fullAddress, grpc.WithTransportCredentials(credentials.NewTLS(config)), grpc.WithBlock())
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}
@@ -61,13 +83,9 @@ func main() {
 	c := pb.NewGreeterClient(conn)
 
 	// Contact the server and print out its response.
-	name := defaultName
-	if len(os.Args) > 1 {
-		name = os.Args[1]
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	r, err := c.SayHello(ctx, &pb.HelloRequest{Name: name})
+	r, err := c.SayHello(ctx, &pb.HelloRequest{Name: address})
 	if err != nil {
 		log.Fatalf("could not greet: %v", err)
 	}
