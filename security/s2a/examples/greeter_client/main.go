@@ -42,11 +42,11 @@ var (
 )
 
 func main() {
-	serverAddr := flag.String("server address", "localhost", "address of the server")
+	serverAddr := flag.String("serverAddr", "localhost", "address of the server")
 	port := flag.String("port", "50051", "port number to use for connection")
-	rootCert := flag.String("root certificate", "../../testdata/ca.cert", "path to root X509 certificate")
-	certFile := flag.String("client certificate", "../../testdata/client.pem", "path to client's X509 certificate")
-	keyFile := flag.String("client private key", "../../testdata/client.key", "path to client's private key")
+	rootCert := flag.String("rootCert", "../../testdata/ca.cert", "path to root X509 certificate")
+	certFile := flag.String("clientCert", "../../testdata/client.pem", "path to client's X509 certificate")
+	keyFile := flag.String("clientKey", "../../testdata/client.key", "path to client's private key")
 	flag.Parse()
 
 	certificate, err := tls.LoadX509KeyPair(

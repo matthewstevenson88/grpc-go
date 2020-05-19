@@ -53,9 +53,9 @@ var (
 
 func main() {
 	port := flag.String("port", "50051", "port number to use for connection")
-	rootCert := flag.String("root certificate", "../../testdata/ca.cert", "path to root X509 certificate")
-	certFile := flag.String("server certificate", "../../testdata/service.pem", "path to server's X509 certificate")
-	keyFile := flag.String("server private key", "../../testdata/service.key", "path to server's private key")
+	rootCert := flag.String("rootCert", "../../testdata/ca.cert", "path to root X509 certificate")
+	certFile := flag.String("serverCert", "../../testdata/service.pem", "path to server's X509 certificate")
+	keyFile := flag.String("serverKey", "../../testdata/service.key", "path to server's private key")
 	flag.Parse()
 
 	// Load TLS keys.
