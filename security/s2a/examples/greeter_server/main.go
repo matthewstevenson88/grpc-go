@@ -33,6 +33,13 @@ import (
 	pb "google.golang.org/grpc/security/s2a/examples/helloworld"
 )
 
+var (
+	port     = flag.String("port", "50051", "port number to use for connection")
+	rootCert = flag.String("client_root_cert_pem_path", "../../testdata/ca.cert", "path to root X509 certificate")
+	certFile = flag.String("server_cert_pem_path", "../../testdata/service.pem", "path to server's X509 certificate")
+	keyFile  = flag.String("server_key_pem_path", "../../testdata/service.key", "path to server's private key")
+)
+
 // server is used to implement helloworld.GreeterServer.
 type server struct {
 	pb.UnimplementedGreeterServer
@@ -43,13 +50,6 @@ func (s *server) SayHello(ctx context.Context, in *pb.HelloRequest) (*pb.HelloRe
 	log.Printf("Received: %v", in.GetName())
 	return &pb.HelloReply{Message: "Hello " + in.GetName()}, nil
 }
-
-var (
-	port     = flag.String("port", "50051", "port number to use for connection")
-	rootCert = flag.String("client_root_cert_pem_path", "../../testdata/ca.cert", "path to root X509 certificate")
-	certFile = flag.String("server_cert_pem_path", "../../testdata/service.pem", "path to server's X509 certificate")
-	keyFile  = flag.String("server_key_pem_path", "../../testdata/service.key", "path to server's private key")
-)
 
 func main() {
 	flag.Parse()
