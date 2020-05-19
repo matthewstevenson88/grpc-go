@@ -1,6 +1,6 @@
 /*
  *
- * Copyright 2015 gRPC authors.
+ * Copyright 2020 gRPC authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,18 +23,14 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"flag"
 	"google.golang.org/grpc/credentials"
 	"io/ioutil"
 	"log"
 	"net"
-	"os"
 
 	"google.golang.org/grpc"
 	pb "google.golang.org/grpc/security/s2a/examples/helloworld"
-)
-
-const (
-	port = ":50051"
 )
 
 // server is used to implement helloworld.GreeterServer.
@@ -48,26 +44,32 @@ func (s *server) SayHello(ctx context.Context, in *pb.HelloRequest) (*pb.HelloRe
 	return &pb.HelloReply{Message: "Hello " + in.GetName()}, nil
 }
 
+var (
+	port     string
+	rootCert string
+	certFile string
+	keyFile  string
+)
+
 func main() {
-	if len(os.Args) != 4 {
-		log.Fatalf("Invalid number of arguments provided: %v", len(os.Args))
-	}
-	rootCert := os.Args[1]
-	certFile := os.Args[2]
-	keyFile := os.Args[3]
+	port := flag.String("port", "50051", "port number to use for connection")
+	rootCert := flag.String("root certificate", "../../testdata/ca.cert", "path to root X509 certificate")
+	certFile := flag.String("server certificate", "../../testdata/service.pem", "path to server's X509 certificate")
+	keyFile := flag.String("server private key", "../../testdata/service.key", "path to server's private key")
+	flag.Parse()
 
 	// Load TLS keys.
 	certificate, err := tls.LoadX509KeyPair(
-		certFile,
-		keyFile,
+		*certFile,
+		*keyFile,
 	)
 	if err != nil {
-		log.Fatalf("Failed to setup TLS certificate: %v", err)
+		log.Fatalf("Failed to load server's X509 certificate: %v", err)
 	}
 
 	// Load root certs.
 	certPool := x509.NewCertPool()
-	clientPem, err := ioutil.ReadFile(rootCert)
+	clientPem, err := ioutil.ReadFile(*rootCert)
 	if err != nil {
 		log.Fatalf("Failed to read client pem: %s", err)
 	}
@@ -82,10 +84,11 @@ func main() {
 		Certificates: []tls.Certificate{certificate},
 		ClientCAs:    certPool,
 		MinVersion:   tls.VersionTLS13,
+		MaxVersion:   tls.VersionTLS13,
 	}
 	creds := credentials.NewTLS(config)
 
-	lis, err := net.Listen("tcp", port)
+	lis, err := net.Listen("tcp", ":"+*port)
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}

@@ -1,4 +1,4 @@
-// Copyright 2015 gRPC authors.
+// Copyright 2020 gRPC authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,10 +14,7 @@
 
 syntax = "proto3";
 
-option go_package = "google.golang.org/grpc/examples/helloworld/helloworld";
-option java_multiple_files = true;
-option java_package = "io.grpc.examples.helloworld";
-option java_outer_classname = "HelloWorldProto";
+option go_package = "google.golang.org/grpc/security/s2a/examples/helloworld";
 
 package helloworld;
 

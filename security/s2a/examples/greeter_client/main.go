@@ -1,6 +1,6 @@
 /*
  *
- * Copyright 2015 gRPC authors.
+ * Copyright 2020 gRPC authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,41 +23,43 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"flag"
 	"google.golang.org/grpc/credentials"
 	"io/ioutil"
 	"log"
-	"os"
 	"time"
 
 	"google.golang.org/grpc"
 	pb "google.golang.org/grpc/security/s2a/examples/helloworld"
 )
 
-const (
-	port        = "50051"
-	defaultName = "world"
+var (
+	serverAddr string
+	port       string
+	rootCert   string
+	certFile   string
+	keyFile    string
 )
 
 func main() {
-	if len(os.Args) != 5 {
-		log.Fatalf("Invalid number of arguments provided: %v", len(os.Args))
-	}
-	address := os.Args[1]
-	rootCert := os.Args[2]
-	certFile := os.Args[3]
-	keyFile := os.Args[4]
+	serverAddr := flag.String("server address", "localhost", "address of the server")
+	port := flag.String("port", "50051", "port number to use for connection")
+	rootCert := flag.String("root certificate", "../../testdata/ca.cert", "path to root X509 certificate")
+	certFile := flag.String("client certificate", "../../testdata/client.pem", "path to client's X509 certificate")
+	keyFile := flag.String("client private key", "../../testdata/client.key", "path to client's private key")
+	flag.Parse()
 
 	certificate, err := tls.LoadX509KeyPair(
-		certFile,
-		keyFile,
+		*certFile,
+		*keyFile,
 	)
 	if err != nil {
-		log.Fatalf("Failed to setup TLS certificate: %v", err)
+		log.Fatalf("Failed to load client's X509 certificate: %v", err)
 	}
 
 	// Load root certs.
 	certPool := x509.NewCertPool()
-	clientPem, err := ioutil.ReadFile(rootCert)
+	clientPem, err := ioutil.ReadFile(*rootCert)
 	if err != nil {
 		log.Fatalf("Failed to read client pem: %s", err)
 	}
@@ -71,11 +73,12 @@ func main() {
 		Certificates: []tls.Certificate{certificate},
 		RootCAs:      certPool,
 		MinVersion:   tls.VersionTLS13,
+		MaxVersion:   tls.VersionTLS13,
 	}
 
 	// Set up a connection to the server.
-	fullAddress := address + ":" + port
-	conn, err := grpc.Dial(fullAddress, grpc.WithTransportCredentials(credentials.NewTLS(config)), grpc.WithBlock())
+	fullServerAddr := *serverAddr + ":" + *port
+	conn, err := grpc.Dial(fullServerAddr, grpc.WithTransportCredentials(credentials.NewTLS(config)), grpc.WithBlock())
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}
@@ -85,7 +88,7 @@ func main() {
 	// Contact the server and print out its response.
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	r, err := c.SayHello(ctx, &pb.HelloRequest{Name: address})
+	r, err := c.SayHello(ctx, &pb.HelloRequest{Name: *serverAddr})
 	if err != nil {
 		log.Fatalf("could not greet: %v", err)
 	}
