@@ -1,19 +1,19 @@
 ## Key Generation
-The private keys were generated using
+### CA Key/Cert Generation
 ```
-openssl genrsa -out <FILE_NAME> 4096
+openssl genrsa -out ca.key 4096
+openssl req -new -x509 -key ca.key -sha256 -subj "/C=US/ST=NJ/O=CA, Inc." -days 365 -out ca.cert
 ```
-The same private key was used for the root certificate and client certificate.
+### Client Key/Cert Generation
+```
+cp ca.key client.key
+openssl req -new -x509 -key client.key -sha256 -subj "/C=US/ST=NJ/O=CA, Inc." -days 365 -out client.pem
+```
+Note that the same private key was used for the client and ca.
 
-The client/root certificates were generated using
+### Server Key/Cert Generation
 ```
-openssl req -new -x509 -key <KEY_FILE_NAME> -sha256 -subj "/C=US/ST=NJ/O=CA, Inc." -days 365 -out <CERT_FILE_NAME>
-```
-
-The server certificate was generated using
-```
+openssl genrsa -out service.key 4096
 openssl req -new -key service.key -sha256 -subj "/C=US/ST=NJ/O=CA, Inc." -out service.csr
-```
-```
 openssl x509 -req -in service.csr -CA ca.cert -CAkey ca.key -CAcreateserial -out service.pem -days 365 -sha256 -extfile certificate.conf -extensions req_ext
 ```

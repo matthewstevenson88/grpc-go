@@ -24,6 +24,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"flag"
+	"fmt"
 	"google.golang.org/grpc/credentials"
 	"io/ioutil"
 	"log"
@@ -60,18 +61,18 @@ func main() {
 		*keyFile,
 	)
 	if err != nil {
-		log.Fatalf("Failed to load server's X509 certificate: %v", err)
+		log.Fatalf("failed to load server's X509 certificate: %v", err)
 	}
 
 	// Load root certs.
 	certPool := x509.NewCertPool()
-	clientPem, err := ioutil.ReadFile(*rootCert)
+	rootPem, err := ioutil.ReadFile(*rootCert)
 	if err != nil {
-		log.Fatalf("Failed to read client pem: %s", err)
+		log.Fatalf("failed to read root pem: %s", err)
 	}
-	ok := certPool.AppendCertsFromPEM(clientPem)
+	ok := certPool.AppendCertsFromPEM(rootPem)
 	if !ok {
-		log.Fatal("Failed to append client pem")
+		log.Fatal("failed to append root pem")
 	}
 
 	// Set up TLS config.
@@ -84,9 +85,9 @@ func main() {
 	}
 	creds := credentials.NewTLS(config)
 
-	lis, err := net.Listen("tcp", ":"+*port)
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", *port))
 	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
+		log.Fatalf("failed to listen on port %s: %v", *port, err)
 	}
 	s := grpc.NewServer(grpc.Creds(creds))
 	pb.RegisterGreeterServer(s, &server{})

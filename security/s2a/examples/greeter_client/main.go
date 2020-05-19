@@ -48,18 +48,18 @@ func main() {
 		*keyFile,
 	)
 	if err != nil {
-		log.Fatalf("Failed to load client's X509 certificate: %v", err)
+		log.Fatalf("failed to load client's X509 certificate: %v", err)
 	}
 
 	// Load root certs.
 	certPool := x509.NewCertPool()
-	clientPem, err := ioutil.ReadFile(*rootCert)
+	rootPem, err := ioutil.ReadFile(*rootCert)
 	if err != nil {
-		log.Fatalf("Failed to read client pem: %s", err)
+		log.Fatalf("failed to read root pem: %s", err)
 	}
-	ok := certPool.AppendCertsFromPEM(clientPem)
+	ok := certPool.AppendCertsFromPEM(rootPem)
 	if !ok {
-		log.Fatal("Failed to append client pem")
+		log.Fatal("failed to append root pem")
 	}
 
 	// Set up TLS config.
@@ -73,7 +73,7 @@ func main() {
 	// Set up a connection to the server.
 	conn, err := grpc.Dial(*serverAddr, grpc.WithTransportCredentials(credentials.NewTLS(config)), grpc.WithBlock())
 	if err != nil {
-		log.Fatalf("did not connect: %v", err)
+		log.Fatalf("could not connect to server at %s: %v", *serverAddr, err)
 	}
 	defer conn.Close()
 	c := pb.NewGreeterClient(conn)
