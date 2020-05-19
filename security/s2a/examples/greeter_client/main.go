@@ -34,19 +34,13 @@ import (
 )
 
 var (
-	serverAddr string
-	port       string
-	rootCert   string
-	certFile   string
-	keyFile    string
+	serverAddr = flag.String("server_address", "localhost:50051", "address of the server")
+	rootCert   = flag.String("server_root_cert_pem_path", "../../testdata/ca.cert", "path to root X509 certificate")
+	certFile   = flag.String("client_cert_pem_path", "../../testdata/client.pem", "path to client's X509 certificate")
+	keyFile    = flag.String("client_key_pem_path", "../../testdata/client.key", "path to client's private key")
 )
 
 func main() {
-	serverAddr := flag.String("serverAddr", "localhost", "address of the server")
-	port := flag.String("port", "50051", "port number to use for connection")
-	rootCert := flag.String("rootCert", "../../testdata/ca.cert", "path to root X509 certificate")
-	certFile := flag.String("clientCert", "../../testdata/client.pem", "path to client's X509 certificate")
-	keyFile := flag.String("clientKey", "../../testdata/client.key", "path to client's private key")
 	flag.Parse()
 
 	certificate, err := tls.LoadX509KeyPair(
@@ -77,8 +71,7 @@ func main() {
 	}
 
 	// Set up a connection to the server.
-	fullServerAddr := *serverAddr + ":" + *port
-	conn, err := grpc.Dial(fullServerAddr, grpc.WithTransportCredentials(credentials.NewTLS(config)), grpc.WithBlock())
+	conn, err := grpc.Dial(*serverAddr, grpc.WithTransportCredentials(credentials.NewTLS(config)), grpc.WithBlock())
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}

@@ -45,17 +45,13 @@ func (s *server) SayHello(ctx context.Context, in *pb.HelloRequest) (*pb.HelloRe
 }
 
 var (
-	port     string
-	rootCert string
-	certFile string
-	keyFile  string
+	port     = flag.String("port", "50051", "port number to use for connection")
+	rootCert = flag.String("client_root_cert_pem_path", "../../testdata/ca.cert", "path to root X509 certificate")
+	certFile = flag.String("server_cert_pem_path", "../../testdata/service.pem", "path to server's X509 certificate")
+	keyFile  = flag.String("server_key_pem_path", "../../testdata/service.key", "path to server's private key")
 )
 
 func main() {
-	port := flag.String("port", "50051", "port number to use for connection")
-	rootCert := flag.String("rootCert", "../../testdata/ca.cert", "path to root X509 certificate")
-	certFile := flag.String("serverCert", "../../testdata/service.pem", "path to server's X509 certificate")
-	keyFile := flag.String("serverKey", "../../testdata/service.key", "path to server's private key")
 	flag.Parse()
 
 	// Load TLS keys.
