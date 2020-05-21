@@ -6,3 +6,4 @@ This fork is for the development of the S2A Go client libraries. This is work in
 
 * matthewstevenson88
 * ryanfsdf
+* davisgu
