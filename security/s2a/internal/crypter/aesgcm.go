@@ -24,6 +24,12 @@ import (
 	"fmt"
 )
 
+// Supported key sizes in bytes.
+const (
+	AesGcmKeySize128 = 16
+	AesGcmKeySize256 = 32
+)
+
 // aesgcm is the struct that holds necessary information for S2A record.
 type aesgcm struct {
 	aead cipher.AEAD
@@ -57,13 +63,13 @@ func (s *aesgcm) Encrypt(dst, plaintext, nonce, aad []byte) ([]byte, error) {
 	// returns the updated slice. However, SliceForAppend above ensures that
 	// dst has enough capacity to avoid a reallocation and copy due to the
 	// append.
-	dst = s.aead.Seal(dst[:dlen], nonce, data, nil)
+	dst = s.aead.Seal(dst[:dlen], nonce, data, aad)
 	return dst, nil
 }
 
 func (s *aesgcm) Decrypt(dst, ciphertext, nonce, aad []byte) ([]byte, error) {
 	// If dst is equal to ciphertext[:0], ciphertext storage is reused.
-	plaintext, err := s.aead.Open(dst, nonce, ciphertext, nil)
+	plaintext, err := s.aead.Open(dst, nonce, ciphertext, aad)
 	if err != nil {
 		return nil, ErrAuth
 	}
@@ -75,7 +81,7 @@ func (s *aesgcm) TagSize() int {
 }
 
 func (s *aesgcm) UpdateKey(key []byte) error {
-	if len(key) != 16 && len(key) != 32 {
+	if len(key) != AesGcmKeySize128 && len(key) != AesGcmKeySize256 {
 		return fmt.Errorf("supplied key must be 128 or 256 bits. given: %d", len(key)*8)
 	}
 	c, err := aes.NewCipher(key)
