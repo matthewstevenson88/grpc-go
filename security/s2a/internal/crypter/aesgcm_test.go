@@ -25,17 +25,17 @@ import (
 	"testing"
 )
 
-// getGCMCryptoPair outputs a client/server pair on AES-GCM.
+// getGCMCryptoPair outputs a sender/receiver pair on AES-GCM.
 func getGCMCryptoPair(key []byte, t *testing.T) (S2AAeadCrypter, S2AAeadCrypter) {
-	client, err := NewAESGCM(key)
+	sender, err := NewAESGCM(key)
 	if err != nil {
 		t.Fatalf("NewAESGCM(ClientSide, key) = %v", err)
 	}
-	server, err := NewAESGCM(key)
+	receiver, err := NewAESGCM(key)
 	if err != nil {
 		t.Fatalf("NewAESGCM(ServerSide, key) = %v", err)
 	}
-	return client, server
+	return sender, receiver
 }
 
 func isFailure(result string, err error, got, expected []byte) bool {
@@ -47,20 +47,6 @@ func wycheProofTestVectorFilter(testGroup TestGroup) bool {
 	return testGroup.IvSize != 96 ||
 		(testGroup.KeySize != 128 && testGroup.KeySize != 256) ||
 		testGroup.TagSize != 128
-}
-
-func TestWycheProofTestVectors(t *testing.T) {
-	for _, test := range ParseWycheProofTestVectors(
-		"testdata/aes_gcm_wycheproof.json",
-		wycheProofTestVectorFilter,
-		t,
-	) {
-		t.Run(fmt.Sprintf("%d/%s", test.Id, test.Comment), func(t *testing.T) {
-			// Test encryption and decryption for AES-GCM.
-			client, server := getGCMCryptoPair(test.Key, t)
-			testGCMEncryptionDecryption(client, server, &test, t)
-		})
-	}
 }
 
 func testGCMEncryptionDecryption(sender S2AAeadCrypter, receiver S2AAeadCrypter, test *CryptoTestVector, t *testing.T) {
@@ -88,7 +74,115 @@ func testGCMEncryptionDecryption(sender S2AAeadCrypter, receiver S2AAeadCrypter,
 	}
 }
 
-// Test encrypt and decrypt using test vectors for aes128gcm.
+func testGCMEncryptRoundtrip(sender S2AAeadCrypter, receiver S2AAeadCrypter, t *testing.T) {
+	// Construct a dummy nonce.
+	nonce := make([]byte, NonceSize)
+
+	// Encrypt.
+	const plaintext = "This is plaintext."
+	var err error
+	buf := []byte(plaintext)
+	buf, err = sender.Encrypt(buf[:0], buf, nonce, nil)
+	if err != nil {
+		t.Fatal("Encrypting with sender-side context: unexpected error", err, "\n",
+			"Plaintext:", []byte(plaintext))
+	}
+
+	// Decrypt first message.
+	ciphertext := append([]byte(nil), buf...)
+	buf, err = receiver.Decrypt(buf[:0], buf, nonce, nil)
+	if err != nil || string(buf) != plaintext {
+		t.Fatal("Decrypting sender-side ciphertext with a receiver-side context did not produce original content:\n",
+			"  Original plaintext:", []byte(plaintext), "\n",
+			"  Ciphertext:", ciphertext, "\n",
+			"  Decryption error:", err, "\n",
+			"  Decrypted plaintext:", buf)
+	}
+
+	// Decryption fails: replay attack.
+	if got, err := receiver.Decrypt(nil, buf, nonce, nil); err == nil {
+		t.Error("Decrypting sender-side ciphertext with a sender-side context unexpectedly succeeded; want unexpected counter error:\n",
+			"  Original plaintext:", []byte(plaintext), "\n",
+			"  Ciphertext:", buf, "\n",
+			"  Decrypted plaintext:", got)
+	}
+}
+
+// Test encrypt and decrypt using an invalid key size.
+func TestAESGCMInvalidKeySize(t *testing.T) {
+	// Use 17 bytes, which is invalid
+	key := make([]byte, 17)
+	_, err := NewAESGCM(key)
+	if err == nil {
+		t.Error("expected an error when using invalid key size")
+	}
+}
+
+// Test update key for AES-GCM using a key with different size from the initial
+// key.
+func TestAESGCMMismatchKeySizeUpdate(t *testing.T) {
+	key := make([]byte, aes128GcmKeySize)
+	crypter, err := NewAESGCM(key)
+	if err != nil {
+		t.Fatalf("NewAESGCM(key) = %v", err)
+	}
+
+	// Update the key with a new one which is a different from the original.
+	newKey := make([]byte, aes256GcmKeySize)
+	err = crypter.UpdateKey(newKey)
+	if err == nil {
+		t.Fatal("UpdateKey should fail with invalid key size error")
+	}
+}
+
+// Test update key for AES-GCM using a key with an invalid size.
+func TestAESGCMInvalidKeySizeUpdate(t *testing.T) {
+	key := make([]byte, aes128GcmKeySize)
+	crypter, err := NewAESGCM(key)
+	if err != nil {
+		t.Fatalf("NewAESGCM(key) = %v", err)
+	}
+
+	// Update the key with a new one which is an invalid size.
+	newKey := make([]byte, 17)
+	err = crypter.UpdateKey(newKey)
+	if err == nil {
+		t.Fatal("UpdateKey should fail with invalid key size error")
+	}
+}
+
+// Test encrypt and decrypt on roundtrip messages for AES-GCM.
+func TestAESGCMEncryptRoundtrip(t *testing.T) {
+	for _, keySize := range []int{aes128GcmKeySize, aes256GcmKeySize} {
+		key := make([]byte, keySize)
+		sender, receiver := getGCMCryptoPair(key, t)
+		testGCMEncryptRoundtrip(sender, receiver, t)
+	}
+}
+
+// Test encrypt and decrypt on roundtrip messages for AES-GCM using an updated
+// key.
+func TestAESGCMUpdatedKey(t *testing.T) {
+	for _, keySize := range []int{aes128GcmKeySize, aes256GcmKeySize} {
+		key := make([]byte, keySize)
+		sender, receiver := getGCMCryptoPair(key, t)
+		// Update the key with a new one which is different from the original.
+		newKey := make([]byte, keySize)
+		newKey[0] = '\xbd'
+		err := sender.UpdateKey(newKey)
+		if err != nil {
+			t.Fatalf("sender UpdateKey failed with: %v", err)
+		}
+		err = receiver.UpdateKey(newKey)
+		if err != nil {
+			t.Fatalf("receiver UpdateKey failed with: %v", err)
+		}
+		testGCMEncryptRoundtrip(sender, receiver, t)
+	}
+}
+
+// Test encrypt and decrypt using test vectors for aes128gcm. Much of these
+// test vectors were taken from the ALTS AES-GCM unit tests.
 func TestAESGCMEncrypt(t *testing.T) {
 	for _, test := range []CryptoTestVector{
 		{
@@ -173,119 +267,26 @@ func TestAESGCMEncrypt(t *testing.T) {
 			AllocateDst: true,
 		},
 	} {
-		client, server := getGCMCryptoPair(test.Key, t)
-		testGCMEncryptionDecryption(client, server, &test, t)
+		sender, receiver := getGCMCryptoPair(test.Key, t)
+		testGCMEncryptionDecryption(sender, receiver, &test, t)
 	}
 }
 
-func testGCMEncryptRoundtrip(client S2AAeadCrypter, server S2AAeadCrypter, t *testing.T) {
-	// Construct a dummy nonce.
-	nonce := make([]byte, NonceSize)
-
-	// Encrypt.
-	const plaintext = "This is plaintext."
-	var err error
-	buf := []byte(plaintext)
-	buf, err = client.Encrypt(buf[:0], buf, nonce, nil)
-	if err != nil {
-		t.Fatal("Encrypting with client-side context: unexpected error", err, "\n",
-			"Plaintext:", []byte(plaintext))
-	}
-
-	// Decrypt first message.
-	ciphertext := append([]byte(nil), buf...)
-	buf, err = server.Decrypt(buf[:0], buf, nonce, nil)
-	if err != nil || string(buf) != plaintext {
-		t.Fatal("Decrypting client-side ciphertext with a server-side context did not produce original content:\n",
-			"  Original plaintext:", []byte(plaintext), "\n",
-			"  Ciphertext:", ciphertext, "\n",
-			"  Decryption error:", err, "\n",
-			"  Decrypted plaintext:", buf)
-	}
-
-	// Decryption fails: replay attack.
-	if got, err := server.Decrypt(nil, buf, nonce, nil); err == nil {
-		t.Error("Decrypting client-side ciphertext with a client-side context unexpectedly succeeded; want unexpected counter error:\n",
-			"  Original plaintext:", []byte(plaintext), "\n",
-			"  Ciphertext:", buf, "\n",
-			"  Decrypted plaintext:", got)
+func TestWycheProofTestVectors(t *testing.T) {
+	for _, test := range ParseWycheProofTestVectors(
+		"testdata/aes_gcm_wycheproof.json",
+		wycheProofTestVectorFilter,
+		t,
+	) {
+		t.Run(fmt.Sprintf("%d/%s", test.Id, test.Comment), func(t *testing.T) {
+			// Test encryption and decryption for AES-GCM.
+			sender, receiver := getGCMCryptoPair(test.Key, t)
+			testGCMEncryptionDecryption(sender, receiver, &test, t)
+		})
 	}
 }
 
-// Test encrypt and decrypt on roundtrip messages for AES-GCM.
-func TestAESGCMEncryptRoundtrip(t *testing.T) {
-	for _, keySize := range []int{aes128GcmKeySize, aes256GcmKeySize} {
-		key := make([]byte, keySize)
-		client, server := getGCMCryptoPair(key, t)
-		testGCMEncryptRoundtrip(client, server, t)
-	}
-}
-
-// Test encrypt and decrypt using an invalid key size.
-func TestAESGCMInvalidKeySize(t *testing.T) {
-	// Use 17 bytes, which is invalid
-	key := make([]byte, 17)
-	_, err := NewAESGCM(key)
-	if err == nil {
-		t.Error("expected an error when using invalid key size")
-	}
-}
-
-// Test encrypt and decrypt on roundtrip messages for AES-GCM using an updated
-// key.
-func TestAESGCMUpdatedKey(t *testing.T) {
-	for _, keySize := range []int{aes128GcmKeySize, aes256GcmKeySize} {
-		key := make([]byte, keySize)
-		client, server := getGCMCryptoPair(key, t)
-		// Update the key with a new one which is different from the original.
-		newKey := make([]byte, keySize)
-		newKey[0] = '\xbd'
-		err := client.UpdateKey(newKey)
-		if err != nil {
-			t.Fatalf("client UpdateKey failed with: %v", err)
-		}
-		err = server.UpdateKey(newKey)
-		if err != nil {
-			t.Fatalf("server UpdateKey failed with: %v", err)
-		}
-		testGCMEncryptRoundtrip(client, server, t)
-	}
-}
-
-// Test update key for AES-GCM using a key with different size from the initial
-// key.
-func TestAESGCMMismatchKeySizeUpdate(t *testing.T) {
-	key := make([]byte, aes128GcmKeySize)
-	crypter, err := NewAESGCM(key)
-	if err != nil {
-		t.Fatalf("NewAESGCM(key) = %v", err)
-	}
-
-	// Update the key with a new one which is a different from the original.
-	newKey := make([]byte, aes256GcmKeySize)
-	err = crypter.UpdateKey(newKey)
-	if err == nil {
-		t.Fatal("UpdateKey should fail with invalid key size error")
-	}
-}
-
-// Test update key for AES-GCM using a key with an invalid size.
-func TestAESGCMInvalidKeySizeUpdate(t *testing.T) {
-	key := make([]byte, aes128GcmKeySize)
-	crypter, err := NewAESGCM(key)
-	if err != nil {
-		t.Fatalf("NewAESGCM(key) = %v", err)
-	}
-
-	// Update the key with a new one which is an invalid size.
-	newKey := make([]byte, 17)
-	err = crypter.UpdateKey(newKey)
-	if err == nil {
-		t.Fatal("UpdateKey should fail with invalid key size error")
-	}
-}
-
-// Test update key for AES-GCM using a key with an invalid size.
+// Test AES-GCM with NIST and IEEE test vectors.
 func TestAESGCMNISTAndIEEE(t *testing.T) {
 	// NIST vectors from:
 	// http://csrc.nist.gov/groups/ST/toolkit/BCM/documents/proposedmodes/gcm/gcm-revised-spec.pdf
@@ -293,7 +294,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 	// http://www.ieee802.org/1/files/public/docs2011/bn-randall-test-vectors-0511-v1.pdf
 	for _, test := range []CryptoTestVector{
 		{
-			Comment:    "Derived from NIST test vector 1",
+			Comment:    "NIST test vector 1",
 			Key:        Dehex("00000000000000000000000000000000"),
 			Nonce:      Dehex("000000000000000000000000"),
 			Aad:        Dehex(""),
@@ -302,7 +303,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     ValidResult,
 		},
 		{
-			Comment:    "Derived from NIST test vector 2",
+			Comment:    "NIST test vector 2",
 			Key:        Dehex("00000000000000000000000000000000"),
 			Nonce:      Dehex("000000000000000000000000"),
 			Aad:        Dehex(""),
@@ -311,7 +312,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     ValidResult,
 		},
 		{
-			Comment:    "Derived from NIST test vector 3",
+			Comment:    "NIST test vector 3",
 			Key:        Dehex("feffe9928665731c6d6a8f9467308308"),
 			Nonce:      Dehex("cafebabefacedbaddecaf888"),
 			Aad:        Dehex(""),
@@ -320,7 +321,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     ValidResult,
 		},
 		{
-			Comment:    "Derived from NIST test vector 4",
+			Comment:    "NIST test vector 4",
 			Key:        Dehex("feffe9928665731c6d6a8f9467308308"),
 			Nonce:      Dehex("cafebabefacedbaddecaf888"),
 			Aad:        Dehex("feedfacedeadbeeffeedfacedeadbeefabaddad2"),
@@ -329,7 +330,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     ValidResult,
 		},
 		{
-			Comment:    "Derived from IEEE 2.1.1 54-byte auth",
+			Comment:    "IEEE 2.1.1 54-byte auth",
 			Key:        Dehex("ad7a2bd03eac835a6f620fdcb506b345"),
 			Nonce:      Dehex("12153524c0895e81b2c28465"),
 			Aad:        Dehex("d609b1f056637a0d46df998d88e5222ab2c2846512153524c0895e8108000f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f30313233340001"),
@@ -338,7 +339,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     ValidResult,
 		},
 		{
-			Comment:    "Derived from IEEE 2.1.2 54-byte auth",
+			Comment:    "IEEE 2.1.2 54-byte auth",
 			Key:        Dehex("e3c08a8f06c6e3ad95a70557b23f75483ce33021a9c72b7025666204c69c0b72"),
 			Nonce:      Dehex("12153524c0895e81b2c28465"),
 			Aad:        Dehex("d609b1f056637a0d46df998d88e5222ab2c2846512153524c0895e8108000f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f30313233340001"),
@@ -347,7 +348,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     ValidResult,
 		},
 		{
-			Comment:    "Derived from IEEE 2.2.1 60-byte crypt",
+			Comment:    "IEEE 2.2.1 60-byte crypt",
 			Key:        Dehex("ad7a2bd03eac835a6f620fdcb506b345"),
 			Nonce:      Dehex("12153524c0895e81b2c28465"),
 			Aad:        Dehex("d609b1f056637a0d46df998d88e52e00b2c2846512153524c0895e81"),
@@ -356,7 +357,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     ValidResult,
 		},
 		{
-			Comment:    "Derived from IEEE 2.2.2 60-byte crypt",
+			Comment:    "IEEE 2.2.2 60-byte crypt",
 			Key:        Dehex("e3c08a8f06c6e3ad95a70557b23f75483ce33021a9c72b7025666204c69c0b72"),
 			Nonce:      Dehex("12153524c0895e81b2c28465"),
 			Aad:        Dehex("d609b1f056637a0d46df998d88e52e00b2c2846512153524c0895e81"),
@@ -365,7 +366,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     ValidResult,
 		},
 		{
-			Comment:    "Derived from IEEE 2.3.1 60-byte auth",
+			Comment:    "IEEE 2.3.1 60-byte auth",
 			Key:        Dehex("071b113b0ca743fecccf3d051f737382"),
 			Nonce:      Dehex("f0761e8dcd3d000176d457ed"),
 			Aad:        Dehex("e20106d7cd0df0761e8dcd3d88e5400076d457ed08000f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a0003"),
@@ -374,7 +375,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     ValidResult,
 		},
 		{
-			Comment:    "Derived from IEEE 2.3.2 60-byte auth",
+			Comment:    "IEEE 2.3.2 60-byte auth",
 			Key:        Dehex("691d3ee909d7f54167fd1ca0b5d769081f2bde1aee655fdbab80bd5295ae6be7"),
 			Nonce:      Dehex("f0761e8dcd3d000176d457ed"),
 			Aad:        Dehex("e20106d7cd0df0761e8dcd3d88e5400076d457ed08000f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a0003"),
@@ -383,7 +384,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     ValidResult,
 		},
 		{
-			Comment:    "Derived from IEEE 2.4.1 54-byte crypt",
+			Comment:    "IEEE 2.4.1 54-byte crypt",
 			Key:        Dehex("071b113b0ca743fecccf3d051f737382"),
 			Nonce:      Dehex("f0761e8dcd3d000176d457ed"),
 			Aad:        Dehex("e20106d7cd0df0761e8dcd3d88e54c2a76d457ed"),
@@ -392,7 +393,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     ValidResult,
 		},
 		{
-			Comment:    "Derived from IEEE 2.4.2 54-byte crypt",
+			Comment:    "IEEE 2.4.2 54-byte crypt",
 			Key:        Dehex("691d3ee909d7f54167fd1ca0b5d769081f2bde1aee655fdbab80bd5295ae6be7"),
 			Nonce:      Dehex("f0761e8dcd3d000176d457ed"),
 			Aad:        Dehex("e20106d7cd0df0761e8dcd3d88e54c2a76d457ed"),
@@ -401,7 +402,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     ValidResult,
 		},
 		{
-			Comment:    "Derived from IEEE 2.5.1 65-byte auth",
+			Comment:    "IEEE 2.5.1 65-byte auth",
 			Key:        Dehex("013fe00b5f11be7f866d0cbbc55a7a90"),
 			Nonce:      Dehex("7cfde9f9e33724c68932d612"),
 			Aad:        Dehex("84c5d513d2aaf6e5bbd2727788e523008932d6127cfde9f9e33724c608000f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f0005"),
@@ -410,7 +411,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     ValidResult,
 		},
 		{
-			Comment:    "Derived from IEEE 2.5.2 65-byte auth",
+			Comment:    "IEEE 2.5.2 65-byte auth",
 			Key:        Dehex("83c093b58de7ffe1c0da926ac43fb3609ac1c80fee1b624497ef942e2f79a823"),
 			Nonce:      Dehex("7cfde9f9e33724c68932d612"),
 			Aad:        Dehex("84c5d513d2aaf6e5bbd2727788e523008932d6127cfde9f9e33724c608000f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f0005"),
@@ -419,7 +420,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     ValidResult,
 		},
 		{
-			Comment:    "Derived from IEEE  2.6.1 61-byte crypt",
+			Comment:    "IEEE  2.6.1 61-byte crypt",
 			Key:        Dehex("013fe00b5f11be7f866d0cbbc55a7a90"),
 			Nonce:      Dehex("7cfde9f9e33724c68932d612"),
 			Aad:        Dehex("84c5d513d2aaf6e5bbd2727788e52f008932d6127cfde9f9e33724c6"),
@@ -428,7 +429,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     ValidResult,
 		},
 		{
-			Comment:    "Derived from IEEE 2.6.2 61-byte crypt",
+			Comment:    "IEEE 2.6.2 61-byte crypt",
 			Key:        Dehex("83c093b58de7ffe1c0da926ac43fb3609ac1c80fee1b624497ef942e2f79a823"),
 			Nonce:      Dehex("7cfde9f9e33724c68932d612"),
 			Aad:        Dehex("84c5d513d2aaf6e5bbd2727788e52f008932d6127cfde9f9e33724c6"),
@@ -437,7 +438,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     ValidResult,
 		},
 		{
-			Comment:    "Derived from IEEE 2.7.1 79-byte crypt",
+			Comment:    "IEEE 2.7.1 79-byte crypt",
 			Key:        Dehex("88ee087fd95da9fbf6725aa9d757b0cd"),
 			Nonce:      Dehex("7ae8e2ca4ec500012e58495c"),
 			Aad:        Dehex("68f2e77696ce7ae8e2ca4ec588e541002e58495c08000f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d0007"),
@@ -446,7 +447,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     ValidResult,
 		},
 		{
-			Comment:    "Derived from IEEE 2.7.2 79-byte crypt",
+			Comment:    "IEEE 2.7.2 79-byte crypt",
 			Key:        Dehex("4c973dbc7364621674f8b5b89e5c15511fced9216490fb1c1a2caa0ffe0407e5"),
 			Nonce:      Dehex("7ae8e2ca4ec500012e58495c"),
 			Aad:        Dehex("68f2e77696ce7ae8e2ca4ec588e541002e58495c08000f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d0007"),
@@ -455,7 +456,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     ValidResult,
 		},
 		{
-			Comment:    "Derived from IEEE 2.8.1 61-byte crypt",
+			Comment:    "IEEE 2.8.1 61-byte crypt",
 			Key:        Dehex("88ee087fd95da9fbf6725aa9d757b0cd"),
 			Nonce:      Dehex("7ae8e2ca4ec500012e58495c"),
 			Aad:        Dehex("68f2e77696ce7ae8e2ca4ec588e54d002e58495c"),
@@ -464,7 +465,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     ValidResult,
 		},
 		{
-			Comment:    "Derived from IEEE 2.8.2 61-byte crypt",
+			Comment:    "IEEE 2.8.2 61-byte crypt",
 			Key:        Dehex("4c973dbc7364621674f8b5b89e5c15511fced9216490fb1c1a2caa0ffe0407e5"),
 			Nonce:      Dehex("7ae8e2ca4ec500012e58495c"),
 			Aad:        Dehex("68f2e77696ce7ae8e2ca4ec588e54d002e58495c"),
@@ -475,8 +476,8 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("%s", test.Comment), func(t *testing.T) {
 			// Test encryption and decryption for AES-GCM.
-			client, server := getGCMCryptoPair(test.Key, t)
-			testGCMEncryptionDecryption(client, server, &test, t)
+			sender, receiver := getGCMCryptoPair(test.Key, t)
+			testGCMEncryptionDecryption(sender, receiver, &test, t)
 		})
 	}
 }
