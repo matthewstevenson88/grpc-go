@@ -1,17 +1,13 @@
 package crypter
 
-import "errors"
-
 const (
-	// GcmTagSize is the tag size - the difference in length between plaintext
-	// and ciphertext. From crypto/cipher/gcm.go in the Go crypto library.
+	// GcmTagSize is the tag size in bytes. From crypto/cipher/gcm.go in the Go
+	// crypto library.
 	GcmTagSize = 16
-	// NonceSize is the size of the nonce in number of bytes.
+	// NonceSize is the size of the nonce in number of bytes for
+	// AES-128-GCM-SHA256, AES-256-GCM-SHA384, and CHACHA20-POLY1305-SHA256.
 	NonceSize = 12
 )
-
-// ErrAuth is the error produced on authentication failure.
-var ErrAuth = errors.New("message authentication failed")
 
 // SliceForAppend takes a slice and a requested number of bytes. It returns a
 // slice with the contents of the given slice followed by that many bytes and a

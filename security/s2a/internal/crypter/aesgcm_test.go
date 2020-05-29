@@ -151,6 +151,36 @@ func TestAESGCMInvalidKeySizeUpdate(t *testing.T) {
 	}
 }
 
+// Test Encrypt using an invalid nonce size.
+func TestAESGCMEncryptInvalidNonce(t *testing.T) {
+	key := make([]byte, aes128GcmKeySize)
+	crypter, err := NewAESGCM(key)
+	if err != nil {
+		t.Fatalf("NewAESGCM(key) = %v", err)
+	}
+	// Construct nonce with invalid size.
+	nonce := make([]byte, 1)
+	_, err = crypter.Encrypt(nil, nil, nonce, nil)
+	if err == nil {
+		t.Fatalf("Encrypt should fail due to invalid nonce size")
+	}
+}
+
+// Test Decrypt using an invalid nonce size.
+func TestAESGCMDecryptInvalidNonce(t *testing.T) {
+	key := make([]byte, aes128GcmKeySize)
+	crypter, err := NewAESGCM(key)
+	if err != nil {
+		t.Fatalf("NewAESGCM(key) = %v", err)
+	}
+	// Construct nonce with invalid size.
+	nonce := make([]byte, 1)
+	_, err = crypter.Decrypt(nil, nil, nonce, nil)
+	if err == nil {
+		t.Fatalf("Decrypt should fail due to invalid nonce size")
+	}
+}
+
 // Test encrypt and decrypt on roundtrip messages for AES-GCM.
 func TestAESGCMEncryptRoundtrip(t *testing.T) {
 	for _, keySize := range []int{aes128GcmKeySize, aes256GcmKeySize} {

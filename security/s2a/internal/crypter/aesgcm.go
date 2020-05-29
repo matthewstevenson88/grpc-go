@@ -59,6 +59,11 @@ func NewAESGCM(key []byte) (S2AAeadCrypter, error) {
 // allocation and copy operations will be performed. dst and plaintext may
 // fully overlap or not at all.
 func (s *aesgcm) Encrypt(dst, plaintext, nonce, aad []byte) ([]byte, error) {
+	if len(nonce) != NonceSize {
+		return nil, fmt.Errorf("nonce size must be %d bytes. received: %d",
+			NonceSize,
+			len(nonce))
+	}
 	// If we need to allocate an output buffer, we want to include space for
 	// GCM tag to avoid forcing S2A record to reallocate as well.
 	dlen := len(dst)
@@ -75,10 +80,15 @@ func (s *aesgcm) Encrypt(dst, plaintext, nonce, aad []byte) ([]byte, error) {
 }
 
 func (s *aesgcm) Decrypt(dst, ciphertext, nonce, aad []byte) ([]byte, error) {
+	if len(nonce) != NonceSize {
+		return nil, fmt.Errorf("nonce size must be %d bytes. received: %d",
+			NonceSize,
+			len(nonce))
+	}
 	// If dst is equal to ciphertext[:0], ciphertext storage is reused.
 	plaintext, err := s.aead.Open(dst, nonce, ciphertext, aad)
 	if err != nil {
-		return nil, ErrAuth
+		return nil, fmt.Errorf("message auth failed: %v", err)
 	}
 	return plaintext, nil
 }
