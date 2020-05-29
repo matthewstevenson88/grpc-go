@@ -45,12 +45,11 @@ func NewAESGCM(key []byte) (S2AAeadCrypter, error) {
 	if len(key) != aes128GcmKeySize && len(key) != aes256GcmKeySize {
 		return nil, fmt.Errorf("supplied key must be 128 or 256 bits. given: %d", len(key)*8)
 	}
-	crypter := aesgcm{}
+	crypter := aesgcm{keySize: len(key)}
 	err := crypter.UpdateKey(key)
 	if err != nil {
 		return nil, err
 	}
-	crypter.keySize = len(key)
 	return &crypter, err
 }
 
@@ -89,7 +88,7 @@ func (s *aesgcm) TagSize() int {
 }
 
 func (s *aesgcm) UpdateKey(key []byte) error {
-	if s.keySize != 0 && s.keySize != len(key) {
+	if s.keySize != len(key) {
 		return fmt.Errorf("supplied key must have same size as initial key: %d bits", s.keySize*8)
 	}
 	c, err := aes.NewCipher(key)
