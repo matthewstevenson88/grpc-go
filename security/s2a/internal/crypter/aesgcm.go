@@ -43,7 +43,7 @@ type aesgcm struct {
 // either 128 bits or 256 bits.
 func NewAESGCM(key []byte) (S2AAeadCrypter, error) {
 	if len(key) != aes128GcmKeySize && len(key) != aes256GcmKeySize {
-		return nil, fmt.Errorf("supplied key must be 128 or 256 bits. given: %d", len(key)*8)
+		return nil, fmt.Errorf("supplied key must be 128 or 256 bits, given: %d", len(key)*8)
 	}
 	crypter := aesgcm{keySize: len(key)}
 	err := crypter.UpdateKey(key)
@@ -59,15 +59,13 @@ func NewAESGCM(key []byte) (S2AAeadCrypter, error) {
 // allocation and copy operations will be performed. dst and plaintext may
 // fully overlap or not at all.
 func (s *aesgcm) Encrypt(dst, plaintext, nonce, aad []byte) ([]byte, error) {
-	if len(nonce) != NonceSize {
-		return nil, fmt.Errorf("nonce size must be %d bytes. received: %d",
-			NonceSize,
-			len(nonce))
+	if len(nonce) != nonceSize {
+		return nil, fmt.Errorf("nonce size must be %d bytes. received: %d", nonceSize, len(nonce))
 	}
 	// If we need to allocate an output buffer, we want to include space for
-	// GCM tag to avoid forcing S2A record to reallocate as well.
+	// GCM tag to avoid forcing TLS record to reallocate as well.
 	dlen := len(dst)
-	dst, out := SliceForAppend(dst, len(plaintext)+GcmTagSize)
+	dst, out := SliceForAppend(dst, len(plaintext)+gcmTagSize)
 	data := out[:len(plaintext)]
 	copy(data, plaintext) // data may fully overlap plaintext
 
@@ -80,10 +78,8 @@ func (s *aesgcm) Encrypt(dst, plaintext, nonce, aad []byte) ([]byte, error) {
 }
 
 func (s *aesgcm) Decrypt(dst, ciphertext, nonce, aad []byte) ([]byte, error) {
-	if len(nonce) != NonceSize {
-		return nil, fmt.Errorf("nonce size must be %d bytes. received: %d",
-			NonceSize,
-			len(nonce))
+	if len(nonce) != nonceSize {
+		return nil, fmt.Errorf("nonce size must be %d bytes. received: %d", nonceSize, len(nonce))
 	}
 	// If dst is equal to ciphertext[:0], ciphertext storage is reused.
 	plaintext, err := s.aead.Open(dst, nonce, ciphertext, aad)
@@ -94,7 +90,7 @@ func (s *aesgcm) Decrypt(dst, ciphertext, nonce, aad []byte) ([]byte, error) {
 }
 
 func (s *aesgcm) TagSize() int {
-	return GcmTagSize
+	return gcmTagSize
 }
 
 func (s *aesgcm) UpdateKey(key []byte) error {

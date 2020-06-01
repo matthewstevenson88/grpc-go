@@ -1,6 +1,8 @@
 package testutil
 
-import "encoding/hex"
+import (
+	"encoding/hex"
+)
 
 // Constants indicating whether the test vector is valid or not.
 const (
@@ -11,7 +13,7 @@ const (
 // CryptoTestVector is a struct representing a test vector for an S2AAeadCrypter
 // instance.
 type CryptoTestVector struct {
-	Id                                          int
+	ID                                          int
 	Key, Plaintext, Ciphertext, Tag, Nonce, Aad []byte
 	Result, Comment                             string
 	AllocateDst                                 bool
@@ -19,10 +21,10 @@ type CryptoTestVector struct {
 
 // TestVector is a struct for a WycheProof test vector.
 type TestVector struct {
-	TcId    int    `json:"tcId"`
+	TcID    int    `json:"tcId"`
 	Comment string `json:"comment"`
 	Key     string `json:"key"`
-	Iv      string `json:"iv"`
+	IV      string `json:"iv"`
 	Aad     string `json:"aad"`
 	Msg     string `json:"msg"`
 	Ct      string `json:"ct"`
@@ -32,7 +34,7 @@ type TestVector struct {
 
 // TestGroup is a struct for a WycheProof test group.
 type TestGroup struct {
-	IvSize  int          `json:"ivSize"`
+	IVSize  int          `json:"ivSize"`
 	KeySize int          `json:"keySize"`
 	TagSize int          `json:"tagSize"`
 	Tests   []TestVector `json:"tests"`
