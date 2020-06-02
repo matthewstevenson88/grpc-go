@@ -1,0 +1,28 @@
+package crypter
+
+import (
+	"fmt"
+	"golang.org/x/crypto/hkdf"
+	"hash"
+)
+
+// defaultHKDFExpander is the default HKDF expander which uses Go's crypto/hkdf
+// for HKDF expansion.
+type defaultHKDFExpander struct{}
+
+// newDefaultHKDFExpander creates an instance of the default HKDF expander.
+func newDefaultHKDFExpander() hkdfExpander {
+	return &defaultHKDFExpander{}
+}
+
+func (*defaultHKDFExpander) expand(hash func() hash.Hash, secret, label []byte, length int) ([]byte, error) {
+	outBuf := make([]byte, length)
+	n, err := hkdf.Expand(hash, secret, label).Read(outBuf)
+	if err != nil {
+		return nil, fmt.Errorf("hkdf.expand.Read failed with error: %v", err)
+	}
+	if n != length {
+		return nil, fmt.Errorf("hkdf.expand.Read returned unexpected length, got: %d, expected %d", n, length)
+	}
+	return outBuf, nil
+}
