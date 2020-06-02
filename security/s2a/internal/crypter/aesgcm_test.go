@@ -60,14 +60,14 @@ func testGCMEncryptionDecryption(sender S2AAeadCrypter, receiver S2AAeadCrypter,
 	}
 	got, err := sender.Encrypt(dst[:0], test.Plaintext, test.Nonce, test.Aad)
 	if isFailure(test.Result, err, got, ciphertext) {
-		t.Errorf("key=%v\nplaintext=%v\nnonce=%v\naad=%v\nEncrypt = %v, %v\nwant: %v",
-			test.Key, test.Plaintext, test.Nonce, test.Aad, got, err, ciphertext)
+		t.Errorf("key=%v\nEncrypt(\n dst = %v\n plaintext = %v\n nonce = %v\n aad = %v\n) = (\n %v\n %v\n) want: %v",
+			test.Key, dst[:0], test.Plaintext, test.Nonce, test.Aad, got, err, ciphertext)
 	}
 
 	// Decrypt.
 	got, err = receiver.Decrypt(nil, ciphertext, test.Nonce, test.Aad)
 	if isFailure(test.Result, err, got, test.Plaintext) {
-		t.Errorf("key=%v\nciphertext=%v\nnonce=%v\naad=%v\nDecrypt = %v, %v\nwant: %v",
+		t.Errorf("key=%v\nDecrypt(\n dst = nil\n ciphertext = %v\n nonce = %v\n aad = %v\n) = (\n %v\n %v\n) want: %v",
 			test.Key, ciphertext, test.Nonce, test.Aad, got, err, test.Plaintext)
 	}
 }
@@ -79,29 +79,21 @@ func testGCMEncryptRoundtrip(sender S2AAeadCrypter, receiver S2AAeadCrypter, t *
 	// Encrypt.
 	const plaintext = "This is plaintext."
 	var err error
+	// Reuse `buf` as both the input and output buffer. This is required to test
+	// the case where the input and output buffers fully overlap.
 	buf := []byte(plaintext)
 	ciphertext, err := sender.Encrypt(buf[:0], buf, nonce, nil)
 	if err != nil {
-		t.Fatal("Encrypting with sender-side context: unexpected error", err, "\n",
-			"Plaintext:", []byte(plaintext))
+		t.Fatalf("Encrypt(%v, %v, %v, nil) failed, err = %v", buf[:0], buf, nonce, err)
 	}
 
 	// Decrypt first message.
 	decryptedPlaintext, err := receiver.Decrypt(ciphertext[:0], ciphertext, nonce, nil)
-	if err != nil || string(decryptedPlaintext) != plaintext {
-		t.Fatal("Decrypting sender-side ciphertext with a receiver-side context did not produce original content:\n",
-			"  Original plaintext:", []byte(plaintext), "\n",
-			"  Ciphertext:", ciphertext, "\n",
-			"  Decryption error:", err, "\n",
-			"  Decrypted plaintext:", decryptedPlaintext)
+	if err != nil {
+		t.Fatalf("Decrypt(%v, %v, %v, nil) failed, err = %v", ciphertext[:0], ciphertext, nonce, err)
 	}
-
-	// Decryption fails: replay attack.
-	if got, err := receiver.Decrypt(nil, buf, nonce, nil); err == nil {
-		t.Error("Decrypting sender-side ciphertext with a sender-side context unexpectedly succeeded; want unexpected counter error:\n",
-			"  Original plaintext:", []byte(plaintext), "\n",
-			"  Ciphertext:", buf, "\n",
-			"  Decrypted plaintext:", got)
+	if string(decryptedPlaintext) != plaintext {
+		t.Fatalf("Decrypt(%v, %v, %v, nil) = %v, want = %v", ciphertext[:0], ciphertext, nonce, decryptedPlaintext, plaintext)
 	}
 }
 
