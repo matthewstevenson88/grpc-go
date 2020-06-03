@@ -43,14 +43,17 @@ func isFailure(result string, err error, got, expected []byte) bool {
 		(result == testutil.InvalidResult && bytes.Equal(got, expected))
 }
 
+// wycheProofTestVectorFilter filters out unsupported wycheproof test vectors.
 func wycheProofTestVectorFilter(testGroup testutil.TestGroup) bool {
+	// Filter these test groups out, since they are not supported in our
+	// implementation of AES-GCM.
 	return testGroup.IVSize != 96 ||
 		(testGroup.KeySize != 128 && testGroup.KeySize != 256) ||
 		testGroup.TagSize != 128
 }
 
 func testGCMEncryptionDecryption(sender S2AAeadCrypter, receiver S2AAeadCrypter, test *testutil.CryptoTestVector, t *testing.T) {
-	// Ciphertext is: encrypted text + tag.
+	// ciphertext is: encrypted text + tag.
 	ciphertext := append(test.Ciphertext, test.Tag...)
 
 	// Encrypt.
@@ -132,51 +135,99 @@ func TestAESGCMKeySizeUpdate(t *testing.T) {
 	}
 }
 
-// Test Encrypt/Decrypt using an invalid nonce size.
-func TestAESGCMEncryptDecryptInvalidNonce(t *testing.T) {
-	key := make([]byte, aes128GcmKeySize)
-	crypter, err := NewAESGCM(key)
-	if err != nil {
-		t.Fatalf("NewAESGCM(keySize=%v) failed, err: %v", aes128GcmKeySize, err)
-	}
-	// Construct nonce with invalid size.
-	nonce := make([]byte, 1)
-	if _, err = crypter.Encrypt(nil, nil, nonce, nil); err == nil {
-		t.Errorf("Encrypt should fail due to invalid nonce size")
-	}
-	if _, err = crypter.Decrypt(nil, nil, nonce, nil); err == nil {
-		t.Fatalf("Decrypt should fail due to invalid nonce size")
-	}
-}
-
 // Test encrypt and decrypt on roundtrip messages for AES-GCM with and without
 // updating the keys.
 func TestAESGCMEncryptRoundtrip(t *testing.T) {
-	for _, shouldUpdateKeys := range []bool{true, false} {
-		for _, keySize := range []int{aes128GcmKeySize, aes256GcmKeySize} {
-			key := make([]byte, keySize)
-			sender, receiver := getGCMCryptoPair(key, t)
-			if shouldUpdateKeys {
-				// Update the key with a new one which is different from the original.
-				newKey := make([]byte, keySize)
-				newKey[0] = '\xbd'
-				if err := sender.UpdateKey(newKey); err != nil {
-					t.Fatalf("sender UpdateKey failed with: %v", err)
-				}
-				if err := receiver.UpdateKey(newKey); err != nil {
-					t.Fatalf("receiver UpdateKey failed with: %v", err)
-				}
-			}
-			testGCMEncryptRoundtrip(sender, receiver, t)
+	for _, keySize := range []int{aes128GcmKeySize, aes256GcmKeySize} {
+		key := make([]byte, keySize)
+		sender, receiver := getGCMCryptoPair(key, t)
+
+		// Test encrypt/decrypt before updating the key.
+		testGCMEncryptRoundtrip(sender, receiver, t)
+
+		// Update the key with a new one which is different from the
+		// original.
+		newKey := make([]byte, keySize)
+		newKey[0] = '\xbd'
+		if err := sender.UpdateKey(newKey); err != nil {
+			t.Fatalf("sender UpdateKey failed with: %v", err)
 		}
+		if err := receiver.UpdateKey(newKey); err != nil {
+			t.Fatalf("receiver UpdateKey failed with: %v", err)
+		}
+
+		// Test encrypt/decrypt after updating the key.
+		testGCMEncryptRoundtrip(sender, receiver, t)
 	}
 }
 
-// Test encrypt and decrypt using test vectors for aes128gcm. Much of these
-// test vectors were taken from the ALTS AES-GCM unit tests.
+// Test encrypt and decrypt using test vectors for aes128gcm.
 func TestAESGCMEncrypt(t *testing.T) {
 	for _, test := range []testutil.CryptoTestVector{
 		{
+			Comment: "nil plaintext and ciphertext",
+			Key:     testutil.Dehex("11754cd72aec309bf52f7687212e8957"),
+			Tag:     testutil.Dehex("250327c674aaf477aef2675748cf6971"),
+			Nonce:   testutil.Dehex("3c819d9a9bed087615030b65"),
+			Result:  testutil.ValidResult,
+		},
+		{
+			Comment:    "invalid nonce size",
+			Key:        testutil.Dehex("ab72c77b97cb5fe9a382d9fe81ffdbed"),
+			Plaintext:  testutil.Dehex("007c5e5b3e59df24a7c355584fc1518d"),
+			Ciphertext: testutil.Dehex("0e1bde206a07a9c2c1b65300f8c64997"),
+			Tag:        testutil.Dehex("2b4401346697138c7a4891ee59867d0c"),
+			Nonce:      testutil.Dehex("00"),
+			Result:     testutil.InvalidResult,
+		},
+		{
+			Comment:     "nil plaintext and ciphertext with dst allocation",
+			Key:         testutil.Dehex("11754cd72aec309bf52f7687212e8957"),
+			Tag:         testutil.Dehex("250327c674aaf477aef2675748cf6971"),
+			Nonce:       testutil.Dehex("3c819d9a9bed087615030b65"),
+			Result:      testutil.ValidResult,
+			AllocateDst: true,
+		},
+		{
+			Comment:    "basic test 1",
+			Key:        testutil.Dehex("7fddb57453c241d03efbed3ac44e371c"),
+			Plaintext:  testutil.Dehex("d5de42b461646c255c87bd2962d3b9a2"),
+			Ciphertext: testutil.Dehex("2ccda4a5415cb91e135c2a0f78c9b2fd"),
+			Tag:        testutil.Dehex("b36d1df9b9d5e596f83e8b7f52971cb3"),
+			Nonce:      testutil.Dehex("ee283a3fc75575e33efd4887"),
+			Result:     testutil.ValidResult,
+		},
+		{
+			Comment:    "basic test 2",
+			Key:        testutil.Dehex("ab72c77b97cb5fe9a382d9fe81ffdbed"),
+			Plaintext:  testutil.Dehex("007c5e5b3e59df24a7c355584fc1518d"),
+			Ciphertext: testutil.Dehex("0e1bde206a07a9c2c1b65300f8c64997"),
+			Tag:        testutil.Dehex("2b4401346697138c7a4891ee59867d0c"),
+			Nonce:      testutil.Dehex("54cc7dc2c37ec006bcc6d1da"),
+			Result:     testutil.ValidResult,
+		},
+		{
+			Comment:     "basic dst allocation 1",
+			Key:         testutil.Dehex("7fddb57453c241d03efbed3ac44e371c"),
+			Plaintext:   testutil.Dehex("d5de42b461646c255c87bd2962d3b9a2"),
+			Ciphertext:  testutil.Dehex("2ccda4a5415cb91e135c2a0f78c9b2fd"),
+			Tag:         testutil.Dehex("b36d1df9b9d5e596f83e8b7f52971cb3"),
+			Nonce:       testutil.Dehex("ee283a3fc75575e33efd4887"),
+			Result:      testutil.ValidResult,
+			AllocateDst: true,
+		},
+		{
+			Comment:     "basic dst allocation 2",
+			Key:         testutil.Dehex("ab72c77b97cb5fe9a382d9fe81ffdbed"),
+			Plaintext:   testutil.Dehex("007c5e5b3e59df24a7c355584fc1518d"),
+			Ciphertext:  testutil.Dehex("0e1bde206a07a9c2c1b65300f8c64997"),
+			Tag:         testutil.Dehex("2b4401346697138c7a4891ee59867d0c"),
+			Nonce:       testutil.Dehex("54cc7dc2c37ec006bcc6d1da"),
+			Result:      testutil.ValidResult,
+			AllocateDst: true,
+		},
+		{
+			Comment:     "basic dst allocation 3",
 			Key:         testutil.Dehex("5b9604fe14eadba931b0ccf34843dab9"),
 			Plaintext:   testutil.Dehex("001d0c231287c1182784554ca3a21908"),
 			Ciphertext:  testutil.Dehex("26073cc1d851beff176384dc9896d5ff"),
@@ -185,90 +236,16 @@ func TestAESGCMEncrypt(t *testing.T) {
 			Result:      testutil.ValidResult,
 			AllocateDst: true,
 		},
-		{
-			Key:         testutil.Dehex("11754cd72aec309bf52f7687212e8957"),
-			Plaintext:   nil,
-			Ciphertext:  nil,
-			Tag:         testutil.Dehex("250327c674aaf477aef2675748cf6971"),
-			Nonce:       testutil.Dehex("3c819d9a9bed087615030b65"),
-			Result:      testutil.ValidResult,
-			AllocateDst: false,
-		},
-		{
-			Key:         testutil.Dehex("ca47248ac0b6f8372a97ac43508308ed"),
-			Plaintext:   nil,
-			Ciphertext:  nil,
-			Tag:         testutil.Dehex("60d20404af527d248d893ae495707d1a"),
-			Nonce:       testutil.Dehex("ffd2b598feabc9019262d2be"),
-			Result:      testutil.ValidResult,
-			AllocateDst: false,
-		},
-		{
-			Key:         testutil.Dehex("7fddb57453c241d03efbed3ac44e371c"),
-			Plaintext:   testutil.Dehex("d5de42b461646c255c87bd2962d3b9a2"),
-			Ciphertext:  testutil.Dehex("2ccda4a5415cb91e135c2a0f78c9b2fd"),
-			Tag:         testutil.Dehex("b36d1df9b9d5e596f83e8b7f52971cb3"),
-			Nonce:       testutil.Dehex("ee283a3fc75575e33efd4887"),
-			Result:      testutil.ValidResult,
-			AllocateDst: false,
-		},
-		{
-			Key:         testutil.Dehex("ab72c77b97cb5fe9a382d9fe81ffdbed"),
-			Plaintext:   testutil.Dehex("007c5e5b3e59df24a7c355584fc1518d"),
-			Ciphertext:  testutil.Dehex("0e1bde206a07a9c2c1b65300f8c64997"),
-			Tag:         testutil.Dehex("2b4401346697138c7a4891ee59867d0c"),
-			Nonce:       testutil.Dehex("54cc7dc2c37ec006bcc6d1da"),
-			Result:      testutil.ValidResult,
-			AllocateDst: false,
-		},
-		{
-			Key:         testutil.Dehex("11754cd72aec309bf52f7687212e8957"),
-			Plaintext:   nil,
-			Ciphertext:  nil,
-			Tag:         testutil.Dehex("250327c674aaf477aef2675748cf6971"),
-			Nonce:       testutil.Dehex("3c819d9a9bed087615030b65"),
-			Result:      testutil.ValidResult,
-			AllocateDst: true,
-		},
-		{
-			Key:         testutil.Dehex("ca47248ac0b6f8372a97ac43508308ed"),
-			Plaintext:   nil,
-			Ciphertext:  nil,
-			Tag:         testutil.Dehex("60d20404af527d248d893ae495707d1a"),
-			Nonce:       testutil.Dehex("ffd2b598feabc9019262d2be"),
-			Result:      testutil.ValidResult,
-			AllocateDst: true,
-		},
-		{
-			Key:         testutil.Dehex("7fddb57453c241d03efbed3ac44e371c"),
-			Plaintext:   testutil.Dehex("d5de42b461646c255c87bd2962d3b9a2"),
-			Ciphertext:  testutil.Dehex("2ccda4a5415cb91e135c2a0f78c9b2fd"),
-			Tag:         testutil.Dehex("b36d1df9b9d5e596f83e8b7f52971cb3"),
-			Nonce:       testutil.Dehex("ee283a3fc75575e33efd4887"),
-			Result:      testutil.ValidResult,
-			AllocateDst: true,
-		},
-		{
-			Key:         testutil.Dehex("ab72c77b97cb5fe9a382d9fe81ffdbed"),
-			Plaintext:   testutil.Dehex("007c5e5b3e59df24a7c355584fc1518d"),
-			Ciphertext:  testutil.Dehex("0e1bde206a07a9c2c1b65300f8c64997"),
-			Tag:         testutil.Dehex("2b4401346697138c7a4891ee59867d0c"),
-			Nonce:       testutil.Dehex("54cc7dc2c37ec006bcc6d1da"),
-			Result:      testutil.ValidResult,
-			AllocateDst: true,
-		},
 	} {
-		sender, receiver := getGCMCryptoPair(test.Key, t)
-		testGCMEncryptionDecryption(sender, receiver, &test, t)
+		t.Run(fmt.Sprintf("%s", test.Comment), func(t *testing.T) {
+			sender, receiver := getGCMCryptoPair(test.Key, t)
+			testGCMEncryptionDecryption(sender, receiver, &test, t)
+		})
 	}
 }
 
 func TestWycheProofTestVectors(t *testing.T) {
-	for _, test := range testutil.ParseWycheProofTestVectors(
-		"testdata/aes_gcm_wycheproof.json",
-		wycheProofTestVectorFilter,
-		t,
-	) {
+	for _, test := range testutil.ParseWycheProofTestVectors("testdata/aes_gcm_wycheproof.json", wycheProofTestVectorFilter, t) {
 		t.Run(fmt.Sprintf("%d/%s", test.ID, test.Comment), func(t *testing.T) {
 			// Test encryption and decryption for AES-GCM.
 			sender, receiver := getGCMCryptoPair(test.Key, t)
