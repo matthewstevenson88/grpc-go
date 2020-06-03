@@ -149,31 +149,26 @@ func TestAESGCMEncryptDecryptInvalidNonce(t *testing.T) {
 	}
 }
 
-// Test encrypt and decrypt on roundtrip messages for AES-GCM.
+// Test encrypt and decrypt on roundtrip messages for AES-GCM with and without
+// updating the keys.
 func TestAESGCMEncryptRoundtrip(t *testing.T) {
-	for _, keySize := range []int{aes128GcmKeySize, aes256GcmKeySize} {
-		key := make([]byte, keySize)
-		sender, receiver := getGCMCryptoPair(key, t)
-		testGCMEncryptRoundtrip(sender, receiver, t)
-	}
-}
-
-// Test encrypt and decrypt on roundtrip messages for AES-GCM using an updated
-// key.
-func TestAESGCMUpdatedKey(t *testing.T) {
-	for _, keySize := range []int{aes128GcmKeySize, aes256GcmKeySize} {
-		key := make([]byte, keySize)
-		sender, receiver := getGCMCryptoPair(key, t)
-		// Update the key with a new one which is different from the original.
-		newKey := make([]byte, keySize)
-		newKey[0] = '\xbd'
-		if err := sender.UpdateKey(newKey); err != nil {
-			t.Fatalf("sender UpdateKey failed with: %v", err)
+	for _, shouldUpdateKeys := range []bool{true, false} {
+		for _, keySize := range []int{aes128GcmKeySize, aes256GcmKeySize} {
+			key := make([]byte, keySize)
+			sender, receiver := getGCMCryptoPair(key, t)
+			if shouldUpdateKeys {
+				// Update the key with a new one which is different from the original.
+				newKey := make([]byte, keySize)
+				newKey[0] = '\xbd'
+				if err := sender.UpdateKey(newKey); err != nil {
+					t.Fatalf("sender UpdateKey failed with: %v", err)
+				}
+				if err := receiver.UpdateKey(newKey); err != nil {
+					t.Fatalf("receiver UpdateKey failed with: %v", err)
+				}
+			}
+			testGCMEncryptRoundtrip(sender, receiver, t)
 		}
-		if err := receiver.UpdateKey(newKey); err != nil {
-			t.Fatalf("receiver UpdateKey failed with: %v", err)
-		}
-		testGCMEncryptRoundtrip(sender, receiver, t)
 	}
 }
 
