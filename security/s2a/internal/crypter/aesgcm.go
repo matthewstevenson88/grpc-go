@@ -39,33 +39,33 @@ type aesgcm struct {
 	keySize int
 }
 
-// NewAESGCM creates an AES-GCM crypter instance. Note that the key must be
+// newAESGCM creates an AES-GCM crypter instance. Note that the key must be
 // either 128 bits or 256 bits.
-func NewAESGCM(key []byte) (S2AAeadCrypter, error) {
+func newAESGCM(key []byte) (s2aAeadCrypter, error) {
 	if len(key) != aes128GcmKeySize && len(key) != aes256GcmKeySize {
 		return nil, fmt.Errorf("supplied key must be 128 or 256 bits, given: %d", len(key)*8)
 	}
 	crypter := aesgcm{keySize: len(key)}
-	err := crypter.UpdateKey(key)
+	err := crypter.updateKey(key)
 	if err != nil {
 		return nil, err
 	}
 	return &crypter, err
 }
 
-// Encrypt is the encryption function. dst can contain bytes at the beginning of
+// encrypt is the encryption function. dst can contain bytes at the beginning of
 // the ciphertext that will not be encrypted but will be authenticated. If dst
 // has enough capacity to hold these bytes, the ciphertext and the tag, no
 // allocation and copy operations will be performed. dst and plaintext may
 // fully overlap or not at all.
-func (s *aesgcm) Encrypt(dst, plaintext, nonce, aad []byte) ([]byte, error) {
+func (s *aesgcm) encrypt(dst, plaintext, nonce, aad []byte) ([]byte, error) {
 	if len(nonce) != nonceSize {
 		return nil, fmt.Errorf("nonce size must be %d bytes. received: %d", nonceSize, len(nonce))
 	}
 	// If we need to allocate an output buffer, we want to include space for
 	// GCM tag to avoid forcing TLS record to reallocate as well.
 	dlen := len(dst)
-	dst, out := SliceForAppend(dst, len(plaintext)+gcmTagSize)
+	dst, out := sliceForAppend(dst, len(plaintext)+gcmTagSize)
 	data := out[:len(plaintext)]
 	copy(data, plaintext) // data may fully overlap plaintext
 
@@ -77,7 +77,7 @@ func (s *aesgcm) Encrypt(dst, plaintext, nonce, aad []byte) ([]byte, error) {
 	return dst, nil
 }
 
-func (s *aesgcm) Decrypt(dst, ciphertext, nonce, aad []byte) ([]byte, error) {
+func (s *aesgcm) decrypt(dst, ciphertext, nonce, aad []byte) ([]byte, error) {
 	if len(nonce) != nonceSize {
 		return nil, fmt.Errorf("nonce size must be %d bytes. received: %d", nonceSize, len(nonce))
 	}
@@ -89,11 +89,11 @@ func (s *aesgcm) Decrypt(dst, ciphertext, nonce, aad []byte) ([]byte, error) {
 	return plaintext, nil
 }
 
-func (s *aesgcm) TagSize() int {
+func (s *aesgcm) tagSize() int {
 	return gcmTagSize
 }
 
-func (s *aesgcm) UpdateKey(key []byte) error {
+func (s *aesgcm) updateKey(key []byte) error {
 	if s.keySize != len(key) {
 		return fmt.Errorf("supplied key must have same size as initial key: %d bits", s.keySize*8)
 	}
