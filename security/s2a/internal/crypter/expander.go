@@ -31,7 +31,7 @@ func (*defaultHKDFExpander) expand(hash func() hash.Hash, secret, label []byte, 
 		return nil, fmt.Errorf("hkdf.expand.Read failed with error: %v", err)
 	}
 	if n != length {
-		return nil, fmt.Errorf("hkdf.expand.Read returned unexpected length, got: %d, expected %d", n, length)
+		return nil, fmt.Errorf("hkdf.expand.Read returned unexpected length, got: %d, want: %d", n, length)
 	}
 	return outBuf, nil
 }
