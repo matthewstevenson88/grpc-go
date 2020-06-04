@@ -15,7 +15,7 @@ const (
 type CryptoTestVector struct {
 	ID                                          int
 	Key, Plaintext, Ciphertext, Tag, Nonce, Aad []byte
-	Result, Comment                             string
+	Result, Desc                                string
 	AllocateDst                                 bool
 }
 

@@ -63,14 +63,14 @@ func testGCMEncryptionDecryption(sender s2aAeadCrypter, receiver s2aAeadCrypter,
 	}
 	got, err := sender.encrypt(dst[:0], test.Plaintext, test.Nonce, test.Aad)
 	if isFailure(test.Result, err, got, ciphertext) {
-		t.Errorf("key=%v\nEncrypt(\n dst = %v\n plaintext = %v\n nonce = %v\n aad = %v\n) = (\n %v\n %v\n) want: %v",
+		t.Errorf("key=%v\nEncrypt(\n dst = %v\n plaintext = %v\n nonce = %v\n aad = %v\n) = (\n %v\n %v\n), want %v",
 			test.Key, dst[:0], test.Plaintext, test.Nonce, test.Aad, got, err, ciphertext)
 	}
 
 	// Decrypt.
 	got, err = receiver.decrypt(nil, ciphertext, test.Nonce, test.Aad)
 	if isFailure(test.Result, err, got, test.Plaintext) {
-		t.Errorf("key=%v\nDecrypt(\n dst = nil\n ciphertext = %v\n nonce = %v\n aad = %v\n) = (\n %v\n %v\n) want: %v",
+		t.Errorf("key=%v\nDecrypt(\n dst = nil\n ciphertext = %v\n nonce = %v\n aad = %v\n) = (\n %v\n %v\n), want %v",
 			test.Key, ciphertext, test.Nonce, test.Aad, got, err, test.Plaintext)
 	}
 }
@@ -96,7 +96,7 @@ func testGCMEncryptRoundtrip(sender s2aAeadCrypter, receiver s2aAeadCrypter, t *
 		t.Fatalf("Decrypt(%v, %v, %v, nil) failed, err = %v", ciphertext[:0], ciphertext, nonce, err)
 	}
 	if string(decryptedPlaintext) != plaintext {
-		t.Fatalf("Decrypt(%v, %v, %v, nil) = %v, want = %v", ciphertext[:0], ciphertext, nonce, decryptedPlaintext, plaintext)
+		t.Fatalf("Decrypt(%v, %v, %v, nil) = %v, want %v", ciphertext[:0], ciphertext, nonce, decryptedPlaintext, plaintext)
 	}
 }
 
@@ -165,14 +165,14 @@ func TestAESGCMEncryptRoundtrip(t *testing.T) {
 func TestAESGCMEncrypt(t *testing.T) {
 	for _, test := range []testutil.CryptoTestVector{
 		{
-			Comment: "nil plaintext and ciphertext",
-			Key:     testutil.Dehex("11754cd72aec309bf52f7687212e8957"),
-			Tag:     testutil.Dehex("250327c674aaf477aef2675748cf6971"),
-			Nonce:   testutil.Dehex("3c819d9a9bed087615030b65"),
-			Result:  testutil.ValidResult,
+			Desc:   "nil plaintext and ciphertext",
+			Key:    testutil.Dehex("11754cd72aec309bf52f7687212e8957"),
+			Tag:    testutil.Dehex("250327c674aaf477aef2675748cf6971"),
+			Nonce:  testutil.Dehex("3c819d9a9bed087615030b65"),
+			Result: testutil.ValidResult,
 		},
 		{
-			Comment:    "invalid nonce size",
+			Desc:       "invalid nonce size",
 			Key:        testutil.Dehex("ab72c77b97cb5fe9a382d9fe81ffdbed"),
 			Plaintext:  testutil.Dehex("007c5e5b3e59df24a7c355584fc1518d"),
 			Ciphertext: testutil.Dehex("0e1bde206a07a9c2c1b65300f8c64997"),
@@ -181,7 +181,7 @@ func TestAESGCMEncrypt(t *testing.T) {
 			Result:     testutil.InvalidResult,
 		},
 		{
-			Comment:     "nil plaintext and ciphertext with dst allocation",
+			Desc:        "nil plaintext and ciphertext with dst allocation",
 			Key:         testutil.Dehex("11754cd72aec309bf52f7687212e8957"),
 			Tag:         testutil.Dehex("250327c674aaf477aef2675748cf6971"),
 			Nonce:       testutil.Dehex("3c819d9a9bed087615030b65"),
@@ -189,7 +189,7 @@ func TestAESGCMEncrypt(t *testing.T) {
 			AllocateDst: true,
 		},
 		{
-			Comment:    "basic test 1",
+			Desc:       "basic test 1",
 			Key:        testutil.Dehex("7fddb57453c241d03efbed3ac44e371c"),
 			Plaintext:  testutil.Dehex("d5de42b461646c255c87bd2962d3b9a2"),
 			Ciphertext: testutil.Dehex("2ccda4a5415cb91e135c2a0f78c9b2fd"),
@@ -198,7 +198,7 @@ func TestAESGCMEncrypt(t *testing.T) {
 			Result:     testutil.ValidResult,
 		},
 		{
-			Comment:    "basic test 2",
+			Desc:       "basic test 2",
 			Key:        testutil.Dehex("ab72c77b97cb5fe9a382d9fe81ffdbed"),
 			Plaintext:  testutil.Dehex("007c5e5b3e59df24a7c355584fc1518d"),
 			Ciphertext: testutil.Dehex("0e1bde206a07a9c2c1b65300f8c64997"),
@@ -207,7 +207,7 @@ func TestAESGCMEncrypt(t *testing.T) {
 			Result:     testutil.ValidResult,
 		},
 		{
-			Comment:     "basic dst allocation 1",
+			Desc:        "basic dst allocation 1",
 			Key:         testutil.Dehex("7fddb57453c241d03efbed3ac44e371c"),
 			Plaintext:   testutil.Dehex("d5de42b461646c255c87bd2962d3b9a2"),
 			Ciphertext:  testutil.Dehex("2ccda4a5415cb91e135c2a0f78c9b2fd"),
@@ -217,7 +217,7 @@ func TestAESGCMEncrypt(t *testing.T) {
 			AllocateDst: true,
 		},
 		{
-			Comment:     "basic dst allocation 2",
+			Desc:        "basic dst allocation 2",
 			Key:         testutil.Dehex("ab72c77b97cb5fe9a382d9fe81ffdbed"),
 			Plaintext:   testutil.Dehex("007c5e5b3e59df24a7c355584fc1518d"),
 			Ciphertext:  testutil.Dehex("0e1bde206a07a9c2c1b65300f8c64997"),
@@ -227,7 +227,7 @@ func TestAESGCMEncrypt(t *testing.T) {
 			AllocateDst: true,
 		},
 		{
-			Comment:     "basic dst allocation 3",
+			Desc:        "basic dst allocation 3",
 			Key:         testutil.Dehex("5b9604fe14eadba931b0ccf34843dab9"),
 			Plaintext:   testutil.Dehex("001d0c231287c1182784554ca3a21908"),
 			Ciphertext:  testutil.Dehex("26073cc1d851beff176384dc9896d5ff"),
@@ -237,7 +237,7 @@ func TestAESGCMEncrypt(t *testing.T) {
 			AllocateDst: true,
 		},
 	} {
-		t.Run(fmt.Sprintf("%s", test.Comment), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s", test.Desc), func(t *testing.T) {
 			sender, receiver := getGCMCryptoPair(test.Key, t)
 			testGCMEncryptionDecryption(sender, receiver, &test, t)
 		})
@@ -246,7 +246,7 @@ func TestAESGCMEncrypt(t *testing.T) {
 
 func TestWycheProofTestVectors(t *testing.T) {
 	for _, test := range testutil.ParseWycheProofTestVectors("testdata/aes_gcm_wycheproof.json", wycheProofTestVectorFilter, t) {
-		t.Run(fmt.Sprintf("%d/%s", test.ID, test.Comment), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%d/%s", test.ID, test.Desc), func(t *testing.T) {
 			// Test encryption and decryption for AES-GCM.
 			sender, receiver := getGCMCryptoPair(test.Key, t)
 			testGCMEncryptionDecryption(sender, receiver, &test, t)
@@ -262,7 +262,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 	// http://www.ieee802.org/1/files/public/docs2011/bn-randall-test-vectors-0511-v1.pdf
 	for _, test := range []testutil.CryptoTestVector{
 		{
-			Comment:    "NIST test vector 1",
+			Desc:       "NIST test vector 1",
 			Key:        testutil.Dehex("00000000000000000000000000000000"),
 			Nonce:      testutil.Dehex("000000000000000000000000"),
 			Aad:        testutil.Dehex(""),
@@ -271,7 +271,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     testutil.ValidResult,
 		},
 		{
-			Comment:    "NIST test vector 2",
+			Desc:       "NIST test vector 2",
 			Key:        testutil.Dehex("00000000000000000000000000000000"),
 			Nonce:      testutil.Dehex("000000000000000000000000"),
 			Aad:        testutil.Dehex(""),
@@ -280,7 +280,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     testutil.ValidResult,
 		},
 		{
-			Comment:    "NIST test vector 3",
+			Desc:       "NIST test vector 3",
 			Key:        testutil.Dehex("feffe9928665731c6d6a8f9467308308"),
 			Nonce:      testutil.Dehex("cafebabefacedbaddecaf888"),
 			Aad:        testutil.Dehex(""),
@@ -289,7 +289,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     testutil.ValidResult,
 		},
 		{
-			Comment:    "NIST test vector 4",
+			Desc:       "NIST test vector 4",
 			Key:        testutil.Dehex("feffe9928665731c6d6a8f9467308308"),
 			Nonce:      testutil.Dehex("cafebabefacedbaddecaf888"),
 			Aad:        testutil.Dehex("feedfacedeadbeeffeedfacedeadbeefabaddad2"),
@@ -298,7 +298,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     testutil.ValidResult,
 		},
 		{
-			Comment:    "IEEE 2.1.1 54-byte auth",
+			Desc:       "IEEE 2.1.1 54-byte auth",
 			Key:        testutil.Dehex("ad7a2bd03eac835a6f620fdcb506b345"),
 			Nonce:      testutil.Dehex("12153524c0895e81b2c28465"),
 			Aad:        testutil.Dehex("d609b1f056637a0d46df998d88e5222ab2c2846512153524c0895e8108000f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f30313233340001"),
@@ -307,7 +307,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     testutil.ValidResult,
 		},
 		{
-			Comment:    "IEEE 2.1.2 54-byte auth",
+			Desc:       "IEEE 2.1.2 54-byte auth",
 			Key:        testutil.Dehex("e3c08a8f06c6e3ad95a70557b23f75483ce33021a9c72b7025666204c69c0b72"),
 			Nonce:      testutil.Dehex("12153524c0895e81b2c28465"),
 			Aad:        testutil.Dehex("d609b1f056637a0d46df998d88e5222ab2c2846512153524c0895e8108000f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f30313233340001"),
@@ -316,7 +316,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     testutil.ValidResult,
 		},
 		{
-			Comment:    "IEEE 2.2.1 60-byte crypt",
+			Desc:       "IEEE 2.2.1 60-byte crypt",
 			Key:        testutil.Dehex("ad7a2bd03eac835a6f620fdcb506b345"),
 			Nonce:      testutil.Dehex("12153524c0895e81b2c28465"),
 			Aad:        testutil.Dehex("d609b1f056637a0d46df998d88e52e00b2c2846512153524c0895e81"),
@@ -325,7 +325,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     testutil.ValidResult,
 		},
 		{
-			Comment:    "IEEE 2.2.2 60-byte crypt",
+			Desc:       "IEEE 2.2.2 60-byte crypt",
 			Key:        testutil.Dehex("e3c08a8f06c6e3ad95a70557b23f75483ce33021a9c72b7025666204c69c0b72"),
 			Nonce:      testutil.Dehex("12153524c0895e81b2c28465"),
 			Aad:        testutil.Dehex("d609b1f056637a0d46df998d88e52e00b2c2846512153524c0895e81"),
@@ -334,7 +334,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     testutil.ValidResult,
 		},
 		{
-			Comment:    "IEEE 2.3.1 60-byte auth",
+			Desc:       "IEEE 2.3.1 60-byte auth",
 			Key:        testutil.Dehex("071b113b0ca743fecccf3d051f737382"),
 			Nonce:      testutil.Dehex("f0761e8dcd3d000176d457ed"),
 			Aad:        testutil.Dehex("e20106d7cd0df0761e8dcd3d88e5400076d457ed08000f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a0003"),
@@ -343,7 +343,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     testutil.ValidResult,
 		},
 		{
-			Comment:    "IEEE 2.3.2 60-byte auth",
+			Desc:       "IEEE 2.3.2 60-byte auth",
 			Key:        testutil.Dehex("691d3ee909d7f54167fd1ca0b5d769081f2bde1aee655fdbab80bd5295ae6be7"),
 			Nonce:      testutil.Dehex("f0761e8dcd3d000176d457ed"),
 			Aad:        testutil.Dehex("e20106d7cd0df0761e8dcd3d88e5400076d457ed08000f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a0003"),
@@ -352,7 +352,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     testutil.ValidResult,
 		},
 		{
-			Comment:    "IEEE 2.4.1 54-byte crypt",
+			Desc:       "IEEE 2.4.1 54-byte crypt",
 			Key:        testutil.Dehex("071b113b0ca743fecccf3d051f737382"),
 			Nonce:      testutil.Dehex("f0761e8dcd3d000176d457ed"),
 			Aad:        testutil.Dehex("e20106d7cd0df0761e8dcd3d88e54c2a76d457ed"),
@@ -361,7 +361,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     testutil.ValidResult,
 		},
 		{
-			Comment:    "IEEE 2.4.2 54-byte crypt",
+			Desc:       "IEEE 2.4.2 54-byte crypt",
 			Key:        testutil.Dehex("691d3ee909d7f54167fd1ca0b5d769081f2bde1aee655fdbab80bd5295ae6be7"),
 			Nonce:      testutil.Dehex("f0761e8dcd3d000176d457ed"),
 			Aad:        testutil.Dehex("e20106d7cd0df0761e8dcd3d88e54c2a76d457ed"),
@@ -370,7 +370,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     testutil.ValidResult,
 		},
 		{
-			Comment:    "IEEE 2.5.1 65-byte auth",
+			Desc:       "IEEE 2.5.1 65-byte auth",
 			Key:        testutil.Dehex("013fe00b5f11be7f866d0cbbc55a7a90"),
 			Nonce:      testutil.Dehex("7cfde9f9e33724c68932d612"),
 			Aad:        testutil.Dehex("84c5d513d2aaf6e5bbd2727788e523008932d6127cfde9f9e33724c608000f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f0005"),
@@ -379,7 +379,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     testutil.ValidResult,
 		},
 		{
-			Comment:    "IEEE 2.5.2 65-byte auth",
+			Desc:       "IEEE 2.5.2 65-byte auth",
 			Key:        testutil.Dehex("83c093b58de7ffe1c0da926ac43fb3609ac1c80fee1b624497ef942e2f79a823"),
 			Nonce:      testutil.Dehex("7cfde9f9e33724c68932d612"),
 			Aad:        testutil.Dehex("84c5d513d2aaf6e5bbd2727788e523008932d6127cfde9f9e33724c608000f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f0005"),
@@ -388,7 +388,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     testutil.ValidResult,
 		},
 		{
-			Comment:    "IEEE  2.6.1 61-byte crypt",
+			Desc:       "IEEE  2.6.1 61-byte crypt",
 			Key:        testutil.Dehex("013fe00b5f11be7f866d0cbbc55a7a90"),
 			Nonce:      testutil.Dehex("7cfde9f9e33724c68932d612"),
 			Aad:        testutil.Dehex("84c5d513d2aaf6e5bbd2727788e52f008932d6127cfde9f9e33724c6"),
@@ -397,7 +397,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     testutil.ValidResult,
 		},
 		{
-			Comment:    "IEEE 2.6.2 61-byte crypt",
+			Desc:       "IEEE 2.6.2 61-byte crypt",
 			Key:        testutil.Dehex("83c093b58de7ffe1c0da926ac43fb3609ac1c80fee1b624497ef942e2f79a823"),
 			Nonce:      testutil.Dehex("7cfde9f9e33724c68932d612"),
 			Aad:        testutil.Dehex("84c5d513d2aaf6e5bbd2727788e52f008932d6127cfde9f9e33724c6"),
@@ -406,7 +406,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     testutil.ValidResult,
 		},
 		{
-			Comment:    "IEEE 2.7.1 79-byte crypt",
+			Desc:       "IEEE 2.7.1 79-byte crypt",
 			Key:        testutil.Dehex("88ee087fd95da9fbf6725aa9d757b0cd"),
 			Nonce:      testutil.Dehex("7ae8e2ca4ec500012e58495c"),
 			Aad:        testutil.Dehex("68f2e77696ce7ae8e2ca4ec588e541002e58495c08000f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d0007"),
@@ -415,7 +415,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     testutil.ValidResult,
 		},
 		{
-			Comment:    "IEEE 2.7.2 79-byte crypt",
+			Desc:       "IEEE 2.7.2 79-byte crypt",
 			Key:        testutil.Dehex("4c973dbc7364621674f8b5b89e5c15511fced9216490fb1c1a2caa0ffe0407e5"),
 			Nonce:      testutil.Dehex("7ae8e2ca4ec500012e58495c"),
 			Aad:        testutil.Dehex("68f2e77696ce7ae8e2ca4ec588e541002e58495c08000f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d0007"),
@@ -424,7 +424,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     testutil.ValidResult,
 		},
 		{
-			Comment:    "IEEE 2.8.1 61-byte crypt",
+			Desc:       "IEEE 2.8.1 61-byte crypt",
 			Key:        testutil.Dehex("88ee087fd95da9fbf6725aa9d757b0cd"),
 			Nonce:      testutil.Dehex("7ae8e2ca4ec500012e58495c"),
 			Aad:        testutil.Dehex("68f2e77696ce7ae8e2ca4ec588e54d002e58495c"),
@@ -433,7 +433,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     testutil.ValidResult,
 		},
 		{
-			Comment:    "IEEE 2.8.2 61-byte crypt",
+			Desc:       "IEEE 2.8.2 61-byte crypt",
 			Key:        testutil.Dehex("4c973dbc7364621674f8b5b89e5c15511fced9216490fb1c1a2caa0ffe0407e5"),
 			Nonce:      testutil.Dehex("7ae8e2ca4ec500012e58495c"),
 			Aad:        testutil.Dehex("68f2e77696ce7ae8e2ca4ec588e54d002e58495c"),
@@ -442,7 +442,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     testutil.ValidResult,
 		},
 	} {
-		t.Run(fmt.Sprintf("%s", test.Comment), func(t *testing.T) {
+		t.Run(test.Desc, func(t *testing.T) {
 			// Test encryption and decryption for AES-GCM.
 			sender, receiver := getGCMCryptoPair(test.Key, t)
 			testGCMEncryptionDecryption(sender, receiver, &test, t)
