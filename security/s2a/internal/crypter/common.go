@@ -9,11 +9,11 @@ const (
 	nonceSize = 12
 )
 
-// SliceForAppend takes a slice and a requested number of bytes. It returns a
+// sliceForAppend takes a slice and a requested number of bytes. It returns a
 // slice with the contents of the given slice followed by that many bytes and a
 // second slice that aliases into it and contains only the extra bytes. If the
 // original slice has sufficient capacity then no allocation is performed.
-func SliceForAppend(in []byte, n int) (head, tail []byte) {
+func sliceForAppend(in []byte, n int) (head, tail []byte) {
 	if total := len(in) + n; cap(in) >= total {
 		head = in[:total]
 	} else {

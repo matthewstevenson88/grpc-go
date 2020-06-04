@@ -10,7 +10,7 @@ const (
 	InvalidResult = "invalid"
 )
 
-// CryptoTestVector is a struct representing a test vector for an S2AAeadCrypter
+// CryptoTestVector is a struct representing a test vector for an s2aAeadCrypter
 // instance.
 type CryptoTestVector struct {
 	ID                                          int
