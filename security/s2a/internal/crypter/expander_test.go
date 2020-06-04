@@ -14,6 +14,7 @@ type hkdfTestVector struct {
 }
 
 func TestExpanderExpansion(t *testing.T) {
+	// Test vectors were taken from https://tools.ietf.org/html/rfc5869
 	for _, tc := range []hkdfTestVector{
 		{
 			comment: "sha256 basic",
