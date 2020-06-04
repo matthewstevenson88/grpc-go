@@ -13,6 +13,21 @@ type hkdfTestVector struct {
 	length         int
 }
 
+func TestExpanderExpansionInvalidLength(t *testing.T) {
+	tc := hkdfTestVector{
+		comment: "invalid length",
+		prk:     testutil.Dehex("07770932df0ddc3f0dc47bba6390b6c73bb50f9c3122ec844ad7c2b3e5"),
+		info:    testutil.Dehex("f0f1f2f3f4f5f6f7f8f9"),
+		length:  10000,
+	}
+
+	expander := newDefaultHKDFExpander()
+	got, err := expander.expand(sha256.New, tc.prk, tc.info, tc.length)
+	if err == nil {
+		t.Errorf("expand(sha256.New, %v, %v, %v) = %v, expected error but no error returned", tc.prk, tc.info, tc.length, got)
+	}
+}
+
 func TestExpanderExpansion(t *testing.T) {
 	// Test vectors were taken from https://tools.ietf.org/html/rfc5869.
 	for _, tc := range []hkdfTestVector{
@@ -44,7 +59,7 @@ func TestExpanderExpansion(t *testing.T) {
 				t.Errorf("expand failed with error: %v", err)
 			}
 			if !bytes.Equal(got, tc.okm) {
-				t.Errorf("expand(sha256.New, %v, %v, %v) = %v, want %v.", tc.prk, tc.info, tc.length, got, tc.okm)
+				t.Errorf("expand(sha256.New, %v, %v, %v) = %v, want: %v.", tc.prk, tc.info, tc.length, got, tc.okm)
 			}
 		})
 	}
