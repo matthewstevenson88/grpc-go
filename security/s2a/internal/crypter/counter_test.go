@@ -72,5 +72,15 @@ func TestCounterInc(t *testing.T) {
 				t.Errorf("counter(%v).val() unexpectedly set hasOverflowed flag", test.counter)
 			}
 		}
+
+		// Check that resetting the counter works as expected.
+		c.reset()
+		value, err = c.val()
+		if err != nil {
+			t.Errorf("counter returned an error after resetting: %v", err)
+		}
+		if binary.LittleEndian.Uint64(value) != 0 {
+			t.Errorf("counter(%v).reset.val() = %v, expected 0", test.counter, err)
+		}
 	}
 }
