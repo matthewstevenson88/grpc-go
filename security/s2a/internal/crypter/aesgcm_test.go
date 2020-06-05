@@ -21,8 +21,9 @@ package crypter
 import (
 	"bytes"
 	"fmt"
-	"google.golang.org/grpc/security/s2a/internal/crypter/testutil"
 	"testing"
+
+	"google.golang.org/grpc/security/s2a/internal/crypter/testutil"
 )
 
 // getGCMCryptoPair outputs a sender/receiver pair on AES-GCM.
@@ -40,11 +41,11 @@ func getGCMCryptoPair(key []byte, t *testing.T) (s2aAeadCrypter, s2aAeadCrypter)
 
 func isFailure(result string, err error, got, expected []byte) bool {
 	return (result == testutil.ValidResult && (err != nil || !bytes.Equal(got, expected))) ||
-		(result == testutil.InvalidResult && bytes.Equal(got, expected))
+		(result == testutil.InvalidResult && err == nil && bytes.Equal(got, expected))
 }
 
 // wycheProofTestVectorFilter filters out unsupported wycheproof test vectors.
-func wycheProofTestVectorFilter(testGroup testutil.TestGroup) bool {
+func wycheProofTestVectorFilterAESGCM(testGroup testutil.TestGroup) bool {
 	// Filter these test groups out, since they are not supported in our
 	// implementation of AES-GCM.
 	return testGroup.IVSize != 96 ||
@@ -244,8 +245,8 @@ func TestAESGCMEncrypt(t *testing.T) {
 	}
 }
 
-func TestWycheProofTestVectors(t *testing.T) {
-	for _, test := range testutil.ParseWycheProofTestVectors("testdata/aes_gcm_wycheproof.json", wycheProofTestVectorFilter, t) {
+func TestWycheProofTestVectorsAESGCM(t *testing.T) {
+	for _, test := range testutil.ParseWycheProofTestVectors("testdata/aes_gcm_wycheproof.json", wycheProofTestVectorFilterAESGCM, t) {
 		t.Run(fmt.Sprintf("%d/%s", test.ID, test.Desc), func(t *testing.T) {
 			// Test encryption and decryption for AES-GCM.
 			sender, receiver := getGCMCryptoPair(test.Key, t)
