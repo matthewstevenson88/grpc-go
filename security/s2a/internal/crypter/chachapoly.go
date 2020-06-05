@@ -70,7 +70,7 @@ func (s *chachapoly) encrypt(dst, plaintext, nonce, aad []byte) ([]byte, error) 
 	copy(data, plaintext) // data may fully overlap plaintext
 
 	// Seal appends the ciphertext and the tag to its first argument and
-	// returns the updated slice. However, SliceForAppend above ensures that
+	// returns the updated slice. However, sliceForAppend above ensures that
 	// dst has enough capacity to avoid a reallocation and copy due to the
 	// append.
 	dst = s.aead.Seal(dst[:dlen], nonce, data, aad)
