@@ -21,30 +21,29 @@ package crypter
 import (
 	"fmt"
 	"testing"
-
 	"google.golang.org/grpc/security/s2a/internal/crypter/testutil"
 )
 
-// getGCMCryptoPair outputs a sender/receiver pair on CHACHA-POLY.
-func getPOLYCryptoPair(key []byte, t *testing.T) (s2aAeadCrypter, s2aAeadCrypter) {
-	sender, err := newCHACHAPOLY(key)
+// getChachaPolyCrypterPair outputs a sender/receiver pair on CHACHA-POLY.
+func getChachaPolyCrypterPair(key []byte, t *testing.T) (s2aAeadCrypter, s2aAeadCrypter) {
+	sender, err := newChachaPoly(key)
 	if err != nil {
-		t.Fatalf("newCHACHAPOLY(ClientSide, key) = %v", err)
+		t.Fatalf("newChachaPoly(ClientSide, key) = %v", err)
 	}
-	receiver, err := newCHACHAPOLY(key)
+	receiver, err := newChachaPoly(key)
 	if err != nil {
-		t.Fatalf("newCHACHAPOLY(ServerSide, key) = %v", err)
+		t.Fatalf("newChachaPoly(ServerSide, key) = %v", err)
 	}
 	return sender, receiver
 }
 
-func wycheProofTestVectorFilterCCP(testGroup testutil.TestGroup) bool {
+func wycheProofTestVectorFilterChachaPoly(testGroup testutil.TestGroup) bool {
 	return testGroup.IVSize != 96 ||
 		(testGroup.KeySize != 256) ||
 		testGroup.TagSize != 128
 }
 
-func testPOLYEncryptionDecryption(sender s2aAeadCrypter, receiver s2aAeadCrypter, test *testutil.CryptoTestVector, t *testing.T) {
+func testChachaPolyEncryptionDecryption(sender s2aAeadCrypter, receiver s2aAeadCrypter, test *testutil.CryptoTestVector, t *testing.T) {
 	// Ciphertext is: encrypted text + tag.
 	ciphertext := append(test.Ciphertext, test.Tag...)
 
@@ -67,7 +66,7 @@ func testPOLYEncryptionDecryption(sender s2aAeadCrypter, receiver s2aAeadCrypter
 	}
 }
 
-func testPOLYEncryptRoundtrip(sender s2aAeadCrypter, receiver s2aAeadCrypter, t *testing.T) {
+func testChachaPolyEncryptRoundtrip(sender s2aAeadCrypter, receiver s2aAeadCrypter, t *testing.T) {
 	// Construct a dummy nonce.
 	nonce := make([]byte, nonceSize)
 
@@ -91,28 +90,28 @@ func testPOLYEncryptRoundtrip(sender s2aAeadCrypter, receiver s2aAeadCrypter, t 
 }
 
 // Test encrypt and decrypt using an invalid key size.
-func TestCHACHAPOLYInvalidKeySize(t *testing.T) {
-	// Use 17 bytes, which is invalid.
-	key := make([]byte, 17)
-	if _, err := newCHACHAPOLY(key); err == nil {
+func TestChachaPolyInvalidKeySize(t *testing.T) {
+	// Use 1 + keySize, which is invalid.
+	key := make([]byte, 1+chacha20Poly1305KeySize)
+	if _, err := newChachaPoly(key); err == nil {
 		t.Error("expected an error when using invalid key size")
 	}
 }
 
-// Test update key for CHACHA-POLY  using a key with different size from the initial
+// Test update key for Chacha-Poly using a key with different size from the initial
 // key.
-func TestCHACHAPOLYKeySizeUpdate(t *testing.T) {
+func TestChachaPolyKeySizeUpdate(t *testing.T) {
 	for _, tc := range []struct {
 		desc          string
 		updateKeySize int
 	}{
-		{"invalid key size update", 17},
+		{"invalid key size update", 1 + chacha20Poly1305KeySize},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			key := make([]byte, chachaKeySize256)
-			crypter, err := newCHACHAPOLY(key)
+			key := make([]byte, chacha20Poly1305KeySize)
+			crypter, err := newChachaPoly(key)
 			if err != nil {
-				t.Fatalf("NewCHACHAPOLY(keySize=%v) failed, err: %v", chachaKeySize256, err)
+				t.Fatalf("NewChachaPoly(keySize=%v) failed, err: %v", chacha20Poly1305KeySize, err)
 			}
 
 			// Update the key with a new one which is a different from the original.
@@ -125,11 +124,11 @@ func TestCHACHAPOLYKeySizeUpdate(t *testing.T) {
 }
 
 // Test Encrypt/Decrypt using an invalid nonce size.
-func TestCHACHAPOLYEncryptDecryptInvalidNonce(t *testing.T) {
-	key := make([]byte, chachaKeySize256)
-	crypter, err := newCHACHAPOLY(key)
+func TestChachaPolyEncryptDecryptInvalidNonce(t *testing.T) {
+	key := make([]byte, chacha20Poly1305KeySize)
+	crypter, err := newChachaPoly(key)
 	if err != nil {
-		t.Fatalf("NewCHACHAPOLY(keySize=%v) failed, err: %v", chachaKeySize256, err)
+		t.Fatalf("NewChachaPoly(keySize=%v) failed, err: %v", chacha20Poly1305KeySize, err)
 	}
 	// Construct nonce with invalid size.
 	nonce := make([]byte, 1)
@@ -141,21 +140,21 @@ func TestCHACHAPOLYEncryptDecryptInvalidNonce(t *testing.T) {
 	}
 }
 
-// Test encrypt and decrypt on roundtrip messages for CHACHA-POLY.
-func TestCHACHAPOLYEncryptRoundtrip(t *testing.T) {
-	for _, keySize := range []int{chachaKeySize256} {
+// Test encrypt and decrypt on roundtrip messages for Chacha-Poly.
+func TestChachaPolyEncryptRoundtrip(t *testing.T) {
+	for _, keySize := range []int{chacha20Poly1305KeySize} {
 		key := make([]byte, keySize)
-		sender, receiver := getPOLYCryptoPair(key, t)
-		testPOLYEncryptRoundtrip(sender, receiver, t)
+		sender, receiver := getChachaPolyCrypterPair(key, t)
+		testChachaPolyEncryptRoundtrip(sender, receiver, t)
 	}
 }
 
-// Test encrypt and decrypt on roundtrip messages for CHACHA-POLY using an updated
+// Test encrypt and decrypt on roundtrip messages for Chacha-Poly using an updated
 // key.
-func TestCHACHAPOLYUpdatedKey(t *testing.T) {
-	for _, keySize := range []int{chachaKeySize256} {
+func TestChachaPolyUpdatedKey(t *testing.T) {
+	for _, keySize := range []int{chacha20Poly1305KeySize} {
 		key := make([]byte, keySize)
-		sender, receiver := getPOLYCryptoPair(key, t)
+		sender, receiver := getChachaPolyCrypterPair(key, t)
 		// Update the key with a new one which is different from the original.
 		newKey := make([]byte, keySize)
 		newKey[0] = '\xbd'
@@ -165,26 +164,26 @@ func TestCHACHAPOLYUpdatedKey(t *testing.T) {
 		if err := receiver.updateKey(newKey); err != nil {
 			t.Fatalf("receiver UpdateKey failed with: %v", err)
 		}
-		testPOLYEncryptRoundtrip(sender, receiver, t)
+		testChachaPolyEncryptRoundtrip(sender, receiver, t)
 	}
 }
 
-func TestWycheProofTestVectorsCCP(t *testing.T) {
+func TestWycheProofTestVectorsChachaPoly(t *testing.T) {
 	for _, test := range testutil.ParseWycheProofTestVectors(
 		"testdata/chacha_poly_wycheproof.json",
-		wycheProofTestVectorFilterCCP,
+		wycheProofTestVectorFilterChachaPoly,
 		t,
 	) {
 		t.Run(fmt.Sprintf("%d/%s", test.ID, test.Desc), func(t *testing.T) {
 			// Test encryption and decryption for CHACHA-POLY.
-			sender, receiver := getPOLYCryptoPair(test.Key, t)
-			testPOLYEncryptionDecryption(sender, receiver, &test, t)
+			sender, receiver := getChachaPolyCrypterPair(test.Key, t)
+			testChachaPolyEncryptionDecryption(sender, receiver, &test, t)
 		})
 	}
 }
 
-// Test CHACHA-POLY with RFC test vectors.
-func TestCHACHAPOLYRFC(t *testing.T) {
+// Test ChachaPoly with RFC test vectors.
+func TestChachaPolyRFC(t *testing.T) {
 	for _, test := range []testutil.CryptoTestVector{
 		{
 			Desc:       "RFC test vector 1",
@@ -206,9 +205,9 @@ func TestCHACHAPOLYRFC(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("%s", test.Desc), func(t *testing.T) {
-			// Test encryption and decryption for CHACHA-POLY.
-			sender, receiver := getPOLYCryptoPair(test.Key, t)
-			testPOLYEncryptionDecryption(sender, receiver, &test, t)
+			// Test encryption and decryption for Chacha-Poly.
+			sender, receiver := getChachaPolyCrypterPair(test.Key, t)
+			testChachaPolyEncryptionDecryption(sender, receiver, &test, t)
 		})
 	}
 }

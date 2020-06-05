@@ -20,17 +20,16 @@ package crypter
 
 import (
 	"golang.org/x/crypto/chacha20poly1305"
-
 	"crypto/cipher"
 	"fmt"
 )
 
 // Supported key sizes in bytes.
 const (
-	chachaKeySize256 = 32
+	chacha20Poly1305KeySize = 32
 )
 
-// chachapoly is the struct that holds an CHACHA-POLY cipher for the S2A AEAD crypter.
+// chachapoly is the struct that holds a CHACHA-POLY cipher for the S2A AEAD crypter.
 type chachapoly struct {
 	aead cipher.AEAD
 	// keySize stores the size of the key which was initially used. This
@@ -39,11 +38,11 @@ type chachapoly struct {
 	keySize int
 }
 
-// newCHACHAPOLY creates an CHACHA-POLY crypter instance. Note that the key must be
-// 256 bits.
-func newCHACHAPOLY(key []byte) (s2aAeadCrypter, error) {
-	if len(key) != chachaKeySize256 {
-		return nil, fmt.Errorf("256 bits, given: %d", len(key)*8)
+// newChachaPoly creates a Chacha-Poly crypter instance. Note that the key must be
+// 32 bytes.
+func newChachaPoly(key []byte) (s2aAeadCrypter, error) {
+	if len(key) != chacha20Poly1305KeySize {
+		return nil, fmt.Errorf("32 bytes, given: %d", len(key))
 	}
 	crypter := chachapoly{keySize: len(key)}
 	err := crypter.updateKey(key)
@@ -95,7 +94,7 @@ func (s *chachapoly) tagSize() int {
 
 func (s *chachapoly) updateKey(key []byte) error {
 	if s.keySize != len(key) {
-		return fmt.Errorf("supplied key must have same size as initial key: %d bits", s.keySize*8)
+		return fmt.Errorf("supplied key must have same size as initial key: %d bytes", s.keySize)
 	}
 	c, err := chacha20poly1305.New(key)
 	if err != nil {
