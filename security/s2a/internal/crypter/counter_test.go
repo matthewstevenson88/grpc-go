@@ -2,14 +2,14 @@ package crypter
 
 import (
 	"bytes"
+	"encoding/binary"
 	"google.golang.org/grpc/security/s2a/internal/crypter/testutil"
 	"testing"
 )
 
 // counterFromValue creates a new counter given an initial value.
 func counterFromValue(value []byte) (c counter) {
-	copy(c.value[:], value)
-	return
+	return newCounter(binary.LittleEndian.Uint64(value))
 }
 
 func TestCounterInc(t *testing.T) {
@@ -20,37 +20,37 @@ func TestCounterInc(t *testing.T) {
 	}{
 		{
 			desc:    "basic 1",
-			counter: testutil.Dehex("000000000000000000000000"),
-			want:    testutil.Dehex("010000000000000000000000"),
+			counter: testutil.Dehex("0000000000000000"),
+			want:    testutil.Dehex("0100000000000000"),
 		},
 		{
 			desc:    "basic 2",
-			counter: testutil.Dehex("000000000000000000000080"),
-			want:    testutil.Dehex("010000000000000000000080"),
+			counter: testutil.Dehex("0000000000000080"),
+			want:    testutil.Dehex("0100000000000080"),
 		},
 		{
 			desc:    "basic 3",
-			counter: testutil.Dehex("42ff00000000000000000000"),
-			want:    testutil.Dehex("43ff00000000000000000000"),
+			counter: testutil.Dehex("42ff000000000000"),
+			want:    testutil.Dehex("43ff000000000000"),
 		},
 		{
 			desc:    "hex overflow 1",
-			counter: testutil.Dehex("ff0000000000000000000000"),
-			want:    testutil.Dehex("000100000000000000000000"),
+			counter: testutil.Dehex("ff00000000000000"),
+			want:    testutil.Dehex("0001000000000000"),
 		},
 		{
 			desc:    "hex overflow 2",
-			counter: testutil.Dehex("ffffffff0000000000000000"),
-			want:    testutil.Dehex("000000000100000000000000"),
+			counter: testutil.Dehex("ffffffff00000000"),
+			want:    testutil.Dehex("0000000001000000"),
 		},
 		{
 			desc:    "hex overflow 3",
-			counter: testutil.Dehex("ffffffff0000000000000080"),
-			want:    testutil.Dehex("000000000100000000000080"),
+			counter: testutil.Dehex("ffffffff00000000"),
+			want:    testutil.Dehex("0000000001000000"),
 		},
 		{
 			desc:     "max overflow",
-			counter:  testutil.Dehex("ffffffffffffffffffffffff"),
+			counter:  testutil.Dehex("ffffffffffffffff"),
 			overflow: true,
 		},
 	} {
@@ -68,8 +68,8 @@ func TestCounterInc(t *testing.T) {
 			if !bytes.Equal(value, test.want) {
 				t.Errorf("counter(%v).val() = %v, want %v", test.counter, value, test.want)
 			}
-			if c.invalid {
-				t.Errorf("counter(%v).val() unexpectedly set invalid flag", test.counter)
+			if c.hasOverflowed {
+				t.Errorf("counter(%v).val() unexpectedly set hasOverflowed flag", test.counter)
 			}
 		}
 	}

@@ -1,42 +1,42 @@
 package crypter
 
-import "errors"
+import (
+	"encoding/binary"
+	"errors"
+)
 
-const counterLen = 12
+// counterLen is the byte length of the counter.
+const counterLen = 8
 
-// counter is a 96-bit, little-endian counter.
+// counter is a 64-bit, little-endian counter.
 type counter struct {
-	value   [counterLen]byte
-	invalid bool
+	value         uint64
+	hasOverflowed bool
 }
 
-func newCounter() counter {
-	return counter{}
+func newCounter(value uint64) counter {
+	return counter{value: value}
 }
 
 // val returns the current value of the counter as a byte slice.
 func (c *counter) val() ([]byte, error) {
-	if c.invalid {
-		return nil, errors.New("invalid counter, possibly due to overflow")
+	if c.hasOverflowed {
+		return nil, errors.New("invalid counter due to overflow")
 	}
-	return c.value[:], nil
+	buf := make([]byte, counterLen)
+	binary.LittleEndian.PutUint64(buf, c.value)
+	return buf, nil
 }
 
 // inc increments the counter and checks for overflow.
 func (c *counter) inc() {
-	// If the counter is already invalid, there is no need to increase it. We
-	// check for the invalid flag in the call to val().
-	if c.invalid {
+	// If the counter is already invalid due to overflow, there is no need to
+	// increase it. We check for the hasOverflowed flag in the call to val().
+	if c.hasOverflowed {
 		return
 	}
-	i := 0
-	for ; i < counterLen; i++ {
-		c.value[i]++
-		if c.value[i] != 0 {
-			break
-		}
-	}
-	if i == counterLen {
-		c.invalid = true
+	c.value++
+	if c.value == 0 {
+		c.hasOverflowed = true
 	}
 }
