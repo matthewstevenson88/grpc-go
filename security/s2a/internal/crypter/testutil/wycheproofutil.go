@@ -38,7 +38,7 @@ func ParseWycheProofTestVectors(jsonFilePath string, shouldFilter func(TestGroup
 				Nonce:       Dehex(test.IV),
 				Aad:         Dehex(test.Aad),
 				Result:      test.Result,
-				Comment:     test.Comment,
+				Desc:        test.Comment,
 				ID:          test.TcID,
 				AllocateDst: true,
 			})
