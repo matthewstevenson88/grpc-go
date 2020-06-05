@@ -4,10 +4,7 @@ import (
 	"errors"
 )
 
-// counterLen is the byte length of the counter.
-const counterLen = 8
-
-// counter is a 64-bit, little-endian counter.
+// counter is a 64-bit counter.
 type counter struct {
 	value         uint64
 	hasOverflowed bool
@@ -20,7 +17,7 @@ func newCounter(value uint64) counter {
 // getAndIncrement returns the current value of the counter and increments it.
 func (c *counter) getAndIncrement() (uint64, error) {
 	if c.hasOverflowed {
-		return 0, errors.New("invalid counter due to overflow")
+		return 0, errors.New("counter has overflowed")
 	}
 	val := c.value
 	c.value++
