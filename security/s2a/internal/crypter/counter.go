@@ -40,3 +40,9 @@ func (c *counter) inc() {
 		c.hasOverflowed = true
 	}
 }
+
+// reset sets the counter value to zero and resets the hasOverflowed flag.
+func (c *counter) reset() {
+	c.value = 0
+	c.hasOverflowed = false
+}
