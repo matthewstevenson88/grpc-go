@@ -11,10 +11,10 @@ func TestExpand(t *testing.T) {
 	// The following test vectors were taken from
 	// https://tools.ietf.org/html/rfc5869. Note have vectors have
 	// been slightly modified to test our specific implementation. In
-	// particular, the output has been shortened since we our implementation
-	// doesn't take `length` as a parameter and the output length is determined
-	// by the hash. Also note that `prk` and `okm` mentioned in the RFC have
-	// been renamed to `secret` and `out`.
+	// particular, the output has been truncated to a specific length since our
+	// implementation doesn't take `length` as a parameter and the output length
+	// is determined by the hash. Also note that `prk` and `okm` mentioned in
+	// the RFC have been renamed to `secret` and `out`.
 	for _, tc := range []struct {
 		desc              string
 		secret, info, out []byte
