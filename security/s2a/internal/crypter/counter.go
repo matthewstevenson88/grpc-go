@@ -1,7 +1,6 @@
 package crypter
 
 import (
-	"encoding/binary"
 	"errors"
 )
 
@@ -18,19 +17,17 @@ func newCounter(value uint64) counter {
 	return counter{value: value}
 }
 
-// getAndIncrement returns the current value of the counter as a byte slice,
-// and increments the underlying value.
-func (c *counter) getAndIncrement() ([]byte, error) {
+// getAndIncrement returns the current value of the counter and increments it.
+func (c *counter) getAndIncrement() (uint64, error) {
 	if c.hasOverflowed {
-		return nil, errors.New("invalid counter due to overflow")
+		return 0, errors.New("invalid counter due to overflow")
 	}
-	buf := make([]byte, counterLen)
-	binary.LittleEndian.PutUint64(buf, c.value)
+	val := c.value
 	c.value++
 	if c.value == 0 {
 		c.hasOverflowed = true
 	}
-	return buf, nil
+	return val, nil
 }
 
 // reset sets the counter value to zero and sets hasOverflowed to false.
