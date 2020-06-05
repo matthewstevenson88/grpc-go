@@ -1,20 +1,13 @@
 package crypter
 
 import (
-	"bytes"
-	"encoding/binary"
-	"google.golang.org/grpc/security/s2a/internal/crypter/testutil"
+	"math"
 	"testing"
 )
 
-// counterFromValue creates a new counter given an initial value.
-func counterFromValue(value []byte) (c counter) {
-	return newCounter(binary.LittleEndian.Uint64(value))
-}
-
 type counterTest struct {
 	desc          string
-	counter, want []byte
+	counter, want uint64
 	overflow      bool
 }
 
@@ -22,48 +15,28 @@ func TestCounterInc(t *testing.T) {
 	for _, test := range []counterTest{
 		{
 			desc:    "basic 1",
-			counter: testutil.Dehex("0000000000000000"),
-			want:    testutil.Dehex("0100000000000000"),
+			counter: 0,
+			want:    1,
 		},
 		{
 			desc:    "basic 2",
-			counter: testutil.Dehex("0000000000000080"),
-			want:    testutil.Dehex("0100000000000080"),
-		},
-		{
-			desc:    "basic 3",
-			counter: testutil.Dehex("42ff000000000000"),
-			want:    testutil.Dehex("43ff000000000000"),
-		},
-		{
-			desc:    "hex overflow 1",
-			counter: testutil.Dehex("ff00000000000000"),
-			want:    testutil.Dehex("0001000000000000"),
-		},
-		{
-			desc:    "hex overflow 2",
-			counter: testutil.Dehex("ffffffff00000000"),
-			want:    testutil.Dehex("0000000001000000"),
-		},
-		{
-			desc:    "hex overflow 3",
-			counter: testutil.Dehex("ffffffff00000000"),
-			want:    testutil.Dehex("0000000001000000"),
+			counter: 123,
+			want:    124,
 		},
 		{
 			desc:     "max overflow",
-			counter:  testutil.Dehex("ffffffffffffffff"),
+			counter:  math.MaxUint64,
 			overflow: true,
 		},
 	} {
 		// Test first getAndIncrement call. This should return the same value
 		// which was given.
-		c := counterFromValue(test.counter)
+		c := newCounter(test.counter)
 		value, err := c.getAndIncrement()
 		if err != nil {
 			t.Errorf("counter(%v).getAndIncrement() returned error: %v", test.counter, err)
 		}
-		if !bytes.Equal(value, test.counter) {
+		if value != test.counter {
 			t.Errorf("counter(%v).getAndIncrement() = %v, want %v", test.counter, value, test.counter)
 		}
 
@@ -78,7 +51,7 @@ func TestCounterInc(t *testing.T) {
 			if err != nil {
 				t.Errorf("counter(%v).getAndIncrement() returned error: %v", test.counter, err)
 			}
-			if !bytes.Equal(value, test.want) {
+			if value != test.want {
 				t.Errorf("counter(%v).getAndIncrement() = %v, want %v", test.counter, value, test.want)
 			}
 			if c.hasOverflowed {
@@ -92,14 +65,14 @@ func TestCounterReset(t *testing.T) {
 	for _, test := range []counterTest{
 		{
 			desc:    "basic reset",
-			counter: testutil.Dehex("0100000000000000"),
+			counter: 1,
 		},
 		{
 			desc:    "reset after overflow",
-			counter: testutil.Dehex("ffffffffffffffff"),
+			counter: math.MaxUint64,
 		},
 	} {
-		c := counterFromValue(test.counter)
+		c := newCounter(test.counter)
 		_, err := c.getAndIncrement()
 		if err != nil {
 			t.Errorf("counter(%v).getAndIncrement() returned error: %v", test.counter, err)
@@ -111,8 +84,8 @@ func TestCounterReset(t *testing.T) {
 		if err != nil {
 			t.Errorf("counter returned an error after resetting: %v", err)
 		}
-		if binary.LittleEndian.Uint64(value) != 0 {
-			t.Errorf("counter(%v).reset.getAndIncrement() = %v, expected 0", test.counter, err)
+		if value != 0 {
+			t.Errorf("counter(%v).reset().getAndIncrement() = %v, expected 0", test.counter, err)
 		}
 	}
 }
