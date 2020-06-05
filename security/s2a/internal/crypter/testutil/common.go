@@ -13,9 +13,10 @@ const (
 // CryptoTestVector is a struct representing a test vector for an s2aAeadCrypter
 // instance.
 type CryptoTestVector struct {
+	Desc                                        string
 	ID                                          int
 	Key, Plaintext, Ciphertext, Tag, Nonce, Aad []byte
-	Result, Desc                                string
+	Result                                      string
 	AllocateDst                                 bool
 }
 
