@@ -25,7 +25,7 @@ import (
 	"golang.org/x/crypto/chacha20poly1305"
 )
 
-// Supported key sizes in bytes.
+// Supported key size in bytes.
 const (
 	chacha20Poly1305KeySize = 32
 )
@@ -40,10 +40,10 @@ type chachapoly struct {
 }
 
 // newChachaPoly creates a Chacha-Poly crypter instance. Note that the key must be
-// 32 bytes.
+// chacha20Poly1305KeySize bytes.
 func newChachaPoly(key []byte) (s2aAeadCrypter, error) {
 	if len(key) != chacha20Poly1305KeySize {
-		return nil, fmt.Errorf("32 bytes, given: %d", len(key))
+		return nil, fmt.Errorf("%d bytes, given: %d", chacha20Poly1305KeySize, len(key))
 	}
 	crypter := chachapoly{keySize: len(key)}
 	err := crypter.updateKey(key)
@@ -63,7 +63,7 @@ func (s *chachapoly) encrypt(dst, plaintext, nonce, aad []byte) ([]byte, error) 
 		return nil, fmt.Errorf("nonce size must be %d bytes. received: %d", nonceSize, len(nonce))
 	}
 	// If we need to allocate an output buffer, we want to include space for
-	// the tag to avoid forcing TLS record to reallocate as well.
+	// the tag to avoid forcing the caller to reallocate as well.
 	dlen := len(dst)
 	dst, out := sliceForAppend(dst, len(plaintext)+tagSize)
 	data := out[:len(plaintext)]

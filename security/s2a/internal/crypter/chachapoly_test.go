@@ -25,7 +25,7 @@ import (
 	"google.golang.org/grpc/security/s2a/internal/crypter/testutil"
 )
 
-// getChachaPolyCrypterPair outputs a sender/receiver pair on CHACHA-POLY.
+// getChachaPolyCrypterPair outputs a sender/receiver pair of CHACHA-POLY AEAD crypters.
 func getChachaPolyCrypterPair(key []byte, t *testing.T) (s2aAeadCrypter, s2aAeadCrypter) {
 	sender, err := newChachaPoly(key)
 	if err != nil {
@@ -90,7 +90,7 @@ func testChachaPolyEncryptRoundtrip(sender s2aAeadCrypter, receiver s2aAeadCrypt
 	}
 }
 
-// Test encrypt and decrypt using an invalid key size.
+// Test creating new Chacha-Poly AEAD crypter using an invalid key size.
 func TestChachaPolyInvalidKeySize(t *testing.T) {
 	// Use 1 + keySize, which is invalid.
 	key := make([]byte, 1+chacha20Poly1305KeySize)

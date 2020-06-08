@@ -1,8 +1,8 @@
 package crypter
 
 const (
-	// tagSize is the tag size in bytes. From crypto/cipher/gcm.go and
-	//crypto/chacha20poly1305  in the Go crypto library
+	// tagSize is the tag size in bytes for AES-128-GCM-SHA256,
+	// AES-256-GCM-SHA384, and CHACHA20-POLY1305-SHA256
 	tagSize = 16
 	// nonceSize is the size of the nonce in number of bytes for
 	// AES-128-GCM-SHA256, AES-256-GCM-SHA384, and CHACHA20-POLY1305-SHA256.
