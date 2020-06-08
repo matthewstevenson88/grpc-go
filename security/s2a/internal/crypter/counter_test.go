@@ -5,14 +5,19 @@ import (
 	"testing"
 )
 
-type counterTest struct {
-	desc                     string
-	counter, expectedCounter uint64
-	overflow                 bool
+// counterFromValue creates a new counter given an initial value.
+func counterFromValue(value uint64) counter {
+	c := newCounter()
+	c.value = value
+	return c
 }
 
 func TestCounterInc(t *testing.T) {
-	for _, test := range []counterTest{
+	for _, tc := range []struct {
+		desc                     string
+		counter, expectedCounter uint64
+		overflow                 bool
+	}{
 		{
 			desc:            "basic 1",
 			counter:         0,
@@ -34,75 +39,66 @@ func TestCounterInc(t *testing.T) {
 			overflow: true,
 		},
 	} {
-		t.Run(test.desc, func(t *testing.T) {
-			// Make first getAndIncrement call. This should return the same value
-			// which was given.
-			c := newCounter(test.counter)
-			value, err := c.getAndIncrement()
-			if err != nil {
-				t.Errorf("counter(%v).getAndIncrement() returned error: %v", test.counter, err)
-			}
-			if value != test.counter {
-				t.Errorf("counter(%v).getAndIncrement() = %v, want %v", test.counter, value, test.counter)
-			}
-			if test.overflow {
-				if !c.hasOverflowed {
-					t.Errorf("counter(%v).getAndIncrement() did not set hasOverflowed flag", test.counter)
-				}
-			} else {
-				if c.hasOverflowed {
-					t.Errorf("counter(%v).getAndIncrement() unexpectedly set hasOverflowed flag", test.counter)
-				}
-			}
-
-			// Make second getAndIncrement call. This should verify that the first
-			// getAndIncrement call succeeded in incrementing the value.
-			value, err = c.getAndIncrement()
-			if test.overflow {
+		t.Run(tc.desc, func(t *testing.T) {
+			c := counterFromValue(tc.counter)
+			c.inc()
+			val, err := c.val()
+			if tc.overflow {
 				if err == nil {
-					t.Errorf("counter(%v).getAndIncrement() expected error, received none", test.counter)
-				}
-				if !c.hasOverflowed {
-					t.Errorf("counter(%v).getAndIncrement() did not set hasOverflowed flag", test.counter)
+					t.Errorf("counter starting with %v, val() expected error, received none", tc.counter)
 				}
 			} else {
 				if err != nil {
-					t.Errorf("counter(%v).getAndIncrement() returned error: %v", test.counter, err)
+					t.Errorf("counter starting with %v, val() returned error: %v", tc.counter, err)
 				}
-				if value != test.expectedCounter {
-					t.Errorf("counter(%v).getAndIncrement() = %v, want %v", test.counter, value, test.expectedCounter)
+				if val != tc.expectedCounter {
+					t.Errorf("counter starting with %v, val() = %v, want %v", tc.counter, val, tc.expectedCounter)
 				}
+			}
+
+			if tc.overflow != c.hasOverflowed {
+				t.Errorf("counter starting with %v, c.hasOverflowed = %v, want %v", tc.counter, c.hasOverflowed, tc.overflow)
 			}
 		})
 	}
 }
 
 func TestCounterReset(t *testing.T) {
-	for _, test := range []counterTest{
+	for _, tc := range []struct {
+		desc          string
+		counter       uint64
+		hasOverflowed bool
+	}{
 		{
-			desc:    "basic reset",
-			counter: 1,
+			desc:          "non-zero no overflow",
+			counter:       1,
+			hasOverflowed: false,
 		},
 		{
-			desc:    "reset after overflow",
-			counter: math.MaxUint64,
+			desc:          "zero no overflow",
+			counter:       0,
+			hasOverflowed: false,
+		},
+		{
+			desc:          "non-zero has overflow",
+			counter:       1,
+			hasOverflowed: true,
+		},
+		{
+			desc:          "zero has overflow",
+			counter:       0,
+			hasOverflowed: true,
 		},
 	} {
-		t.Run(test.desc, func(t *testing.T) {
-			c := newCounter(test.counter)
-			_, err := c.getAndIncrement()
-			if err != nil {
-				t.Errorf("counter(%v).getAndIncrement() returned error: %v", test.counter, err)
-			}
-
+		t.Run(tc.desc, func(t *testing.T) {
+			c := counter{tc.counter, tc.hasOverflowed}
 			// Check that resetting the counter works as expected.
 			c.reset()
-			value, err := c.getAndIncrement()
-			if err != nil {
-				t.Errorf("counter returned an error after resetting: %v", err)
+			if c.value != 0 {
+				t.Errorf("counter with value %v, c.value = %v, want 0", tc.counter, c.value)
 			}
-			if value != 0 {
-				t.Errorf("counter(%v).reset().getAndIncrement() = %v, expected 0", test.counter, value)
+			if c.hasOverflowed != false {
+				t.Errorf("counter with value %v, c.hasOverflowed = %v, want false", tc.counter, c.hasOverflowed)
 			}
 		})
 	}
