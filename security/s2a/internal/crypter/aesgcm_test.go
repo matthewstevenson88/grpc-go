@@ -21,9 +21,8 @@ package crypter
 import (
 	"bytes"
 	"fmt"
-	"testing"
-
 	"google.golang.org/grpc/security/s2a/internal/crypter/testutil"
+	"testing"
 )
 
 // getGCMCryptoPair outputs a sender/receiver pair on AES-GCM.
