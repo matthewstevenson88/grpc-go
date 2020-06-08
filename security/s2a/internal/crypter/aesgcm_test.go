@@ -19,6 +19,7 @@
 package crypter
 
 import (
+	"bytes"
 	"fmt"
 	"testing"
 
@@ -38,8 +39,13 @@ func getGCMCryptoPair(key []byte, t *testing.T) (s2aAeadCrypter, s2aAeadCrypter)
 	return sender, receiver
 }
 
+func isFailure(result string, err error, got, expected []byte) bool {
+	return (result == testutil.ValidResult && (err != nil || !bytes.Equal(got, expected))) ||
+		(result == testutil.InvalidResult && bytes.Equal(got, expected))
+}
+
 // wycheProofTestVectorFilter filters out unsupported wycheproof test vectors.
-func wycheProofTestVectorFilterAESGCM(testGroup testutil.TestGroup) bool {
+func wycheProofTestVectorFilter(testGroup testutil.TestGroup) bool {
 	// Filter these test groups out, since they are not supported in our
 	// implementation of AES-GCM.
 	return testGroup.IVSize != 96 ||
@@ -57,14 +63,14 @@ func testGCMEncryptionDecryption(sender s2aAeadCrypter, receiver s2aAeadCrypter,
 		dst = make([]byte, len(test.Plaintext)+sender.tagSize())
 	}
 	got, err := sender.encrypt(dst[:0], test.Plaintext, test.Nonce, test.Aad)
-	if testutil.IsFailure(test.Result, err, got, ciphertext) {
+	if isFailure(test.Result, err, got, ciphertext) {
 		t.Errorf("key=%v\nEncrypt(\n dst = %v\n plaintext = %v\n nonce = %v\n aad = %v\n) = (\n %v\n %v\n), want %v",
 			test.Key, dst[:0], test.Plaintext, test.Nonce, test.Aad, got, err, ciphertext)
 	}
 
 	// Decrypt.
 	got, err = receiver.decrypt(nil, ciphertext, test.Nonce, test.Aad)
-	if testutil.IsFailure(test.Result, err, got, test.Plaintext) {
+	if isFailure(test.Result, err, got, test.Plaintext) {
 		t.Errorf("key=%v\nDecrypt(\n dst = nil\n ciphertext = %v\n nonce = %v\n aad = %v\n) = (\n %v\n %v\n), want %v",
 			test.Key, ciphertext, test.Nonce, test.Aad, got, err, test.Plaintext)
 	}
@@ -239,8 +245,8 @@ func TestAESGCMEncrypt(t *testing.T) {
 	}
 }
 
-func TestWycheProofTestVectorsAESGCM(t *testing.T) {
-	for _, test := range testutil.ParseWycheProofTestVectors("testdata/aes_gcm_wycheproof.json", wycheProofTestVectorFilterAESGCM, t) {
+func TestWycheProofTestVectors(t *testing.T) {
+	for _, test := range testutil.ParseWycheProofTestVectors("testdata/aes_gcm_wycheproof.json", wycheProofTestVectorFilter, t) {
 		t.Run(fmt.Sprintf("%d/%s", test.ID, test.Desc), func(t *testing.T) {
 			// Test encryption and decryption for AES-GCM.
 			sender, receiver := getGCMCryptoPair(test.Key, t)
