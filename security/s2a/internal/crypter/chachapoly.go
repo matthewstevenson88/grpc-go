@@ -19,9 +19,10 @@
 package crypter
 
 import (
-	"golang.org/x/crypto/chacha20poly1305"
 	"crypto/cipher"
 	"fmt"
+
+	"golang.org/x/crypto/chacha20poly1305"
 )
 
 // Supported key sizes in bytes.
@@ -64,7 +65,7 @@ func (s *chachapoly) encrypt(dst, plaintext, nonce, aad []byte) ([]byte, error) 
 	// If we need to allocate an output buffer, we want to include space for
 	// the tag to avoid forcing TLS record to reallocate as well.
 	dlen := len(dst)
-	dst, out := sliceForAppend(dst, len(plaintext)+overhead)
+	dst, out := sliceForAppend(dst, len(plaintext)+tagSize)
 	data := out[:len(plaintext)]
 	copy(data, plaintext) // data may fully overlap plaintext
 
@@ -89,7 +90,7 @@ func (s *chachapoly) decrypt(dst, ciphertext, nonce, aad []byte) ([]byte, error)
 }
 
 func (s *chachapoly) tagSize() int {
-	return overhead
+	return tagSize
 }
 
 func (s *chachapoly) updateKey(key []byte) error {
