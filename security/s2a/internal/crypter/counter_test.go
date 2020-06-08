@@ -5,13 +5,6 @@ import (
 	"testing"
 )
 
-// counterFromValue creates a new counter given an initial value.
-func counterFromValue(value uint64) counter {
-	c := newCounter()
-	c.value = value
-	return c
-}
-
 func TestCounterInc(t *testing.T) {
 	for _, tc := range []struct {
 		desc                     string
@@ -40,7 +33,7 @@ func TestCounterInc(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			c := counterFromValue(tc.counter)
+			c := counter{value: tc.counter}
 			c.inc()
 			val, err := c.val()
 			if tc.overflow {
