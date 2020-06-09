@@ -33,9 +33,9 @@ func TestCounterInc(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			c := counter{value: tc.counter}
-			c.inc()
-			val, err := c.val()
+			c := counter{val: tc.counter}
+			c.increment()
+			val, err := c.value()
 			if got, want := err == nil, !tc.shouldOverflow; got != want {
 				t.Errorf("counter starting with %v, val()=(err=nil)=%v, want %v", tc.counter, got, want)
 			}
@@ -79,7 +79,7 @@ func TestCounterReset(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			c := counter{tc.counter, tc.hasOverflowed}
 			c.reset()
-			if got, want := c.value, uint64(0); got != want {
+			if got, want := c.val, uint64(0); got != want {
 				t.Errorf("counter with value %v, c.value = %v, want %v", tc.counter, got, want)
 			}
 			if got, want := c.hasOverflowed, false; got != want {
