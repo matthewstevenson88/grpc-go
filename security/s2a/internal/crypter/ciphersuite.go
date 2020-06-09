@@ -12,8 +12,7 @@ type ciphersuite interface {
 	keySize() int
 	// nonceSize returns the nonce size in bytes.
 	nonceSize() int
-	// trafficSecretSize returns the expected traffic secret size in
-	// bytes.
+	// trafficSecretSize returns the traffic secret size in bytes.
 	trafficSecretSize() int
 	// hashFunction returns the hash function for the ciphersuite.
 	hashFunction() func() hash.Hash

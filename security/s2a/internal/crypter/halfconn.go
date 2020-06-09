@@ -8,11 +8,13 @@ import (
 )
 
 const (
-	tls13Key   = "tls13 key"
-	tls13Nonce = "tls13 iv"
+	tls13Key    = "tls13 key"
+	tls13Nonce  = "tls13 iv"
+	tls13Update = "tls13 update"
 )
 
 type S2AHalfConnection struct {
+	h             func() hash.Hash
 	aeadCrypter   s2aAeadCrypter
 	expander      hkdfExpander
 	seqCounter    counter
@@ -35,6 +37,7 @@ func NewHalfConn(ciphersuite s2a_proto.Ciphersuite, trafficSecret []byte) (S2AHa
 	if err != nil {
 		return S2AHalfConnection{}, fmt.Errorf("hc.deriveSecret(h, %v, %v) failed with error: %v", trafficSecret, tls13Nonce, err)
 	}
+	hc.h = cs.hashFunction()
 	hc.aeadCrypter, err = cs.aeadCrypter(key)
 	if err != nil {
 		return S2AHalfConnection{}, fmt.Errorf("cs.aeadCrypter(%v) failed with error: %v", key, err)
@@ -53,8 +56,12 @@ func (hc *S2AHalfConnection) Decrypt(dst, ciphertext, aad []byte) ([]byte, error
 }
 
 func (hc *S2AHalfConnection) UpdateKey() error {
-	// TODO(rnkim): Implement this.
-	panic("UpdateKey currently unimplemented")
+	var err error
+	hc.trafficSecret, err = hc.deriveSecret(hc.h, hc.trafficSecret, []byte(tls13Update))
+	if err != nil {
+		return fmt.Errorf("hc.deriveSecret(h, %v, %v) failed with error: %v", hc.trafficSecret, tls13Update, err)
+	}
+	return nil
 }
 
 // deriveSecret implements Derive-Secret specified in
