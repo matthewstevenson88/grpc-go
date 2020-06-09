@@ -11,6 +11,8 @@ const (
 	sha256DigestLength = 32
 	// sha384DigestLength is the digest length of sha384 in bytes.
 	sha384DigestLength = 48
+	// uint64Size is the size of a uint64 in bytes.
+	uint64Size = 8
 )
 
 // sliceForAppend takes a slice and a requested number of bytes. It returns a
