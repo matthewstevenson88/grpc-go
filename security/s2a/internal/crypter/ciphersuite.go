@@ -12,9 +12,9 @@ type ciphersuite interface {
 	keySize() int
 	// nonceSize returns the nonce size in bytes.
 	nonceSize() int
-	// expectedTrafficSecretSize returns the expected traffic secret size in
+	// trafficSecretSize returns the expected traffic secret size in
 	// bytes.
-	expectedTrafficSecretSize() int
+	trafficSecretSize() int
 	// hashFunction returns the hash function for the ciphersuite.
 	hashFunction() func() hash.Hash
 	// aeadCrypter returns the AEAD crypter for the ciphersuite.
@@ -44,7 +44,7 @@ func (aesgcm128sha256) nonceSize() int {
 	return nonceSize
 }
 
-func (aesgcm128sha256) expectedTrafficSecretSize() int {
+func (aesgcm128sha256) trafficSecretSize() int {
 	return sha256DigestLength
 }
 
@@ -66,7 +66,7 @@ func (aesgcm256sha384) nonceSize() int {
 	return nonceSize
 }
 
-func (aesgcm256sha384) expectedTrafficSecretSize() int {
+func (aesgcm256sha384) trafficSecretSize() int {
 	return sha384DigestLength
 }
 
@@ -89,7 +89,7 @@ func (chachapolysha256) nonceSize() int {
 	panic("nonceSize unimplemented")
 }
 
-func (chachapolysha256) expectedTrafficSecretSize() int {
+func (chachapolysha256) trafficSecretSize() int {
 	panic("expectedTrafficSecretSize unimplemented")
 }
 

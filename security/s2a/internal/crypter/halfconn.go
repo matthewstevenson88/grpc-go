@@ -7,6 +7,11 @@ import (
 	"hash"
 )
 
+const (
+	tls13Key   = "tls13 key"
+	tls13Nonce = "tls13 iv"
+)
+
 type S2AHalfConnection struct {
 	aeadCrypter   s2aAeadCrypter
 	expander      hkdfExpander
@@ -17,18 +22,18 @@ type S2AHalfConnection struct {
 
 func NewHalfConn(ciphersuite s2a_proto.Ciphersuite, trafficSecret []byte) (S2AHalfConnection, error) {
 	cs := NewCiphersuite(ciphersuite)
-	if cs.expectedTrafficSecretSize() != len(trafficSecret) {
-		return S2AHalfConnection{}, fmt.Errorf("supplied traffic secret must be %v bits, given: %v", cs.expectedTrafficSecretSize()*8, trafficSecret)
+	if cs.trafficSecretSize() != len(trafficSecret) {
+		return S2AHalfConnection{}, fmt.Errorf("supplied traffic secret must be %v bytes, given: %v", cs.trafficSecretSize(), trafficSecret)
 	}
 
 	hc := S2AHalfConnection{expander: &defaultHKDFExpander{}, seqCounter: newCounter()}
-	key, err := hc.deriveSecret(cs.hashFunction(), trafficSecret, []byte("tls13 key"))
+	key, err := hc.deriveSecret(cs.hashFunction(), trafficSecret, []byte(tls13Key))
 	if err != nil {
-		return S2AHalfConnection{}, fmt.Errorf("hc.deriveSecret(h, %v, \"tls13 key\") failed with error: %v", trafficSecret, err)
+		return S2AHalfConnection{}, fmt.Errorf("hc.deriveSecret(h, %v, %v) failed with error: %v", trafficSecret, tls13Key, err)
 	}
-	hc.nonce, err = hc.deriveSecret(cs.hashFunction(), trafficSecret, []byte("tls13 iv"))
+	hc.nonce, err = hc.deriveSecret(cs.hashFunction(), trafficSecret, []byte(tls13Nonce))
 	if err != nil {
-		return S2AHalfConnection{}, fmt.Errorf("hc.deriveSecret(h, %v, \"tls13 iv\") failed with error: %v", trafficSecret, err)
+		return S2AHalfConnection{}, fmt.Errorf("hc.deriveSecret(h, %v, %v) failed with error: %v", trafficSecret, tls13Nonce, err)
 	}
 	hc.aeadCrypter, err = cs.aeadCrypter(key)
 	if err != nil {
@@ -47,15 +52,13 @@ func (hc *S2AHalfConnection) Decrypt(dst, ciphertext, aad []byte) ([]byte, error
 	panic("Decrypt currently unimplemented")
 }
 
-func (hc *S2AHalfConnection) UpdateKey(key []byte) error {
+func (hc *S2AHalfConnection) UpdateKey() error {
 	// TODO(rnkim): Implement this.
 	panic("UpdateKey currently unimplemented")
 }
 
 // deriveSecret implements Derive-Secret specified in
-// https://tools.ietf.org/html/rfc8446#section-7.1. Note that the `Context` and
-// `Length` parameters have been omitted since we always pass in an empty string
-// for `Context` and we use a fixed length for `Length`.
+// https://tools.ietf.org/html/rfc8446#section-7.1.
 func (hc *S2AHalfConnection) deriveSecret(h func() hash.Hash, secret, label []byte) ([]byte, error) {
 	var hkdfLabel cryptobyte.Builder
 	hkdfLabel.AddUint16(uint16(h().Size()))
