@@ -9,7 +9,7 @@ func TestCounterInc(t *testing.T) {
 	for _, tc := range []struct {
 		desc                     string
 		counter, expectedCounter uint64
-		overflow                 bool
+		shouldOverflow           bool
 	}{
 		{
 			desc:            "basic 1",
@@ -27,30 +27,23 @@ func TestCounterInc(t *testing.T) {
 			expectedCounter: math.MaxUint64,
 		},
 		{
-			desc:     "max overflow",
-			counter:  math.MaxUint64,
-			overflow: true,
+			desc:           "max overflow",
+			counter:        math.MaxUint64,
+			shouldOverflow: true,
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			c := counter{value: tc.counter}
 			c.inc()
 			val, err := c.val()
-			if tc.overflow {
-				if err == nil {
-					t.Errorf("counter starting with %v, val() expected error, received none", tc.counter)
-				}
-			} else {
-				if err != nil {
-					t.Errorf("counter starting with %v, val() returned error: %v", tc.counter, err)
-				}
-				if val != tc.expectedCounter {
-					t.Errorf("counter starting with %v, val() = %v, want %v", tc.counter, val, tc.expectedCounter)
-				}
+			if got, want := err == nil, !tc.shouldOverflow; got != want {
+				t.Errorf("counter starting with %v, val()=(err=nil)=%v, want %v", tc.counter, got, want)
 			}
-
-			if tc.overflow != c.hasOverflowed {
-				t.Errorf("counter starting with %v, c.hasOverflowed = %v, want %v", tc.counter, c.hasOverflowed, tc.overflow)
+			if got, want := val, tc.expectedCounter; err == nil && got != want {
+				t.Errorf("counter starting with %v, val() = %v, want %v", tc.counter, got, want)
+			}
+			if got, want := tc.shouldOverflow, c.hasOverflowed; got != want {
+				t.Errorf("counter starting with %v, c.hasOverflowed = %v, want %v", tc.counter, got, want)
 			}
 		})
 	}
@@ -85,13 +78,12 @@ func TestCounterReset(t *testing.T) {
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			c := counter{tc.counter, tc.hasOverflowed}
-			// Check that resetting the counter works as expected.
 			c.reset()
-			if c.value != 0 {
-				t.Errorf("counter with value %v, c.value = %v, want 0", tc.counter, c.value)
+			if got, want := c.value, uint64(0); got != want {
+				t.Errorf("counter with value %v, c.value = %v, want %v", tc.counter, got, want)
 			}
-			if c.hasOverflowed != false {
-				t.Errorf("counter with value %v, c.hasOverflowed = %v, want false", tc.counter, c.hasOverflowed)
+			if got, want := c.hasOverflowed, false; got != want {
+				t.Errorf("counter with value %v, c.hasOverflowed = %v, want %v", tc.counter, got, want)
 			}
 		})
 	}
