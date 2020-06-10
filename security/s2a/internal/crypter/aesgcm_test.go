@@ -52,26 +52,26 @@ func wycheProofTestVectorFilter(testGroup testutil.TestGroup) bool {
 		testGroup.TagSize != 128
 }
 
-func testGCMEncryptionDecryption(sender s2aAeadCrypter, receiver s2aAeadCrypter, test *testutil.CryptoTestVector, t *testing.T) {
+func testGCMEncryptionDecryption(sender s2aAeadCrypter, receiver s2aAeadCrypter, tc *testutil.CryptoTestVector, t *testing.T) {
 	// ciphertext is: encrypted text + tag.
-	ciphertext := append(test.Ciphertext, test.Tag...)
+	ciphertext := append(tc.Ciphertext, tc.Tag...)
 
 	// Encrypt.
 	var dst []byte
-	if test.AllocateDst {
-		dst = make([]byte, len(test.Plaintext)+sender.tagSize())
+	if tc.AllocateDst {
+		dst = make([]byte, len(tc.Plaintext)+sender.tagSize())
 	}
-	got, err := sender.encrypt(dst[:0], test.Plaintext, test.Nonce, test.Aad)
-	if isFailure(test.Result, err, got, ciphertext) {
+	got, err := sender.encrypt(dst[:0], tc.Plaintext, tc.Nonce, tc.Aad)
+	if isFailure(tc.Result, err, got, ciphertext) {
 		t.Errorf("key=%v\nEncrypt(\n dst = %v\n plaintext = %v\n nonce = %v\n aad = %v\n) = (\n %v\n %v\n), want %v",
-			test.Key, dst[:0], test.Plaintext, test.Nonce, test.Aad, got, err, ciphertext)
+			tc.Key, dst[:0], tc.Plaintext, tc.Nonce, tc.Aad, got, err, ciphertext)
 	}
 
 	// Decrypt.
-	got, err = receiver.decrypt(nil, ciphertext, test.Nonce, test.Aad)
-	if isFailure(test.Result, err, got, test.Plaintext) {
+	got, err = receiver.decrypt(nil, ciphertext, tc.Nonce, tc.Aad)
+	if isFailure(tc.Result, err, got, tc.Plaintext) {
 		t.Errorf("key=%v\nDecrypt(\n dst = nil\n ciphertext = %v\n nonce = %v\n aad = %v\n) = (\n %v\n %v\n), want %v",
-			test.Key, ciphertext, test.Nonce, test.Aad, got, err, test.Plaintext)
+			tc.Key, ciphertext, tc.Nonce, tc.Aad, got, err, tc.Plaintext)
 	}
 }
 
@@ -163,7 +163,7 @@ func TestAESGCMEncryptRoundtrip(t *testing.T) {
 
 // Test encrypt and decrypt using test vectors for aes128gcm.
 func TestAESGCMEncrypt(t *testing.T) {
-	for _, test := range []testutil.CryptoTestVector{
+	for _, tc := range []testutil.CryptoTestVector{
 		{
 			Desc:   "nil plaintext and ciphertext",
 			Key:    testutil.Dehex("11754cd72aec309bf52f7687212e8957"),
@@ -237,19 +237,19 @@ func TestAESGCMEncrypt(t *testing.T) {
 			AllocateDst: true,
 		},
 	} {
-		t.Run(fmt.Sprintf("%s", test.Desc), func(t *testing.T) {
-			sender, receiver := getGCMCryptoPair(test.Key, t)
-			testGCMEncryptionDecryption(sender, receiver, &test, t)
+		t.Run(fmt.Sprintf("%s", tc.Desc), func(t *testing.T) {
+			sender, receiver := getGCMCryptoPair(tc.Key, t)
+			testGCMEncryptionDecryption(sender, receiver, &tc, t)
 		})
 	}
 }
 
 func TestWycheProofTestVectors(t *testing.T) {
-	for _, test := range testutil.ParseWycheProofTestVectors("testdata/aes_gcm_wycheproof.json", wycheProofTestVectorFilter, t) {
-		t.Run(fmt.Sprintf("%d/%s", test.ID, test.Desc), func(t *testing.T) {
+	for _, tc := range testutil.ParseWycheProofTestVectors("testdata/aes_gcm_wycheproof.json", wycheProofTestVectorFilter, t) {
+		t.Run(fmt.Sprintf("%d/%s", tc.ID, tc.Desc), func(t *testing.T) {
 			// Test encryption and decryption for AES-GCM.
-			sender, receiver := getGCMCryptoPair(test.Key, t)
-			testGCMEncryptionDecryption(sender, receiver, &test, t)
+			sender, receiver := getGCMCryptoPair(tc.Key, t)
+			testGCMEncryptionDecryption(sender, receiver, &tc, t)
 		})
 	}
 }
@@ -260,7 +260,7 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 	// http://csrc.nist.gov/groups/ST/toolkit/BCM/documents/proposedmodes/gcm/gcm-revised-spec.pdf
 	// IEEE vectors from:
 	// http://www.ieee802.org/1/files/public/docs2011/bn-randall-test-vectors-0511-v1.pdf
-	for _, test := range []testutil.CryptoTestVector{
+	for _, tc := range []testutil.CryptoTestVector{
 		{
 			Desc:       "NIST test vector 1",
 			Key:        testutil.Dehex("00000000000000000000000000000000"),
@@ -442,10 +442,10 @@ func TestAESGCMNISTAndIEEE(t *testing.T) {
 			Result:     testutil.ValidResult,
 		},
 	} {
-		t.Run(test.Desc, func(t *testing.T) {
+		t.Run(tc.Desc, func(t *testing.T) {
 			// Test encryption and decryption for AES-GCM.
-			sender, receiver := getGCMCryptoPair(test.Key, t)
-			testGCMEncryptionDecryption(sender, receiver, &test, t)
+			sender, receiver := getGCMCryptoPair(tc.Key, t)
+			testGCMEncryptionDecryption(sender, receiver, &tc, t)
 		})
 	}
 }
