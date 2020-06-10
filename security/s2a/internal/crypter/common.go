@@ -54,6 +54,8 @@ func encrypt(aead cipher.AEAD, dst, plaintext, nonce, aad []byte) ([]byte, error
 	return dst, nil
 }
 
+// decrypt is the decryption function for an AEAD crypter. aead determines
+// the type of AEAD crypter.
 func decrypt(aead cipher.AEAD, dst, ciphertext, nonce, aad []byte) ([]byte, error) {
 	if len(nonce) != nonceSize {
 		return nil, fmt.Errorf("nonce size must be %d bytes. received: %d", nonceSize, len(nonce))
