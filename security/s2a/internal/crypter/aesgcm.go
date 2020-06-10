@@ -59,34 +59,11 @@ func newAESGCM(key []byte) (s2aAeadCrypter, error) {
 // allocation and copy operations will be performed. dst and plaintext may
 // fully overlap or not at all.
 func (s *aesgcm) encrypt(dst, plaintext, nonce, aad []byte) ([]byte, error) {
-	if len(nonce) != nonceSize {
-		return nil, fmt.Errorf("nonce size must be %d bytes. received: %d", nonceSize, len(nonce))
-	}
-	// If we need to allocate an output buffer, we want to include space for
-	// the tag to avoid forcing TLS record to reallocate as well.
-	dlen := len(dst)
-	dst, out := sliceForAppend(dst, len(plaintext)+tagSize)
-	data := out[:len(plaintext)]
-	copy(data, plaintext) // data may fully overlap plaintext
-
-	// Seal appends the ciphertext and the tag to its first argument and
-	// returns the updated slice. However, SliceForAppend above ensures that
-	// dst has enough capacity to avoid a reallocation and copy due to the
-	// append.
-	dst = s.aead.Seal(dst[:dlen], nonce, data, aad)
-	return dst, nil
+	return encrypt(s.aead, dst, plaintext, nonce, aad)
 }
 
 func (s *aesgcm) decrypt(dst, ciphertext, nonce, aad []byte) ([]byte, error) {
-	if len(nonce) != nonceSize {
-		return nil, fmt.Errorf("nonce size must be %d bytes. received: %d", nonceSize, len(nonce))
-	}
-	// If dst is equal to ciphertext[:0], ciphertext storage is reused.
-	plaintext, err := s.aead.Open(dst, nonce, ciphertext, aad)
-	if err != nil {
-		return nil, fmt.Errorf("message auth failed: %v", err)
-	}
-	return plaintext, nil
+	return decrypt(s.aead, dst, ciphertext, nonce, aad)
 }
 
 func (s *aesgcm) tagSize() int {
