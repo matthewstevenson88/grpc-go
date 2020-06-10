@@ -19,10 +19,10 @@
 package crypter
 
 import (
-	"bytes"
 	"fmt"
-	"google.golang.org/grpc/security/s2a/internal/crypter/testutil"
 	"testing"
+
+	"google.golang.org/grpc/security/s2a/internal/crypter/testutil"
 )
 
 // getGCMCryptoPair outputs a sender/receiver pair on AES-GCM.
@@ -36,11 +36,6 @@ func getGCMCryptoPair(key []byte, t *testing.T) (s2aAeadCrypter, s2aAeadCrypter)
 		t.Fatalf("newAESGCM(ServerSide, key) = %v", err)
 	}
 	return sender, receiver
-}
-
-func isFailure(result string, err error, got, expected []byte) bool {
-	return (result == testutil.ValidResult && (err != nil || !bytes.Equal(got, expected))) ||
-		(result == testutil.InvalidResult && bytes.Equal(got, expected))
 }
 
 // wycheProofTestVectorFilter filters out unsupported wycheproof test vectors.
@@ -62,14 +57,14 @@ func testGCMEncryptionDecryption(sender s2aAeadCrypter, receiver s2aAeadCrypter,
 		dst = make([]byte, len(tc.Plaintext)+sender.tagSize())
 	}
 	got, err := sender.encrypt(dst[:0], tc.Plaintext, tc.Nonce, tc.Aad)
-	if isFailure(tc.Result, err, got, ciphertext) {
+	if testutil.IsFailure(tc.Result, err, got, ciphertext) {
 		t.Errorf("key=%v\nEncrypt(\n dst = %v\n plaintext = %v\n nonce = %v\n aad = %v\n) = (\n %v\n %v\n), want %v",
 			tc.Key, dst[:0], tc.Plaintext, tc.Nonce, tc.Aad, got, err, ciphertext)
 	}
 
 	// Decrypt.
 	got, err = receiver.decrypt(nil, ciphertext, tc.Nonce, tc.Aad)
-	if isFailure(tc.Result, err, got, tc.Plaintext) {
+	if testutil.IsFailure(tc.Result, err, got, tc.Plaintext) {
 		t.Errorf("key=%v\nDecrypt(\n dst = nil\n ciphertext = %v\n nonce = %v\n aad = %v\n) = (\n %v\n %v\n), want %v",
 			tc.Key, ciphertext, tc.Nonce, tc.Aad, got, err, tc.Plaintext)
 	}
@@ -139,25 +134,27 @@ func TestAESGCMKeySizeUpdate(t *testing.T) {
 // updating the keys.
 func TestAESGCMEncryptRoundtrip(t *testing.T) {
 	for _, keySize := range []int{aes128GcmKeySize, aes256GcmKeySize} {
-		key := make([]byte, keySize)
-		sender, receiver := getGCMCryptoPair(key, t)
+		t.Run(fmt.Sprintf("keySize=%d", keySize), func(t *testing.T) {
+			key := make([]byte, keySize)
+			sender, receiver := getGCMCryptoPair(key, t)
 
-		// Test encrypt/decrypt before updating the key.
-		testGCMEncryptRoundtrip(sender, receiver, t)
+			// Test encrypt/decrypt before updating the key.
+			testGCMEncryptRoundtrip(sender, receiver, t)
 
-		// Update the key with a new one which is different from the
-		// original.
-		newKey := make([]byte, keySize)
-		newKey[0] = '\xbd'
-		if err := sender.updateKey(newKey); err != nil {
-			t.Fatalf("sender updateKey failed with: %v", err)
-		}
-		if err := receiver.updateKey(newKey); err != nil {
-			t.Fatalf("receiver updateKey failed with: %v", err)
-		}
+			// Update the key with a new one which is different from the
+			// original.
+			newKey := make([]byte, keySize)
+			newKey[0] = '\xbd'
+			if err := sender.updateKey(newKey); err != nil {
+				t.Fatalf("sender updateKey failed with: %v", err)
+			}
+			if err := receiver.updateKey(newKey); err != nil {
+				t.Fatalf("receiver updateKey failed with: %v", err)
+			}
 
-		// Test encrypt/decrypt after updating the key.
-		testGCMEncryptRoundtrip(sender, receiver, t)
+			// Test encrypt/decrypt after updating the key.
+			testGCMEncryptRoundtrip(sender, receiver, t)
+		})
 	}
 }
 

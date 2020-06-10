@@ -148,27 +148,29 @@ func TestChachaPolyEncryptDecryptInvalidNonce(t *testing.T) {
 
 // Test encrypt and decrypt on roundtrip messages for Chacha-Poly with and without
 // updating the keys.
-func TestChachaPolyUpdatedKey(t *testing.T) {
+func TestChachaPolyEncryptRoundtrip(t *testing.T) {
 	for _, keySize := range []int{chacha20Poly1305KeySize} {
-		key := make([]byte, keySize)
-		sender, receiver := getChachaPolyCrypterPair(key, t)
+		t.Run(fmt.Sprintf("keySize=%d", keySize), func(t *testing.T) {
+			key := make([]byte, keySize)
+			sender, receiver := getChachaPolyCrypterPair(key, t)
 
-		//Test encrypt/decrypt before updating the key.
-		testChachaPolyEncryp3Roundtrip(sender, receiver, t)
+			// Test encrypt/decrypt before updating the key.
+			testChachaPolyEncryptRoundtrip(sender, receiver, t)
 
-		// Update the key with a new one which is different from the
-		// original.
-		newKey := make([]byte, keySize)
-		newKey[0] = '\xbd'
-		if err := sender.updateKey(newKey); err != nil {
-			t.Fatalf("sender UpdateKey failed with: %v", err)
-		}
-		if err := receiver.updateKey(newKey); err != nil {
-			t.Fatalf("receiver UpdateKey failed with: %v", err)
-		}
+			// Update the key with a new one which is different from the
+			// original.
+			newKey := make([]byte, keySize)
+			newKey[0] = '\xbd'
+			if err := sender.updateKey(newKey); err != nil {
+				t.Fatalf("sender UpdateKey failed with: %v", err)
+			}
+			if err := receiver.updateKey(newKey); err != nil {
+				t.Fatalf("receiver UpdateKey failed with: %v", err)
+			}
 
-		//Test encrypt/decrypt after updating the key.
-		testChachaPolyEncryptRoundtrip(sender, receiver, t)
+			// Test encrypt/decrypt after updating the key.
+			testChachaPolyEncryptRoundtrip(sender, receiver, t)
+		})
 	}
 }
 
