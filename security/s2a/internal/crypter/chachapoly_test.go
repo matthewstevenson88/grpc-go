@@ -154,7 +154,7 @@ func TestChachaPolyEncryptRoundtrip(t *testing.T) {
 			key := make([]byte, keySize)
 			sender, receiver := getChachaPolyCrypterPair(key, t)
 
-			//Test encrypt/decrypt before updating the key.
+			// Test encrypt/decrypt before updating the key.
 			testChachaPolyEncryptRoundtrip(sender, receiver, t)
 
 			// Update the key with a new one which is different from the
@@ -168,7 +168,7 @@ func TestChachaPolyEncryptRoundtrip(t *testing.T) {
 				t.Fatalf("receiver UpdateKey failed with: %v", err)
 			}
 
-			//Test encrypt/decrypt after updating the key.
+			// Test encrypt/decrypt after updating the key.
 			testChachaPolyEncryptRoundtrip(sender, receiver, t)
 		})
 	}
