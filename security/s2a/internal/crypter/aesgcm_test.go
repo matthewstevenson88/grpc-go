@@ -20,7 +20,6 @@ package crypter
 
 import (
 	"fmt"
-	"strconv"
 	"testing"
 
 	"google.golang.org/grpc/security/s2a/internal/crypter/testutil"
@@ -135,7 +134,7 @@ func TestAESGCMKeySizeUpdate(t *testing.T) {
 // updating the keys.
 func TestAESGCMEncryptRoundtrip(t *testing.T) {
 	for _, keySize := range []int{aes128GcmKeySize, aes256GcmKeySize} {
-		t.Run("keySize ="+strconv.Itoa(keySize), func(t *testing.T) {
+		t.Run(fmt.Sprintf("keySize=%d", keySize), func(t *testing.T) {
 			key := make([]byte, keySize)
 			sender, receiver := getGCMCryptoPair(key, t)
 

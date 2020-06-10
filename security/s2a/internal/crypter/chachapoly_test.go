@@ -20,7 +20,6 @@ package crypter
 
 import (
 	"fmt"
-	"strconv"
 	"testing"
 
 	"google.golang.org/grpc/security/s2a/internal/crypter/testutil"
@@ -151,7 +150,7 @@ func TestChachaPolyEncryptDecryptInvalidNonce(t *testing.T) {
 // updating the keys.
 func TestChachaPolyEncryptRoundtrip(t *testing.T) {
 	for _, keySize := range []int{chacha20Poly1305KeySize} {
-		t.Run("keySize="+strconv.Itoa(keySize), func(t *testing.T) {
+		t.Run(fmt.Sprintf("keySize=%d", keySize), func(t *testing.T) {
 			key := make([]byte, keySize)
 			sender, receiver := getChachaPolyCrypterPair(key, t)
 
