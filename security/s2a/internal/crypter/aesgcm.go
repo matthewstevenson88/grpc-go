@@ -63,7 +63,7 @@ func (s *aesgcm) encrypt(dst, plaintext, nonce, aad []byte) ([]byte, error) {
 		return nil, fmt.Errorf("nonce size must be %d bytes. received: %d", nonceSize, len(nonce))
 	}
 	// If we need to allocate an output buffer, we want to include space for
-	// GCM tag to avoid forcing TLS record to reallocate as well.
+	// the tag to avoid forcing TLS record to reallocate as well.
 	dlen := len(dst)
 	dst, out := sliceForAppend(dst, len(plaintext)+tagSize)
 	data := out[:len(plaintext)]
