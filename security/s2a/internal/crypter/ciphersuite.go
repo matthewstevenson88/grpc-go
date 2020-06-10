@@ -7,6 +7,8 @@ import (
 	"hash"
 )
 
+// ciphersuite is the interface for a ciphersuite used in the S2A Half
+// Connection.
 type ciphersuite interface {
 	// keySize returns the key size in bytes.
 	keySize() int
@@ -16,7 +18,8 @@ type ciphersuite interface {
 	trafficSecretSize() int
 	// hashFunction returns the hash function for the ciphersuite.
 	hashFunction() func() hash.Hash
-	// aeadCrypter returns the AEAD crypter for the ciphersuite.
+	// aeadCrypter takes a key and creates an AEAD crypter for the ciphersuite
+	// using that key.
 	aeadCrypter(key []byte) (s2aAeadCrypter, error)
 }
 
@@ -33,6 +36,8 @@ func newCiphersuite(ciphersuite s2a_proto.Ciphersuite) ciphersuite {
 	}
 }
 
+// aesgcm128sha256 is the AES-128-GCM-SHA256 implementation of the ciphersuite
+// interface.
 type aesgcm128sha256 struct{}
 
 func (aesgcm128sha256) keySize() int {
@@ -55,6 +60,8 @@ func (aesgcm128sha256) aeadCrypter(key []byte) (s2aAeadCrypter, error) {
 	return newAESGCM(key)
 }
 
+// aesgcm256sha384 is the AES-256-GCM-SHA384 implementation of the ciphersuite
+// interface.
 type aesgcm256sha384 struct{}
 
 func (aesgcm256sha384) keySize() int {
@@ -77,6 +84,8 @@ func (aesgcm256sha384) aeadCrypter(key []byte) (s2aAeadCrypter, error) {
 	return newAESGCM(key)
 }
 
+// chachapolysha256 is the ChaChaPoly-SHA256 implementation of the ciphersuite
+// interface.
 type chachapolysha256 struct{}
 
 func (chachapolysha256) keySize() int {
