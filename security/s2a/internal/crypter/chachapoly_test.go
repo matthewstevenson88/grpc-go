@@ -154,7 +154,7 @@ func TestChachaPolyUpdatedKey(t *testing.T) {
 		sender, receiver := getChachaPolyCrypterPair(key, t)
 
 		//Test encrypt/decrypt before updating the key.
-		testChachaPolyEncryp3Roundtrip(sender, receiver, t)
+		testChachaPolyEncryptRoundtrip(sender, receiver, t)
 
 		// Update the key with a new one which is different from the
 		// original.

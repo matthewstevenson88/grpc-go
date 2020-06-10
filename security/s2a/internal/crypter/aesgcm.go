@@ -65,7 +65,7 @@ func (s *aesgcm) encrypt(dst, plaintext, nonce, aad []byte) ([]byte, error) {
 	// If we need to allocate an output buffer, we want to include space for
 	// GCM tag to avoid forcing TLS record to reallocate as well.
 	dlen := len(dst)
-	dst, out := sliceForAppend(dst, len(plaintext)+gcmTagSize)
+	dst, out := sliceForAppend(dst, len(plaintext)+tagSize)
 	data := out[:len(plaintext)]
 	copy(data, plaintext) // data may fully overlap plaintext
 
@@ -90,7 +90,7 @@ func (s *aesgcm) decrypt(dst, ciphertext, nonce, aad []byte) ([]byte, error) {
 }
 
 func (s *aesgcm) tagSize() int {
-	return gcmTagSize
+	return tagSize
 }
 
 func (s *aesgcm) updateKey(key []byte) error {
