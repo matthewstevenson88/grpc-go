@@ -41,7 +41,7 @@ func getChachaPolyCrypterPair(key []byte, t *testing.T) (s2aAeadCrypter, s2aAead
 // wycheProofTestVectorFilter filters out unsupported wycheproof test vectors.
 func wycheProofTestVectorFilterChachaPoly(testGroup testutil.TestGroup) bool {
 	// Filter these test groups out, since they are not supported in our
-	// implementation of Chacha-Poly
+	// implementation of Chacha-Poly.
 	return testGroup.IVSize != 96 ||
 		(testGroup.KeySize != 256) ||
 		testGroup.TagSize != 128
@@ -78,7 +78,7 @@ func testChachaPolyEncryptRoundtrip(sender s2aAeadCrypter, receiver s2aAeadCrypt
 	const plaintext = "This is plaintext."
 	var err error
 	// Reuse `buf` as both the input and output buffer. This is required to test
-	// the case where the input and output buffers fully overlap
+	// the case where the input and output buffers fully overlap.
 	buf := []byte(plaintext)
 	ciphertext, err := sender.encrypt(buf[:0], buf, nonce, nil)
 	if err != nil {
@@ -154,7 +154,7 @@ func TestChachaPolyUpdatedKey(t *testing.T) {
 		sender, receiver := getChachaPolyCrypterPair(key, t)
 
 		//Test encrypt/decrypt before updating the key.
-		testChachaPolyEncryptRoundtrip(sender, receiver, t)
+		testChachaPolyEncryp3Roundtrip(sender, receiver, t)
 
 		// Update the key with a new one which is different from the
 		// original.
