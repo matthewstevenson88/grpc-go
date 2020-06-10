@@ -29,7 +29,8 @@ func sliceForAppend(in []byte, n int) (head, tail []byte) {
 	return head, tail
 }
 
-// encrypt is the encryption function. dst can contain bytes at the beginning of
+// encrypt is the encryption function for AESGCM or CHACHA-POLY.
+// aead determines the type of AEAD crypter. dst can contain bytes at the beginning of
 // the ciphertext that will not be encrypted but will be authenticated. If dst
 // has enough capacity to hold these bytes, the ciphertext and the tag, no
 // allocation and copy operations will be performed. dst and plaintext may
