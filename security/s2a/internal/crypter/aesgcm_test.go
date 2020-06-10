@@ -20,6 +20,7 @@ package crypter
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
 
 	"google.golang.org/grpc/security/s2a/internal/crypter/testutil"
@@ -134,25 +135,27 @@ func TestAESGCMKeySizeUpdate(t *testing.T) {
 // updating the keys.
 func TestAESGCMEncryptRoundtrip(t *testing.T) {
 	for _, keySize := range []int{aes128GcmKeySize, aes256GcmKeySize} {
-		key := make([]byte, keySize)
-		sender, receiver := getGCMCryptoPair(key, t)
+		t.Run("keySize ="+strconv.Itoa(keySize), func(t *testing.T) {
+			key := make([]byte, keySize)
+			sender, receiver := getGCMCryptoPair(key, t)
 
-		// Test encrypt/decrypt before updating the key.
-		testGCMEncryptRoundtrip(sender, receiver, t)
+			// Test encrypt/decrypt before updating the key.
+			testGCMEncryptRoundtrip(sender, receiver, t)
 
-		// Update the key with a new one which is different from the
-		// original.
-		newKey := make([]byte, keySize)
-		newKey[0] = '\xbd'
-		if err := sender.updateKey(newKey); err != nil {
-			t.Fatalf("sender updateKey failed with: %v", err)
-		}
-		if err := receiver.updateKey(newKey); err != nil {
-			t.Fatalf("receiver updateKey failed with: %v", err)
-		}
+			// Update the key with a new one which is different from the
+			// original.
+			newKey := make([]byte, keySize)
+			newKey[0] = '\xbd'
+			if err := sender.updateKey(newKey); err != nil {
+				t.Fatalf("sender updateKey failed with: %v", err)
+			}
+			if err := receiver.updateKey(newKey); err != nil {
+				t.Fatalf("receiver updateKey failed with: %v", err)
+			}
 
-		// Test encrypt/decrypt after updating the key.
-		testGCMEncryptRoundtrip(sender, receiver, t)
+			// Test encrypt/decrypt after updating the key.
+			testGCMEncryptRoundtrip(sender, receiver, t)
+		})
 	}
 }
 
