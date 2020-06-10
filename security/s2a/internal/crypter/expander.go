@@ -10,9 +10,9 @@ import (
 // https://tools.ietf.org/html/rfc5869 for details. It's use in TLS 1.3 is
 // specified in https://tools.ietf.org/html/rfc8446#section-7.2
 type hkdfExpander interface {
-	// expand takes a hashing function, a secret, a label, and returns the
-	// resulting expanded key.
-	expand(h func() hash.Hash, secret, label []byte) ([]byte, error)
+	// expand takes a hashing function, a secret, a label, and the output length
+	// in bytes, and returns the resulting expanded key.
+	expand(h func() hash.Hash, secret, label []byte, length int) ([]byte, error)
 }
 
 // defaultHKDFExpander is the default HKDF expander which uses Go's crypto/hkdf
@@ -24,8 +24,7 @@ func newDefaultHKDFExpander() hkdfExpander {
 	return &defaultHKDFExpander{}
 }
 
-func (*defaultHKDFExpander) expand(h func() hash.Hash, secret, label []byte) ([]byte, error) {
-	length := h().Size()
+func (*defaultHKDFExpander) expand(h func() hash.Hash, secret, label []byte, length int) ([]byte, error) {
 	outBuf := make([]byte, length)
 	n, err := hkdf.Expand(h, secret, label).Read(outBuf)
 	if err != nil {
