@@ -2,7 +2,8 @@ package crypter
 
 import (
 	"crypto/sha256"
-	"golang.org/x/crypto/sha3"
+	"crypto/sha512"
+	"fmt"
 	s2a_proto "google.golang.org/grpc/security/s2a/internal/proto"
 	"hash"
 )
@@ -23,16 +24,16 @@ type ciphersuite interface {
 	aeadCrypter(key []byte) (s2aAeadCrypter, error)
 }
 
-func newCiphersuite(ciphersuite s2a_proto.Ciphersuite) ciphersuite {
+func newCiphersuite(ciphersuite s2a_proto.Ciphersuite) (ciphersuite, error) {
 	switch ciphersuite {
 	case s2a_proto.Ciphersuite_AES_128_GCM_SHA256:
-		return &aesgcm128sha256{}
+		return &aesgcm128sha256{}, nil
 	case s2a_proto.Ciphersuite_AES_256_GCM_SHA384:
-		return &aesgcm256sha384{}
+		return &aesgcm256sha384{}, nil
 	case s2a_proto.Ciphersuite_CHACHA20_POLY1305_SHA256:
-		return &chachapolysha256{}
+		return &chachapolysha256{}, nil
 	default:
-		panic("unrecognized ciphersuite")
+		return nil, fmt.Errorf("received unrecognized ciphersuite: %v", ciphersuite)
 	}
 }
 
@@ -77,7 +78,7 @@ func (aesgcm256sha384) trafficSecretSize() int {
 }
 
 func (aesgcm256sha384) hashFunction() func() hash.Hash {
-	return sha3.New384
+	return sha512.New384
 }
 
 func (aesgcm256sha384) aeadCrypter(key []byte) (s2aAeadCrypter, error) {

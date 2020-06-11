@@ -51,7 +51,10 @@ func TestCiphersuites(t *testing.T) {
 		},
 	} {
 		t.Run(tc.s2aProtoCiphersuite.String(), func(t *testing.T) {
-			hc := newCiphersuite(tc.s2aProtoCiphersuite)
+			hc, err := newCiphersuite(tc.s2aProtoCiphersuite)
+			if err != nil {
+				t.Fatalf("newCiphersuite(%v) received error: %v", tc.s2aProtoCiphersuite, err)
+			}
 			if got, want := hc, tc.expectedCiphersuite; got != want {
 				t.Fatalf("newCiphersuite(%v) = %v, want %v", tc.s2aProtoCiphersuite, got, want)
 			}
