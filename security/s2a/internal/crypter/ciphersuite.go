@@ -2,7 +2,7 @@ package crypter
 
 import (
 	"crypto/sha256"
-	"golang.org/x/crypto/sha3"
+	"crypto/sha512"
 	s2a_proto "google.golang.org/grpc/security/s2a/internal/proto"
 	"hash"
 )
@@ -77,7 +77,7 @@ func (aesgcm256sha384) trafficSecretSize() int {
 }
 
 func (aesgcm256sha384) hashFunction() func() hash.Hash {
-	return sha3.New384
+	return sha512.New384
 }
 
 func (aesgcm256sha384) aeadCrypter(key []byte) (s2aAeadCrypter, error) {
