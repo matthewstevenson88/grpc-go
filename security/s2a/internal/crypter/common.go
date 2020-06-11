@@ -30,9 +30,9 @@ func sliceForAppend(in []byte, n int) (head, tail []byte) {
 }
 
 // encrypt is the encryption function for an AEAD crypter. aead determines
-// the type of AEAD crypter. dst can contain bytes at the beginning of
-// the ciphertext that will not be encrypted but will be authenticated. If dst
-// has enough capacity to hold these bytes, the ciphertext and the tag, no
+// the type of AEAD crypter. dst can contain bytes at the beginning of the
+// ciphertext that will not be encrypted but will be authenticated. If dst has
+// enough capacity to hold these bytes, the ciphertext and the tag, no
 // allocation and copy operations will be performed. dst and plaintext may
 // fully overlap or not at all.
 func encrypt(aead cipher.AEAD, dst, plaintext, nonce, aad []byte) ([]byte, error) {
