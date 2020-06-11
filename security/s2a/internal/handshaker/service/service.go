@@ -1,6 +1,6 @@
 /*
  *
- * Copyright 2018 gRPC authors.
+ * Copyright 2020 gRPC authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,8 +16,6 @@
  *
  */
 
-// Package service manages connections between the client and server handshaker
-// service.
 package service
 
 import (
@@ -27,14 +25,14 @@ import (
 )
 
 var (
-	// hsConn represents a connection to hypervisor handshaker service.
+	// hsConn represents a connection to s2a handshaker service.
 	hsConn *grpc.ClientConn
 	mu     sync.Mutex
 	// hsDialer will be reassigned in tests.
 	hsDialer = grpc.Dial
 )
 
-// Dial dials the handshake service in the hypervisor. If a connection has
+// Dial dials the S2A handshaker service. If a connection has
 // already been established, this function returns it. Otherwise, a new
 // connection is created.
 func Dial(hsAddress string) (*grpc.ClientConn, error) {
@@ -42,7 +40,7 @@ func Dial(hsAddress string) (*grpc.ClientConn, error) {
 	defer mu.Unlock()
 
 	if hsConn == nil {
-		// Create a new connection to the handshaker service. Note that
+		// Create a new connection to the S2A handshaker service. Note that
 		// this connection stays open until the application is closed.
 		var err error
 		hsConn, err = hsDialer(hsAddress, grpc.WithInsecure())
