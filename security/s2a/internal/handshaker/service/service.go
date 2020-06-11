@@ -25,17 +25,19 @@ import (
 )
 
 var (
-	// hsConn represents a connection to s2a handshaker service.
-	hsConn *grpc.ClientConn
-	mu     sync.Mutex
+	// hsConn represents a connection to the S2A  handshaker service.
+	hsConn    *grpc.ClientConn
+	hsAddress string
+	// mu guards hsDialer
+	mu sync.Mutex
 	// hsDialer will be reassigned in tests.
 	hsDialer = grpc.Dial
 )
 
-// Dial dials the S2A handshaker service. If a connection has
-// already been established, this function returns it. Otherwise, a new
-// connection is created.
-func Dial(hsAddress string) (*grpc.ClientConn, error) {
+// Dial dials the S2A handshaker service. If a connection has already been
+// established, this function returns it. Otherwise, a new connection is
+// created.
+func Dial(handshakerServiceAddress string) (*grpc.ClientConn, error) {
 	mu.Lock()
 	defer mu.Unlock()
 
@@ -43,7 +45,8 @@ func Dial(hsAddress string) (*grpc.ClientConn, error) {
 		// Create a new connection to the S2A handshaker service. Note that
 		// this connection stays open until the application is closed.
 		var err error
-		hsConn, err = hsDialer(hsAddress, grpc.WithInsecure())
+		hsAddress = handshakerServiceAddress
+		hsConn, err = hsDialer(handshakerServiceAddress, grpc.WithInsecure())
 		if err != nil {
 			return nil, err
 		}
