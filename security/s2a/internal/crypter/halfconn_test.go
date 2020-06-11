@@ -38,6 +38,14 @@ func testHalfConnRoundtrip(sender S2AHalfConnection, receiver S2AHalfConnection,
 		t.Fatalf("Encrypt(%v, %v, nil) failed, err = %v", buf2[:0], buf2, err)
 	}
 
+	// Encrypt empty message.
+	const plaintext3 = ""
+	buf3 := []byte(plaintext3)
+	ciphertext3, err := sender.Encrypt(buf3[:0], buf3, nil)
+	if err != nil {
+		t.Fatalf("Encrypt(%v, %v, nil) failed, err = %v", buf3[:0], buf3, err)
+	}
+
 	// Decryption fails: cannot decrypt second message before first.
 	if _, err := receiver.Decrypt(nil, ciphertext2, nil); err == nil {
 		t.Errorf("Decrypt(nil, %v, nil) expected an error, received none", ciphertext2)
@@ -53,9 +61,18 @@ func testHalfConnRoundtrip(sender S2AHalfConnection, receiver S2AHalfConnection,
 		t.Fatalf("Decrypt(%v, %v, nil) = %v, want %v", ciphertext2[:0], ciphertext2, got, want)
 	}
 
+	// Decrypt third (empty) message.
+	decryptedPlaintext3, err := receiver.Decrypt(ciphertext3[:0], ciphertext3, nil)
+	if err != nil {
+		t.Fatalf("Decrypt(%v, %v, nil) failed, err = %v", ciphertext3[:0], ciphertext3, err)
+	}
+	if got, want := string(decryptedPlaintext3), plaintext3; got != want {
+		t.Fatalf("Decrypt(%v, %v, nil) = %v, want %v", ciphertext3[:0], ciphertext3, got, want)
+	}
+
 	// Decryption fails: same message decrypted again.
-	if _, err := receiver.Decrypt(nil, ciphertext2, nil); err == nil {
-		t.Errorf("Decrypt(nil, %v, nil) expected an error, received none", ciphertext2)
+	if _, err := receiver.Decrypt(nil, ciphertext3, nil); err == nil {
+		t.Errorf("Decrypt(nil, %v, nil) expected an error, received none", ciphertext3)
 	}
 }
 
@@ -218,26 +235,26 @@ func TestS2AHalfConnectionRoundtrip(t *testing.T) {
 func TestS2AHalfConnectionUpdateKey(t *testing.T) {
 	for _, tc := range []struct {
 		ciphersuite                                      s2a_proto.Ciphersuite
-		trafficSecret, expectedTrafficSecret, key, nonce []byte
+		trafficSecret, advancedTrafficSecret, key, nonce []byte
 	}{
 		{
 			ciphersuite:           s2a_proto.Ciphersuite_AES_128_GCM_SHA256,
 			trafficSecret:         testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			expectedTrafficSecret: testutil.Dehex("f38b9455ea5871235a69fc37610c6ca1215779e66b45a047d7390111e00081c4"),
+			advancedTrafficSecret: testutil.Dehex("f38b9455ea5871235a69fc37610c6ca1215779e66b45a047d7390111e00081c4"),
 			key:                   testutil.Dehex("07dfdfca2fc3f015b6e51e579679b503"),
 			nonce:                 testutil.Dehex("79fdebc61b5fb9d9a34d9406"),
 		},
 		{
 			ciphersuite:           s2a_proto.Ciphersuite_AES_256_GCM_SHA384,
 			trafficSecret:         testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			expectedTrafficSecret: testutil.Dehex("016c835db664beb5526a9bb3d9a4fba63e67255dcfa460a114d9f1ef9a9a1f685a518739f557d0e66fdb89bdafa26257"),
+			advancedTrafficSecret: testutil.Dehex("016c835db664beb5526a9bb3d9a4fba63e67255dcfa460a114d9f1ef9a9a1f685a518739f557d0e66fdb89bdafa26257"),
 			key:                   testutil.Dehex("4ee0f141c9a497a1db6f1ee0995248e804406fe39f35bcdff9f386048108bef1"),
 			nonce:                 testutil.Dehex("90f241fbc9f9f55100168d8b"),
 		},
 		{
 			ciphersuite:           s2a_proto.Ciphersuite_CHACHA20_POLY1305_SHA256,
 			trafficSecret:         testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			expectedTrafficSecret: testutil.Dehex("f38b9455ea5871235a69fc37610c6ca1215779e66b45a047d7390111e00081c4"),
+			advancedTrafficSecret: testutil.Dehex("f38b9455ea5871235a69fc37610c6ca1215779e66b45a047d7390111e00081c4"),
 			key:                   testutil.Dehex("18b61f93ee2d927d2f478f2220409738affb0092602d0812c96b965323e30878"),
 			nonce:                 testutil.Dehex("79fdebc61b5fb9d9a34d9406"),
 		},
@@ -250,7 +267,7 @@ func TestS2AHalfConnectionUpdateKey(t *testing.T) {
 			if err := hc.UpdateKey(); err != nil {
 				t.Fatalf("hc.updateKey() failed, err = %v", err)
 			}
-			if got, want := hc.trafficSecret, tc.expectedTrafficSecret; !bytes.Equal(got, want) {
+			if got, want := hc.trafficSecret, tc.advancedTrafficSecret; !bytes.Equal(got, want) {
 				t.Errorf("updated traffic secret = %v, want %v", got, want)
 			}
 			if got, want := hc.key, tc.key; !bytes.Equal(got, want) {

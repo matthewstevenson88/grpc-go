@@ -8,9 +8,6 @@ import (
 	"sync"
 )
 
-// uint64Size is the size of a uint64 in bytes.
-const uint64Size = 8
-
 const (
 	tls13Key    = "tls13 key"
 	tls13Nonce  = "tls13 iv"
@@ -18,11 +15,14 @@ const (
 )
 
 type S2AHalfConnection struct {
-	cs            ciphersuite
-	h             func() hash.Hash
-	aeadCrypter   s2aAeadCrypter
-	expander      hkdfExpander
-	seqCounter    counter
+	cs          ciphersuite
+	h           func() hash.Hash
+	aeadCrypter s2aAeadCrypter
+	expander    hkdfExpander
+	seqCounter  counter
+	// mutex guards from concurrent calls to Encrypt, Decrypt, and UpdateKey.
+	// In particular, it guards against concurrent access to the sequence
+	// counter, traffic secret, nonce, and AEAD crypter.
 	mutex         sync.Mutex
 	trafficSecret []byte
 	nonce         []byte
@@ -33,19 +33,19 @@ type S2AHalfConnection struct {
 func NewHalfConn(ciphersuite s2a_proto.Ciphersuite, trafficSecret []byte) (S2AHalfConnection, error) {
 	cs := newCiphersuite(ciphersuite)
 	if cs.trafficSecretSize() != len(trafficSecret) {
-		return S2AHalfConnection{}, fmt.Errorf("supplied traffic secret must be %v bytes, given: %v", cs.trafficSecretSize(), trafficSecret)
+		return S2AHalfConnection{}, fmt.Errorf("supplied traffic secret must be %v bytes, given: %v bytes", cs.trafficSecretSize(), len(trafficSecret))
 	}
 
 	hc := S2AHalfConnection{cs: cs, h: cs.hashFunction(), expander: &defaultHKDFExpander{}, seqCounter: newCounter(), trafficSecret: trafficSecret}
 
 	var err error
 	if err = hc.updateWithNewTrafficSecret(hc.trafficSecret); err != nil {
-		return S2AHalfConnection{}, fmt.Errorf("hc.updateWithNewTrafficSecret(%v) failed with error: %v", hc.trafficSecret, err)
+		return S2AHalfConnection{}, fmt.Errorf("failed to create half connection using traffic secret with error: %v", err)
 	}
 
 	hc.aeadCrypter, err = cs.aeadCrypter(hc.key)
 	if err != nil {
-		return S2AHalfConnection{}, fmt.Errorf("cs.aeadCrypter(%v) failed with error: %v", hc.key, err)
+		return S2AHalfConnection{}, fmt.Errorf("failed to update AEAD crypter with error: %v", err)
 	}
 	return hc, nil
 }
@@ -83,8 +83,9 @@ func (hc *S2AHalfConnection) Decrypt(dst, ciphertext, aad []byte) ([]byte, error
 	return crypter.decrypt(dst, ciphertext, nonce, aad)
 }
 
-// UpdateKey updates the traffic secret key, as specified in
-// https://tools.ietf.org/html/rfc8446#section-7.2
+// UpdateKey advances the traffic secret key, as specified in
+// https://tools.ietf.org/html/rfc8446#section-7.2. In addition, it derives
+// a new key and nonce, and resets the sequence number.
 func (hc *S2AHalfConnection) UpdateKey() error {
 	hc.mutex.Lock()
 	defer hc.mutex.Unlock()
@@ -92,16 +93,16 @@ func (hc *S2AHalfConnection) UpdateKey() error {
 	var err error
 	hc.trafficSecret, err = hc.deriveSecret(hc.trafficSecret, []byte(tls13Update), hc.cs.trafficSecretSize())
 	if err != nil {
-		return fmt.Errorf("hc.deriveSecret(h, %v, %v, %v) failed with error: %v", hc.trafficSecret, tls13Update, hc.cs.trafficSecretSize(), err)
+		return fmt.Errorf("failed to advance traffic secret with error: %v", err)
 	}
 
 	if err = hc.updateWithNewTrafficSecret(hc.trafficSecret); err != nil {
-		return fmt.Errorf("hc.updateWithNewTrafficSecret(%v) failed with error: %v", hc.trafficSecret, err)
+		return fmt.Errorf("failed to update half connection using new traffic secret with error: %v", err)
 	}
 
 	err = hc.aeadCrypter.updateKey(hc.key)
 	if err != nil {
-		return fmt.Errorf("hc.aeadCrypter.updateKey(%v) failed with error: %v", hc.key, err)
+		return fmt.Errorf("failed to update AEAD crypter with error: %v", err)
 	}
 
 	hc.seqCounter.reset()
@@ -114,12 +115,12 @@ func (hc *S2AHalfConnection) updateWithNewTrafficSecret(newTrafficSecret []byte)
 	var err error
 	hc.key, err = hc.deriveSecret(newTrafficSecret, []byte(tls13Key), hc.cs.keySize())
 	if err != nil {
-		return fmt.Errorf("hc.deriveSecret(h, %v, %v, %v) failed with error: %v", hc.trafficSecret, tls13Key, hc.cs.keySize(), err)
+		return fmt.Errorf("failed to update key using new traffic secret with error: %v", err)
 	}
 
 	hc.nonce, err = hc.deriveSecret(newTrafficSecret, []byte(tls13Nonce), hc.cs.nonceSize())
 	if err != nil {
-		return fmt.Errorf("hc.deriveSecret(h, %v, %v, %v) failed with error: %v", hc.trafficSecret, tls13Nonce, hc.cs.nonceSize(), err)
+		return fmt.Errorf("failed to update nonce using new traffic secret with error: %v", err)
 	}
 	return nil
 }
@@ -134,8 +135,10 @@ func (hc *S2AHalfConnection) getAndIncrementSequence() (uint64, error) {
 	return sequence, nil
 }
 
-// maskedNonce creates a new S2A nonce using the sequence number.
+// maskedNonce creates a copy of the nonce that is masked with the sequence
+// number.
 func (hc *S2AHalfConnection) maskedNonce(sequence uint64) []byte {
+	const uint64Size = 8
 	nonce := make([]byte, len(hc.nonce))
 	copy(nonce, hc.nonce)
 	for i := 0; i < uint64Size; i++ {
@@ -144,7 +147,7 @@ func (hc *S2AHalfConnection) maskedNonce(sequence uint64) []byte {
 	return nonce
 }
 
-// deriveSecret implements Derive-Secret specified in
+// deriveSecret implements the Derive-Secret function, as specified in
 // https://tools.ietf.org/html/rfc8446#section-7.1.
 func (hc *S2AHalfConnection) deriveSecret(secret, label []byte, length int) ([]byte, error) {
 	var hkdfLabel cryptobyte.Builder
@@ -152,8 +155,8 @@ func (hc *S2AHalfConnection) deriveSecret(secret, label []byte, length int) ([]b
 	hkdfLabel.AddUint8LengthPrefixed(func(b *cryptobyte.Builder) {
 		b.AddBytes(label)
 	})
-	// Append empty `Context` field, specified in the RFC. The Half Connection
-	// does not use the `Context` field.
+	// Append an empty `Context` field to the label, as specified in the RFC.
+	// The half connection does not use the `Context` field.
 	hkdfLabel.AddUint8LengthPrefixed(func(b *cryptobyte.Builder) {
 		b.AddBytes([]byte(""))
 	})
