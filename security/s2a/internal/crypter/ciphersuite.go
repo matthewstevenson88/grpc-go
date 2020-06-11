@@ -7,8 +7,8 @@ import (
 	"hash"
 )
 
-// ciphersuite is the interface for a ciphersuite used in the S2A Half
-// Connection.
+// ciphersuite is the interface for retrieving ciphersuite-specific information
+// and utilities.
 type ciphersuite interface {
 	// keySize returns the key size in bytes.
 	keySize() int
@@ -49,7 +49,7 @@ func (aesgcm128sha256) nonceSize() int {
 }
 
 func (aesgcm128sha256) trafficSecretSize() int {
-	return sha256DigestLength
+	return sha256DigestSize
 }
 
 func (aesgcm128sha256) hashFunction() func() hash.Hash {
@@ -73,7 +73,7 @@ func (aesgcm256sha384) nonceSize() int {
 }
 
 func (aesgcm256sha384) trafficSecretSize() int {
-	return sha384DigestLength
+	return sha384DigestSize
 }
 
 func (aesgcm256sha384) hashFunction() func() hash.Hash {
@@ -97,7 +97,7 @@ func (chachapolysha256) nonceSize() int {
 }
 
 func (chachapolysha256) trafficSecretSize() int {
-	return sha256DigestLength
+	return sha256DigestSize
 }
 
 func (chachapolysha256) hashFunction() func() hash.Hash {

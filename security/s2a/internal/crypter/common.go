@@ -7,10 +7,10 @@ const (
 	// nonceSize is the size of the nonce in number of bytes for
 	// AES-128-GCM-SHA256, AES-256-GCM-SHA384, and CHACHA20-POLY1305-SHA256.
 	nonceSize = 12
-	// sha256DigestLength is the digest length of sha256 in bytes.
-	sha256DigestLength = 32
-	// sha384DigestLength is the digest length of sha384 in bytes.
-	sha384DigestLength = 48
+	// sha256DigestSize is the digest length of sha256 in bytes.
+	sha256DigestSize = 32
+	// sha384DigestSize is the digest length of sha384 in bytes.
+	sha384DigestSize = 48
 )
 
 // sliceForAppend takes a slice and a requested number of bytes. It returns a
