@@ -16,8 +16,8 @@
  *
  */
 
-// Package service manages connections between the VM application and the ALTS
-// handshaker service.
+// Package service manages connections between the client and server handshaker
+// service.
 package service
 
 import (
