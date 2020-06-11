@@ -15,14 +15,13 @@ const (
 )
 
 type S2AHalfConnection struct {
-	cs          ciphersuite
+	cs ciphersuite
+	// TODO(rnkim): Add hash function to expander constructor.
 	h           func() hash.Hash
 	aeadCrypter s2aAeadCrypter
 	expander    hkdfExpander
-	seqCounter  counter
-	// mutex guards from concurrent calls to Encrypt, Decrypt, and UpdateKey.
-	// In particular, it guards against concurrent access to the sequence
-	// counter, traffic secret, nonce, and AEAD crypter.
+	sequence    counter
+	// mutex guards sequence, aeadCrypter, trafficSecret, and nonce.
 	mutex         sync.Mutex
 	trafficSecret []byte
 	nonce         []byte
@@ -36,7 +35,7 @@ func NewHalfConn(ciphersuite s2a_proto.Ciphersuite, trafficSecret []byte) (S2AHa
 		return S2AHalfConnection{}, fmt.Errorf("supplied traffic secret must be %v bytes, given: %v bytes", cs.trafficSecretSize(), len(trafficSecret))
 	}
 
-	hc := S2AHalfConnection{cs: cs, h: cs.hashFunction(), expander: &defaultHKDFExpander{}, seqCounter: newCounter(), trafficSecret: trafficSecret}
+	hc := S2AHalfConnection{cs: cs, h: cs.hashFunction(), expander: &defaultHKDFExpander{}, sequence: newCounter(), trafficSecret: trafficSecret}
 
 	var err error
 	if err = hc.updateWithNewTrafficSecret(hc.trafficSecret); err != nil {
@@ -105,7 +104,7 @@ func (hc *S2AHalfConnection) UpdateKey() error {
 		return fmt.Errorf("failed to update AEAD crypter with error: %v", err)
 	}
 
-	hc.seqCounter.reset()
+	hc.sequence.reset()
 	return nil
 }
 
@@ -127,11 +126,11 @@ func (hc *S2AHalfConnection) updateWithNewTrafficSecret(newTrafficSecret []byte)
 
 // getAndIncrement returns the current sequence number and increments it.
 func (hc *S2AHalfConnection) getAndIncrementSequence() (uint64, error) {
-	sequence, err := hc.seqCounter.value()
+	sequence, err := hc.sequence.value()
 	if err != nil {
 		return 0, err
 	}
-	hc.seqCounter.increment()
+	hc.sequence.increment()
 	return sequence, nil
 }
 
