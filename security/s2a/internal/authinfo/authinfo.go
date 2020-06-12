@@ -9,7 +9,7 @@ import (
 const s2aAuthType = "s2a"
 
 // S2AAuthInfo exposes authentication and authorization information from the
-// S2A session result to the application.
+// S2A session result to the gRPC stack.
 type S2AAuthInfo struct {
 	s2aContext *s2a_proto.S2AContext
 	credentials.CommonAuthInfo
