@@ -19,19 +19,19 @@
 package crypter
 
 import (
-	"crypto/aes"
 	"crypto/cipher"
 	"fmt"
+
+	"golang.org/x/crypto/chacha20poly1305"
 )
 
-// Supported key sizes in bytes.
+// Supported key size in bytes.
 const (
-	aes128GcmKeySize = 16
-	aes256GcmKeySize = 32
+	chacha20Poly1305KeySize = 32
 )
 
-// aesgcm is the struct that holds an AES-GCM cipher for the S2A AEAD crypter.
-type aesgcm struct {
+// chachapoly is the struct that holds a CHACHA-POLY cipher for the S2A AEAD crypter.
+type chachapoly struct {
 	aead cipher.AEAD
 	// keySize stores the size of the key which was initially used. This
 	// is necessary to restrict key updates to the same key length as the
@@ -39,13 +39,13 @@ type aesgcm struct {
 	keySize int
 }
 
-// newAESGCM creates an AES-GCM crypter instance. Note that the key must be
-// either 128 bits or 256 bits.
-func newAESGCM(key []byte) (s2aAeadCrypter, error) {
-	if len(key) != aes128GcmKeySize && len(key) != aes256GcmKeySize {
-		return nil, fmt.Errorf("supplied key must be 128 or 256 bits, given: %d", len(key)*8)
+// newChachaPoly creates a Chacha-Poly crypter instance. Note that the key must be
+// chacha20Poly1305KeySize bytes in length.
+func newChachaPoly(key []byte) (s2aAeadCrypter, error) {
+	if len(key) != chacha20Poly1305KeySize {
+		return nil, fmt.Errorf("%d bytes, given: %d", chacha20Poly1305KeySize, len(key))
 	}
-	crypter := aesgcm{keySize: len(key)}
+	crypter := chachapoly{keySize: len(key)}
 	err := crypter.updateKey(key)
 	if err != nil {
 		return nil, err
@@ -58,30 +58,26 @@ func newAESGCM(key []byte) (s2aAeadCrypter, error) {
 // has enough capacity to hold these bytes, the ciphertext and the tag, no
 // allocation and copy operations will be performed. dst and plaintext may
 // fully overlap or not at all.
-func (s *aesgcm) encrypt(dst, plaintext, nonce, aad []byte) ([]byte, error) {
+func (s *chachapoly) encrypt(dst, plaintext, nonce, aad []byte) ([]byte, error) {
 	return encrypt(s.aead, dst, plaintext, nonce, aad)
 }
 
-func (s *aesgcm) decrypt(dst, ciphertext, nonce, aad []byte) ([]byte, error) {
+func (s *chachapoly) decrypt(dst, ciphertext, nonce, aad []byte) ([]byte, error) {
 	return decrypt(s.aead, dst, ciphertext, nonce, aad)
 }
 
-func (s *aesgcm) tagSize() int {
+func (s *chachapoly) tagSize() int {
 	return tagSize
 }
 
-func (s *aesgcm) updateKey(key []byte) error {
+func (s *chachapoly) updateKey(key []byte) error {
 	if s.keySize != len(key) {
-		return fmt.Errorf("supplied key must have same size as initial key: %d bits", s.keySize*8)
+		return fmt.Errorf("supplied key must have same size as initial key: %d bytes", s.keySize)
 	}
-	c, err := aes.NewCipher(key)
+	c, err := chacha20poly1305.New(key)
 	if err != nil {
 		return err
 	}
-	a, err := cipher.NewGCM(c)
-	if err != nil {
-		return err
-	}
-	s.aead = a
+	s.aead = c
 	return nil
 }

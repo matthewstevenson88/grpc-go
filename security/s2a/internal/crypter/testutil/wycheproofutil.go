@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"testing"
@@ -46,4 +47,11 @@ func ParseWycheProofTestVectors(jsonFilePath string, shouldFilter func(TestGroup
 	}
 
 	return testVectors
+}
+
+// IsFailure takes in test result validity, error message, test output,
+// expected test output, and returns true if the test failed.
+func IsFailure(result string, err error, got, expected []byte) bool {
+	return (result == ValidResult && (err != nil || !bytes.Equal(got, expected))) ||
+		(result == InvalidResult && err == nil && bytes.Equal(got, expected))
 }
