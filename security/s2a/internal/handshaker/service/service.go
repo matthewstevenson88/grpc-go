@@ -25,7 +25,7 @@ import (
 )
 
 var (
-	// hsConn represents a connection to the S2A  handshaker service.
+	// hsConn represents a connection to the S2A handshaker service.
 	hsConn *grpc.ClientConn
 	// mu guards hsDialer.
 	mu sync.Mutex
