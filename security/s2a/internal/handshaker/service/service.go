@@ -26,9 +26,8 @@ import (
 
 var (
 	// hsConn represents a connection to the S2A  handshaker service.
-	hsConn    *grpc.ClientConn
-	hsAddress string
-	// mu guards hsDialer
+	hsConn *grpc.ClientConn
+	// mu guards hsDialer.
 	mu sync.Mutex
 	// hsDialer will be reassigned in tests.
 	hsDialer = grpc.Dial
@@ -45,7 +44,6 @@ func Dial(handshakerServiceAddress string) (*grpc.ClientConn, error) {
 		// Create a new connection to the S2A handshaker service. Note that
 		// this connection stays open until the application is closed.
 		var err error
-		hsAddress = handshakerServiceAddress
 		hsConn, err = hsDialer(handshakerServiceAddress, grpc.WithInsecure())
 		if err != nil {
 			return nil, err
