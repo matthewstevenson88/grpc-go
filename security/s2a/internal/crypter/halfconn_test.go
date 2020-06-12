@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"google.golang.org/grpc/security/s2a/internal/crypter/testutil"
 	s2a_proto "google.golang.org/grpc/security/s2a/internal/proto"
+	"math"
 	"testing"
 )
 
@@ -89,6 +90,111 @@ func testHalfConnRoundtrip(sender S2AHalfConnection, receiver S2AHalfConnection,
 	// Decryption fails: same message decrypted again.
 	if _, err := receiver.Decrypt(nil, ciphertext3, nil); err == nil {
 		t.Errorf("Decrypt(nil, %v, nil) expected an error, received none", ciphertext3)
+	}
+}
+
+func TestGetAndIncrementSequence(t *testing.T) {
+	for _, tc := range []struct {
+		desc                     string
+		counter, expectedCounter uint64
+		shouldOverflow           bool
+	}{
+		{
+			desc:            "basic 1",
+			counter:         0,
+			expectedCounter: 1,
+		},
+		{
+			desc:            "basic 2",
+			counter:         123,
+			expectedCounter: 124,
+		},
+		{
+			desc:            "almost overflow",
+			counter:         math.MaxUint64 - 1,
+			expectedCounter: math.MaxUint64,
+		},
+		{
+			desc:           "max overflow",
+			counter:        math.MaxUint64,
+			shouldOverflow: true,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			hc := S2AHalfConnection{sequence: counter{val: tc.counter}}
+			// Make first getAndIncrement call. This should return the same value
+			// which was given.
+			value, err := hc.getAndIncrementSequence()
+			if err != nil {
+				t.Errorf("S2A counter starting with %v, hc.getAndIncrementSequence() failed, err = %v", tc.counter, err)
+			}
+			if value != tc.counter {
+				t.Errorf("S2A counter starting with %v, hc.getAndIncrementSequence() = %v, want %v", tc.counter, value, tc.counter)
+			}
+
+			// Make second getAndIncrement call. This should verify that the first
+			// getAndIncrement call succeeded in incrementing the value.
+			value, err = hc.getAndIncrementSequence()
+			if got, want := err == nil, !tc.shouldOverflow; got != want {
+				t.Errorf("S2A counter starting with %v, val()=(err=nil)=%v, want %v", tc.counter, got, want)
+			}
+			if got, want := value, tc.expectedCounter; err == nil && got != want {
+				t.Errorf("S2A counter starting with %v, val() = %v, want %v", tc.counter, got, want)
+			}
+		})
+	}
+}
+
+func TestMaskedNonce(t *testing.T) {
+	for _, tc := range []struct {
+		desc        string
+		nonce       []byte
+		sequence    uint64
+		maskedNonce []byte
+	}{
+		{
+			desc:        "zero nonce and zero sequence",
+			nonce:       testutil.Dehex("000000000000000000000000"),
+			sequence:    0,
+			maskedNonce: testutil.Dehex("000000000000000000000000"),
+		},
+		{
+			desc:        "max nonce and zero sequence",
+			nonce:       testutil.Dehex("ffffffffffffffffffffffff"),
+			sequence:    0,
+			maskedNonce: testutil.Dehex("ffffffffffffffffffffffff"),
+		},
+		{
+			desc:        "zero nonce and max sequence",
+			nonce:       testutil.Dehex("000000000000000000000000"),
+			sequence:    math.MaxUint64,
+			maskedNonce: testutil.Dehex("00000000ffffffffffffffff"),
+		},
+		{
+			desc:        "max nonce and max sequence",
+			nonce:       testutil.Dehex("ffffffffffffffffffffffff"),
+			sequence:    math.MaxUint64,
+			maskedNonce: testutil.Dehex("ffffffff0000000000000000"),
+		},
+		{
+			desc:        "non-zero nonce and non-zero sequence",
+			nonce:       testutil.Dehex("010101010101010101010101"),
+			sequence:    1,
+			maskedNonce: testutil.Dehex("010101010101010101010100"),
+		},
+		{
+			desc:        "cancel out",
+			nonce:       testutil.Dehex("00000000ffffffffffffffff"),
+			sequence:    math.MaxUint64,
+			maskedNonce: testutil.Dehex("000000000000000000000000"),
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			hc := S2AHalfConnection{nonce: tc.nonce}
+			if got, want := hc.maskedNonce(tc.sequence), tc.maskedNonce; !bytes.Equal(got, want) {
+				t.Errorf("hc.maskedNonce(%v) = %v, want %v", tc.sequence, got, want)
+			}
+		})
 	}
 }
 
