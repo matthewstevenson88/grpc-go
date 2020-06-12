@@ -1,20 +1,25 @@
 package authinfo
 
 import (
+	"errors"
 	"google.golang.org/grpc/credentials"
 	s2a_proto "google.golang.org/grpc/security/s2a/internal/proto"
 )
 
-// S2AAuthInfo exposes authentication information from the S2A session results
-// to the application.
+const s2aAuthType = "s2a"
+
+// S2AAuthInfo exposes authentication and authorization information from the
+// S2A session result to the application.
 type S2AAuthInfo struct {
 	s2aContext *s2a_proto.S2AContext
 	credentials.CommonAuthInfo
 }
 
-// NewS2aAuthInfo returns a new S2AAuthInfo object given the S2A session
-// results.
-func NewS2AAuthInfo(result *s2a_proto.SessionResult) *S2AAuthInfo {
+// NewS2aAuthInfo returns a new S2AAuthInfo object from the S2A session result.
+func NewS2AAuthInfo(result *s2a_proto.SessionResult) (*S2AAuthInfo, error) {
+	if result == nil {
+		return nil, errors.New("NewS2aAuthInfo given nil session result")
+	}
 	return &S2AAuthInfo{
 		s2aContext: &s2a_proto.S2AContext{
 			ApplicationProtocol:  result.GetApplicationProtocol(),
@@ -26,25 +31,25 @@ func NewS2AAuthInfo(result *s2a_proto.SessionResult) *S2AAuthInfo {
 			LocalCertFingerprint: result.GetLocalCertFingerprint(),
 		},
 		CommonAuthInfo: credentials.CommonAuthInfo{SecurityLevel: credentials.PrivacyAndIntegrity},
-	}
+	}, nil
 }
 
 // AuthType returns the authentication type.
 func (s *S2AAuthInfo) AuthType() string {
-	return "s2a"
+	return s2aAuthType
 }
 
-// ApplicationProtocol returns the application protocol.
+// ApplicationProtocol returns the application protocol, e.g. "grpc".
 func (s *S2AAuthInfo) ApplicationProtocol() string {
 	return s.s2aContext.GetApplicationProtocol()
 }
 
-// TLSVersion returns the TLS version.
+// TLSVersion returns the TLS version negotiated during the handshake.
 func (s *S2AAuthInfo) TLSVersion() s2a_proto.TLSVersion {
 	return s.s2aContext.GetTlsVersion()
 }
 
-// Ciphersuite returns the ciphersuite.
+// Ciphersuite returns the ciphersuite negotiated during the handshake.
 func (s *S2AAuthInfo) Ciphersuite() s2a_proto.Ciphersuite {
 	return s.s2aContext.GetCiphersuite()
 }
@@ -54,7 +59,8 @@ func (s *S2AAuthInfo) PeerIdentity() *s2a_proto.Identity {
 	return s.s2aContext.GetPeerIdentity()
 }
 
-// LocalIdentity returns the local identity used during session setup.
+// LocalIdentity returns the local identity of the application used during
+// session setup.
 func (s *S2AAuthInfo) LocalIdentity() *s2a_proto.Identity {
 	return s.s2aContext.GetLocalIdentity()
 }
