@@ -21,6 +21,22 @@ func getHalfConnPair(ciphersuite s2a_proto.Ciphersuite, trafficSecret []byte, t 
 	return sender, receiver
 }
 
+// aeadCrypterEqual checks whether the given s2aAeadCrypters encode a simple
+// string identically.
+func aeadCrypterEqual(a s2aAeadCrypter, b s2aAeadCrypter, t *testing.T) bool {
+	nonce := make([]byte, nonceSize)
+	const plaintext = "This is plaintext"
+	ciphertextA, err := a.encrypt(nil, []byte(plaintext), nonce, nil)
+	if err != nil {
+		t.Errorf("a.encrypt(nil, %v, %v, nil) failed, err = %v", []byte(plaintext), nonce, err)
+	}
+	ciphertextB, err := b.encrypt(nil, []byte(plaintext), nonce, nil)
+	if err != nil {
+		t.Errorf("b.encrypt(nil, %v, %v, nil) failed, err = %v", []byte(plaintext), nonce, err)
+	}
+	return bytes.Equal(ciphertextA, ciphertextB)
+}
+
 func testHalfConnRoundtrip(sender S2AHalfConnection, receiver S2AHalfConnection, t *testing.T) {
 	// Encrypt first message.
 	const plaintext = "This is plaintext."
@@ -126,11 +142,15 @@ func TestNewHalfConn(t *testing.T) {
 				if got, want := hc.trafficSecret, tc.trafficSecret; !bytes.Equal(got, want) {
 					t.Errorf("NewHalfConn(%v, %v).trafficSecret=%v, want %v", tc.ciphersuite, tc.trafficSecret, got, want)
 				}
-				if got, want := hc.key, tc.key; !bytes.Equal(got, want) {
-					t.Errorf("NewHalfConn(%v, %v).key=%v, want %v", tc.ciphersuite, tc.trafficSecret, got, want)
-				}
 				if got, want := hc.nonce, tc.nonce; !bytes.Equal(got, want) {
 					t.Errorf("NewHalfConn(%v, %v).nonce=%v, want %v", tc.ciphersuite, tc.trafficSecret, got, want)
+				}
+				aeadCrypter, err := newCiphersuite(tc.ciphersuite).aeadCrypter(tc.key)
+				if err != nil {
+					t.Errorf("newCipherSuite(%v).aeadCrypter(%v) failed, err = %v", tc.ciphersuite, tc.key, err)
+				}
+				if got, want := hc.aeadCrypter, aeadCrypter; !aeadCrypterEqual(got, want, t) {
+					t.Errorf("aeadCrypterEqual returned false, expected true")
 				}
 			}
 		})
@@ -268,13 +288,17 @@ func TestS2AHalfConnectionUpdateKey(t *testing.T) {
 				t.Fatalf("hc.updateKey() failed, err = %v", err)
 			}
 			if got, want := hc.trafficSecret, tc.advancedTrafficSecret; !bytes.Equal(got, want) {
-				t.Errorf("updated traffic secret = %v, want %v", got, want)
-			}
-			if got, want := hc.key, tc.key; !bytes.Equal(got, want) {
-				t.Errorf("updated key = %v, want %v", got, want)
+				t.Errorf("hc.trafficSecret = %v, want %v", got, want)
 			}
 			if got, want := hc.nonce, tc.nonce; !bytes.Equal(got, want) {
-				t.Errorf("updated nonce = %v, want %v", got, want)
+				t.Errorf("hc.nonce = %v, want %v", got, want)
+			}
+			aeadCrypter, err := newCiphersuite(tc.ciphersuite).aeadCrypter(tc.key)
+			if err != nil {
+				t.Errorf("newCipherSuite(%v).aeadCrypter(%v) failed, err = %v", tc.ciphersuite, tc.key, err)
+			}
+			if got, want := hc.aeadCrypter, aeadCrypter; !aeadCrypterEqual(got, want, t) {
+				t.Errorf("aeadCrypterEqual returned false, expected true")
 			}
 		})
 	}

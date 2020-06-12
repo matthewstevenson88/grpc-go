@@ -25,7 +25,6 @@ type S2AHalfConnection struct {
 	mutex         sync.Mutex
 	trafficSecret []byte
 	nonce         []byte
-	key           []byte
 }
 
 // NewHalfConn creates a new instance of S2AHalfConnection.
@@ -38,14 +37,10 @@ func NewHalfConn(ciphersuite s2a_proto.Ciphersuite, trafficSecret []byte) (S2AHa
 	hc := S2AHalfConnection{cs: cs, h: cs.hashFunction(), expander: &defaultHKDFExpander{}, sequence: newCounter(), trafficSecret: trafficSecret}
 
 	var err error
-	if err = hc.updateWithNewTrafficSecret(hc.trafficSecret); err != nil {
-		return S2AHalfConnection{}, fmt.Errorf("failed to create half connection using traffic secret with error: %v", err)
+	if err = hc.updateCrypterAndNonce(hc.trafficSecret, false /* updateCrypterKey */); err != nil {
+		return S2AHalfConnection{}, fmt.Errorf("failed to create half connection using traffic secret: %v", err)
 	}
 
-	hc.aeadCrypter, err = cs.aeadCrypter(hc.key)
-	if err != nil {
-		return S2AHalfConnection{}, fmt.Errorf("failed to update AEAD crypter with error: %v", err)
-	}
 	return hc, nil
 }
 
@@ -92,34 +87,41 @@ func (hc *S2AHalfConnection) UpdateKey() error {
 	var err error
 	hc.trafficSecret, err = hc.deriveSecret(hc.trafficSecret, []byte(tls13Update), hc.cs.trafficSecretSize())
 	if err != nil {
-		return fmt.Errorf("failed to advance traffic secret with error: %v", err)
+		return fmt.Errorf("failed to advance traffic secret: %v", err)
 	}
 
-	if err = hc.updateWithNewTrafficSecret(hc.trafficSecret); err != nil {
-		return fmt.Errorf("failed to update half connection using new traffic secret with error: %v", err)
-	}
-
-	err = hc.aeadCrypter.updateKey(hc.key)
-	if err != nil {
-		return fmt.Errorf("failed to update AEAD crypter with error: %v", err)
+	if err = hc.updateCrypterAndNonce(hc.trafficSecret, true /* updateCrypterKey */); err != nil {
+		return fmt.Errorf("failed to update half connection: %v", err)
 	}
 
 	hc.sequence.reset()
 	return nil
 }
 
-// updateWithNewTrafficSecret takes a new traffic secret and updates the key
-// and nonce.
-func (hc *S2AHalfConnection) updateWithNewTrafficSecret(newTrafficSecret []byte) error {
-	var err error
-	hc.key, err = hc.deriveSecret(newTrafficSecret, []byte(tls13Key), hc.cs.keySize())
+// updateCrypterAndNonce takes a new traffic secret and updates the crypter
+// and nonce. The updateCrypterKey flag determines whether a new AEAD crypter
+// is created or the existing one is updated with a new key.
+func (hc *S2AHalfConnection) updateCrypterAndNonce(newTrafficSecret []byte, updateCrypterKey bool) error {
+	key, err := hc.deriveSecret(newTrafficSecret, []byte(tls13Key), hc.cs.keySize())
 	if err != nil {
-		return fmt.Errorf("failed to update key using new traffic secret with error: %v", err)
+		return fmt.Errorf("failed to update key: %v", err)
 	}
 
 	hc.nonce, err = hc.deriveSecret(newTrafficSecret, []byte(tls13Nonce), hc.cs.nonceSize())
 	if err != nil {
-		return fmt.Errorf("failed to update nonce using new traffic secret with error: %v", err)
+		return fmt.Errorf("failed to update nonce: %v", err)
+	}
+
+	if updateCrypterKey {
+		err = hc.aeadCrypter.updateKey(key)
+		if err != nil {
+			return fmt.Errorf("failed to update AEAD crypter: %v", err)
+		}
+	} else {
+		hc.aeadCrypter, err = hc.cs.aeadCrypter(key)
+		if err != nil {
+			return fmt.Errorf("failed to create AEAD crypter: %v", err)
+		}
 	}
 	return nil
 }
@@ -161,7 +163,7 @@ func (hc *S2AHalfConnection) deriveSecret(secret, label []byte, length int) ([]b
 	})
 	hkdfLabelBytes, err := hkdfLabel.Bytes()
 	if err != nil {
-		return nil, fmt.Errorf("deriveSecret failed with error: %v", err)
+		return nil, fmt.Errorf("deriveSecret failed: %v", err)
 	}
 	return hc.expander.expand(hc.h, secret, hkdfLabelBytes, length)
 }
