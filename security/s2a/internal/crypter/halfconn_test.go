@@ -123,7 +123,7 @@ func TestGetAndIncrementSequence(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			hc := S2AHalfConnection{sequence: counter{val: tc.counter}}
 			// Make first getAndIncrement call. This should return the same value
-			// which was given.
+			// that was given.
 			value, err := hc.getAndIncrementSequence()
 			if err != nil {
 				t.Errorf("S2A counter starting with %v, hc.getAndIncrementSequence() failed, err = %v", tc.counter, err)
@@ -258,76 +258,6 @@ func TestNewHalfConn(t *testing.T) {
 				if got, want := hc.aeadCrypter, aeadCrypter; !aeadCrypterEqual(got, want, t) {
 					t.Errorf("aeadCrypterEqual returned false, expected true")
 				}
-			}
-		})
-	}
-}
-
-func TestS2AHalfConnectionEncrypt(t *testing.T) {
-	for _, tc := range []struct {
-		ciphersuite                                                  s2a_proto.Ciphersuite
-		trafficSecret                                                []byte
-		expectedCiphertext, expectedCiphertext2, expectedCiphertext3 []byte
-	}{
-		{
-			ciphersuite:         s2a_proto.Ciphersuite_AES_128_GCM_SHA256,
-			trafficSecret:       testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			expectedCiphertext:  testutil.Dehex("f2e4e411ac674e01385e7ae9db54c97a9ae3d1842e51"),
-			expectedCiphertext2: testutil.Dehex("d7853afd6d7ceaababded0348f9a9c3a5b52544f0033d7c7ad"),
-			expectedCiphertext3: testutil.Dehex("af778b0e98365c4ee2174f17aab4aa0aba58eab1"),
-		},
-		{
-			ciphersuite:         s2a_proto.Ciphersuite_AES_256_GCM_SHA384,
-			trafficSecret:       testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			expectedCiphertext:  testutil.Dehex("24efee5af1a665e6bb188e79544a7e974c707d690c5f"),
-			expectedCiphertext2: testutil.Dehex("832a5fd271b6442e743d6e30dcd66441846e719143b2acb9f4"),
-			expectedCiphertext3: testutil.Dehex("96cb84cc897caf296f9663fbc376243c7b53239c"),
-		},
-		{
-			ciphersuite:         s2a_proto.Ciphersuite_CHACHA20_POLY1305_SHA256,
-			trafficSecret:       testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			expectedCiphertext:  testutil.Dehex("c947ffa470308b19d9a086b05ccb75d8c94abb704aae"),
-			expectedCiphertext2: testutil.Dehex("0cedeb922170c110c1f11bc03ffffbb2f5a9393d51b8d52f14"),
-			expectedCiphertext3: testutil.Dehex("924a53438593d1d76e54799b9ee8f35f2cee20dc"),
-		},
-	} {
-		t.Run(tc.ciphersuite.String(), func(t *testing.T) {
-			hc, err := NewHalfConn(tc.ciphersuite, tc.trafficSecret)
-			if err != nil {
-				t.Fatalf("NewHalfConn(%v, %v) failed, err = %v", tc.ciphersuite, tc.trafficSecret, err)
-			}
-
-			// Test encrypt with sequence 0.
-			const plaintext = "123456"
-			buf := []byte(plaintext)
-			ciphertext, err := hc.Encrypt(buf[:0], buf, nil)
-			if err != nil {
-				t.Fatalf("Encrypt(%v, %v, nil) failed, err = %v", buf[:0], buf, err)
-			}
-			if got, want := ciphertext, tc.expectedCiphertext; !bytes.Equal(got, want) {
-				t.Fatalf("Encrypt(%v, %v, nil) = %v, want %v", buf[:0], buf, got, want)
-			}
-
-			// Test encrypt with sequence 1.
-			const plaintext2 = "789123456"
-			buf2 := []byte(plaintext2)
-			ciphertext2, err := hc.Encrypt(buf2[:0], buf2, nil)
-			if err != nil {
-				t.Fatalf("Encrypt(%v, %v, nil) failed, err = %v", buf2[:0], buf2, err)
-			}
-			if got, want := ciphertext2, tc.expectedCiphertext2; !bytes.Equal(got, want) {
-				t.Fatalf("Encrypt(%v, %v, nil) = %v, want %v", buf2[:0], buf2, got, want)
-			}
-
-			// Test encrypt with sequence 2.
-			const plaintext3 = "7891"
-			buf3 := []byte(plaintext3)
-			ciphertext3, err := hc.Encrypt(buf3[:0], buf3, nil)
-			if err != nil {
-				t.Fatalf("Encrypt(%v, %v, nil) failed, err = %v", buf3[:0], buf3, err)
-			}
-			if got, want := ciphertext3, tc.expectedCiphertext3; !bytes.Equal(got, want) {
-				t.Fatalf("Encrypt(%v, %v, nil) = %v, want %v", buf3[:0], buf3, got, want)
 			}
 		})
 	}
