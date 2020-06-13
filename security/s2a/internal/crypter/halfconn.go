@@ -100,7 +100,9 @@ func (hc *S2AHalfConnection) UpdateKey() error {
 
 // updateCrypterAndNonce takes a new traffic secret and updates the crypter
 // and nonce. The updateCrypterKey flag determines whether a new AEAD crypter
-// is created or the existing one is updated with a new key.
+// is created or the existing one is updated with a new key. The
+// updateCrypterKey flag should only be set to false when called by the
+// constructor.
 func (hc *S2AHalfConnection) updateCrypterAndNonce(newTrafficSecret []byte, updateCrypterKey bool) error {
 	key, err := hc.deriveSecret(newTrafficSecret, []byte(tls13Key), hc.cs.keySize())
 	if err != nil {
