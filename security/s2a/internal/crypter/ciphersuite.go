@@ -11,11 +11,15 @@ import (
 // ciphersuite is the interface for retrieving ciphersuite-specific information
 // and utilities.
 type ciphersuite interface {
-	// keySize returns the key size in bytes.
+	// keySize returns the key size in bytes. This refers to the key used by
+	// the AEAD crypter. This is derived by calling HKDF expand on the traffic
+	// secret.
 	keySize() int
 	// nonceSize returns the nonce size in bytes.
 	nonceSize() int
-	// trafficSecretSize returns the traffic secret size in bytes.
+	// trafficSecretSize returns the traffic secret size in bytes. This refers
+	// to the secret used to derive the traffic key and nonce, as specified in
+	// https://tools.ietf.org/html/rfc8446#section-7.
 	trafficSecretSize() int
 	// hashFunction returns the hash function for the ciphersuite.
 	hashFunction() func() hash.Hash
