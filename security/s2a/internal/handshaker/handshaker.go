@@ -16,115 +16,114 @@
  *
  */
 
-// Package handshaker provides S2A handshaking functionality for GCP.
 package handshaker
 
 import (
 	"context"
+	"errors"
 	"net"
 
 	grpc "google.golang.org/grpc"
 	s2a "google.golang.org/grpc/security/s2a/internal/proto"
 )
 
-const ()
-
-var ()
-
-func init() {
-}
-
-func acquire() bool {
-	return false
-}
-
-func release() {
-}
-
-// ClientHandshakerOptions contains the client handshaker options that are
-// provided by the caller.
+// ClientHandshakerOptions contains the options needed to configure the S2A
+// handshaker service on the client-side.
 type ClientHandshakerOptions struct {
-	// ClientIdentity is the handshaker client local identity.
+	// ClientIdentity is the handshaker client local identity of the client
+	// application. If none is provided, then the S2A will choose a default identity.
 	ClientIdentity *s2a.Identity
 	// TargetName is the server service account name for secure name
 	// checking.
 	TargetName string
-	// TargetServiceAccounts contains a list of expected target service
+	// TargetIdentities contains a list of expected target service
 	// accounts. One of these accounts should match one of the accounts in
 	// the handshaker results. Otherwise, the handshake fails.
 	TargetIdentities []*s2a.Identity
-	// RPCVersions specifies the gRPC versions accepted by the client.
-	TLSVersion *s2a.TLSVersion
-	// TODO: determine a graceful method of providing Hostname OR SpiffeID
-	Hostname string
-	SpiffeID string
-	// Cipher specifies the ciphersuite supported by the client
-	Cipher *s2a.Ciphersuite
+	// MinTLSVersion and MaxTLSVersion specify the TLS Versions accepted by the client.
+	MinTLSVersion *s2a.TLSVersion
+	MaxTLSVersion *s2a.TLSVersion
+	Hostname      string
+	SpiffeID      string
+	// The ordered list of ciphersuites supported by the client.
+	SupportedCiphersuiteList []*s2a.Ciphersuite
 }
 
-// ServerHandshakerOptions contains the server handshaker options that are
-// provided by the caller.
+// ServerHandshakerOptions contains the options needed to configure the S2A
+// handshaker service on the server-side.
 type ServerHandshakerOptions struct {
-	// TLSVersion specifies the TLS versions accepted by the server.
-	TLSVersion *s2a.TLSVersion
-	// TODO: determine a graceful method of providing Hostname or SpiffeID
-	Hostname string
-	SpiffeID string
-	// Cipher specifies the ciphersuite supported by the server.
-	Cipher *s2a.Ciphersuite
+	// MinTLSVersion and MaxTLSVersion specify the TLS Versions accepted by the client.
+	MinTLSVersion   *s2a.TLSVersion
+	MaxTLSVersion   *s2a.TLSVersion
+	LocalIdentities []*s2a.Identity
+	// The ordered list of ciphersuites supported by the client.
+	SupportedCiphersuiteList []*s2a.Ciphersuite
 }
 
-// s2aHandshaker is used to complete a S2A handshaking between client and
-// server. This handshaker talks to the S2A  handshaker service in the metadata
-// server.
+// s2aHandshaker performs a TLS handshake using the S2Ahandshaker service.
 type s2aHandshaker struct {
-	// RPC stream used to access the S2A Handshaker service.
+	// Stream used to communicate with the S2A handshaker service.
 	stream s2a.S2AService_SetUpSessionClient
-	// the connection to the peer.
-	conn net.Conn
-	// client handshake options.
+	// The connection to the peer.
+	conn       net.Conn
 	clientOpts *ClientHandshakerOptions
-	// server handshake options.
 	serverOpts *ServerHandshakerOptions
 }
 
-// NewClientHandshaker creates a S2A client handshaker to talk to the S2A server
-// handshaker service.
+// NewClientHandshaker creates an s2aHandshaker instance that performs a
+// client-side TLS handshake using the S2A handshaker service.
 func NewClientHandshaker(ctx context.Context, conn *grpc.ClientConn, c net.Conn, opts *ClientHandshakerOptions) (*s2aHandshaker, error) {
-	return &s2aHandshaker{}, nil
+	stream, err := s2a.NewS2AServiceClient(conn).SetUpSession(ctx, grpc.WaitForReady(true))
+	if err != nil {
+		return &s2aHandshaker{}, err
+	}
+
+	return &s2aHandshaker{
+		stream:     stream,
+		conn:       c,
+		clientOpts: opts,
+	}, nil
 }
 
-// NewServerHandshaker creates a S2A server handshaker to talk to the S2A client
-// handshaker service.
+// NewServerHandshaker creates an s2aHandshaker instance that performs a
+// server-side TLS handshake using the S2A handshaker service.
 func NewServerHandshaker(ctx context.Context, conn *grpc.ClientConn, c net.Conn, opts *ServerHandshakerOptions) (*s2aHandshaker, error) {
-	return &s2aHandshaker{}, nil
+	stream, err := s2a.NewS2AServiceClient(conn).SetUpSession(ctx, grpc.WaitForReady(true))
+	if err != nil {
+		return &s2aHandshaker{}, err
+	}
+	return &s2aHandshaker{
+		stream:     stream,
+		conn:       c,
+		serverOpts: opts,
+	}, nil
 }
 
-// ClientHandshake starts and completes a client handshaking for GCP. Once
-// done, ClientHandshake returns a secure connection.
+// ClientHandshake performs a client-side TLS handshake using the S2A handshaker
+// service. When complete, returns a servure connection.
 func (h *s2aHandshaker) ClientHandshake(ctx context.Context) (net.Conn, error) {
-	return nil, nil
+	return nil, errors.New("Method unimplemented")
 }
 
-// ServerHandshake starts and completes a server handshaking for GCP. Once
-// done, ServerHandshake returns a secure connection.
+// ServerHandshake performs a server-side TLS handshake using the S2A handshaker
+// service. When complete, returns a ssecure connection.
 func (h *s2aHandshaker) ServerHandshake(ctx context.Context) (net.Conn, error) {
-	return nil, nil
+	return nil, errors.New("Method unimplemented")
 }
 
-func (h *s2aHandshaker) doHandshake(req *s2a.SessionReq) (net.Conn, *s2a.SessionResult, error) {
-	return nil, nil, nil
+func (h *s2aHandshaker) setUpSession(req *s2a.SessionReq) (net.Conn, *s2a.SessionResult, error) {
+	return nil, nil, errors.New("Method unimplemented")
 }
 
 func (h *s2aHandshaker) accessHandshakerService(req *s2a.SessionReq) (*s2a.SessionResp, error) {
-	return nil, nil
+	return nil, errors.New("Method unimplemented")
 }
 
 // processUntilDone processes the handshake until the handshaker service returns
 // the results. Handshaker service takes care of frame parsing, so we read
 // whatever received from the network and send it to the handshaker service.
 func (h *s2aHandshaker) processUntilDone(resp *s2a.SessionResp, extra []byte) (*s2a.SessionResult, []byte, error) {
-	return nil, nil, nil
+	return nil, nil, errors.New("Method unimplemented")
 }
 
 // Close terminates the Handshaker. It should be called when the caller obtains
