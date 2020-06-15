@@ -11,8 +11,8 @@ const s2aAuthType = "s2a"
 // S2AAuthInfo exposes authentication and authorization information from the
 // S2A session result to the gRPC stack.
 type S2AAuthInfo struct {
-	s2aContext *s2a_proto.S2AContext
 	credentials.CommonAuthInfo
+	s2aContext *s2a_proto.S2AContext
 }
 
 // NewS2aAuthInfo returns a new S2AAuthInfo object from the S2A session result.
@@ -21,6 +21,7 @@ func NewS2AAuthInfo(result *s2a_proto.SessionResult) (*S2AAuthInfo, error) {
 		return nil, errors.New("NewS2aAuthInfo given nil session result")
 	}
 	return &S2AAuthInfo{
+		CommonAuthInfo: credentials.CommonAuthInfo{SecurityLevel: credentials.PrivacyAndIntegrity},
 		s2aContext: &s2a_proto.S2AContext{
 			ApplicationProtocol:  result.GetApplicationProtocol(),
 			TlsVersion:           result.GetState().GetTlsVersion(),
@@ -30,7 +31,6 @@ func NewS2AAuthInfo(result *s2a_proto.SessionResult) (*S2AAuthInfo, error) {
 			PeerCertFingerprint:  result.GetPeerCertFingerprint(),
 			LocalCertFingerprint: result.GetLocalCertFingerprint(),
 		},
-		CommonAuthInfo: credentials.CommonAuthInfo{SecurityLevel: credentials.PrivacyAndIntegrity},
 	}, nil
 }
 
