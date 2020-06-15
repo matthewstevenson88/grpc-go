@@ -75,7 +75,7 @@ func TestCiphersuites(t *testing.T) {
 				t.Fatalf("hc.aeadCrypter(%v) failed: %v", tc.key, err)
 			}
 			if got, want := reflect.TypeOf(aeadCrypter), reflect.TypeOf(tc.aeadCrypter); got != want {
-				t.Errorf("hashFunction = %v, want %v", got, want)
+				t.Errorf("hc.aeadCrypter(%v) = %v, want %v", tc.key, got, want)
 			}
 		})
 	}
