@@ -8,8 +8,8 @@ type counter struct {
 	hasOverflowed bool
 }
 
-func newCounter() counter {
-	return counter{}
+func newCounter(val uint64) counter {
+	return counter{val: val}
 }
 
 // value returns the current value of the counter.
