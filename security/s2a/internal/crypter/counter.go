@@ -8,6 +8,7 @@ type counter struct {
 	hasOverflowed bool
 }
 
+// newCounter creates a new counter with the initial value set to val.
 func newCounter(val uint64) counter {
 	return counter{val: val}
 }
