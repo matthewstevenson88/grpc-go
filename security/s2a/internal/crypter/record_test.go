@@ -36,7 +36,7 @@ func TestNewS2ARecordConn(t *testing.T) {
 		{
 			desc: "invalid input traffic secret size",
 			options: &ConnOptions{
-				c:                     &fakeConn{},
+				netConn:               &fakeConn{},
 				ciphersuite:           s2a_proto.Ciphersuite_AES_256_GCM_SHA384,
 				tlsVersion:            s2a_proto.TLSVersion_TLS1_3,
 				inTrafficSecret:       testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
@@ -48,7 +48,7 @@ func TestNewS2ARecordConn(t *testing.T) {
 		{
 			desc: "invalid output traffic secret size",
 			options: &ConnOptions{
-				c:                     &fakeConn{},
+				netConn:               &fakeConn{},
 				ciphersuite:           s2a_proto.Ciphersuite_AES_256_GCM_SHA384,
 				tlsVersion:            s2a_proto.TLSVersion_TLS1_3,
 				inTrafficSecret:       testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
@@ -60,7 +60,7 @@ func TestNewS2ARecordConn(t *testing.T) {
 		{
 			desc: "invalid tls version",
 			options: &ConnOptions{
-				c:                     &fakeConn{},
+				netConn:               &fakeConn{},
 				ciphersuite:           s2a_proto.Ciphersuite_AES_128_GCM_SHA256,
 				tlsVersion:            s2a_proto.TLSVersion_TLS1_2,
 				inTrafficSecret:       testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
@@ -72,7 +72,7 @@ func TestNewS2ARecordConn(t *testing.T) {
 		{
 			desc: "basic 1",
 			options: &ConnOptions{
-				c:                     &fakeConn{},
+				netConn:               &fakeConn{},
 				ciphersuite:           s2a_proto.Ciphersuite_AES_128_GCM_SHA256,
 				tlsVersion:            s2a_proto.TLSVersion_TLS1_3,
 				inTrafficSecret:       testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
@@ -86,7 +86,7 @@ func TestNewS2ARecordConn(t *testing.T) {
 		{
 			desc: "basic 2",
 			options: &ConnOptions{
-				c:                     &fakeConn{},
+				netConn:               &fakeConn{},
 				ciphersuite:           s2a_proto.Ciphersuite_AES_256_GCM_SHA384,
 				tlsVersion:            s2a_proto.TLSVersion_TLS1_3,
 				inTrafficSecret:       testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
@@ -100,7 +100,7 @@ func TestNewS2ARecordConn(t *testing.T) {
 		{
 			desc: "basic 3",
 			options: &ConnOptions{
-				c:                     &fakeConn{},
+				netConn:               &fakeConn{},
 				ciphersuite:           s2a_proto.Ciphersuite_CHACHA20_POLY1305_SHA256,
 				tlsVersion:            s2a_proto.TLSVersion_TLS1_3,
 				inTrafficSecret:       testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
@@ -119,7 +119,7 @@ func TestNewS2ARecordConn(t *testing.T) {
 				t.Errorf("NewConn(%v) = (err=nil) = %v, want %v", *tc.options, got, want)
 			}
 			if err == nil {
-				conn := netConn.(*Conn)
+				conn := netConn.(*conn)
 				if got, want := conn.unusedBytes, tc.outUnusedBytesBuf; !bytes.Equal(got, want) {
 					t.Errorf("conn.unusedBytes = %v, want %v", got, want)
 				}
