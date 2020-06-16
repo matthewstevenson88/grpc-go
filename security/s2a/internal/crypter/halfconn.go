@@ -29,14 +29,16 @@ type S2AHalfConnection struct {
 
 // NewHalfConn creates a new instance of S2AHalfConnection.
 func NewHalfConn(ciphersuite s2a_proto.Ciphersuite, trafficSecret []byte) (S2AHalfConnection, error) {
-	cs := newCiphersuite(ciphersuite)
+	cs, err := newCiphersuite(ciphersuite)
+	if err != nil {
+		return S2AHalfConnection{}, fmt.Errorf("failed to create new ciphersuite: %v", ciphersuite)
+	}
 	if cs.trafficSecretSize() != len(trafficSecret) {
 		return S2AHalfConnection{}, fmt.Errorf("supplied traffic secret must be %v bytes, given: %v bytes", cs.trafficSecretSize(), len(trafficSecret))
 	}
 
 	hc := S2AHalfConnection{cs: cs, h: cs.hashFunction(), expander: &defaultHKDFExpander{}, sequence: newCounter(), trafficSecret: trafficSecret}
 
-	var err error
 	if err = hc.updateCrypterAndNonce(hc.trafficSecret, false /* updateCrypterKey */); err != nil {
 		return S2AHalfConnection{}, fmt.Errorf("failed to create half connection using traffic secret: %v", err)
 	}

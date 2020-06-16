@@ -251,9 +251,13 @@ func TestNewHalfConn(t *testing.T) {
 				if got, want := hc.nonce, tc.nonce; !bytes.Equal(got, want) {
 					t.Errorf("NewHalfConn(%v, %v).nonce=%v, want %v", tc.ciphersuite, tc.trafficSecret, got, want)
 				}
-				aeadCrypter, err := newCiphersuite(tc.ciphersuite).aeadCrypter(tc.key)
+				cs, err := newCiphersuite(tc.ciphersuite)
 				if err != nil {
-					t.Errorf("newCipherSuite(%v).aeadCrypter(%v) failed, err = %v", tc.ciphersuite, tc.key, err)
+					t.Errorf("newCipherSuite(%v) failed, err = %v", tc.ciphersuite, err)
+				}
+				aeadCrypter, err := cs.aeadCrypter(tc.key)
+				if err != nil {
+					t.Errorf("cs.aeadCrypter(%v) failed, err = %v", tc.key, err)
 				}
 				if got, want := hc.aeadCrypter, aeadCrypter; !aeadCrypterEqual(got, want, t) {
 					t.Errorf("aeadCrypterEqual returned false, expected true")
@@ -329,9 +333,13 @@ func TestS2AHalfConnectionUpdateKey(t *testing.T) {
 			if got, want := hc.nonce, tc.nonce; !bytes.Equal(got, want) {
 				t.Errorf("hc.nonce = %v, want %v", got, want)
 			}
-			aeadCrypter, err := newCiphersuite(tc.ciphersuite).aeadCrypter(tc.key)
+			cs, err := newCiphersuite(tc.ciphersuite)
 			if err != nil {
-				t.Errorf("newCipherSuite(%v).aeadCrypter(%v) failed, err = %v", tc.ciphersuite, tc.key, err)
+				t.Errorf("newCipherSuite(%v) failed, err = %v", tc.ciphersuite, err)
+			}
+			aeadCrypter, err := cs.aeadCrypter(tc.key)
+			if err != nil {
+				t.Errorf("cs.aeadCrypter(%v) failed, err = %v", tc.key, err)
 			}
 			if got, want := hc.aeadCrypter, aeadCrypter; !aeadCrypterEqual(got, want, t) {
 				t.Errorf("aeadCrypterEqual returned false, expected true")
