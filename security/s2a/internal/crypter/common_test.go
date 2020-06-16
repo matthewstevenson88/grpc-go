@@ -14,6 +14,12 @@ func (*fakeAEAD) Overhead() int                                   { return tagSi
 func (*fakeAEAD) Seal(_, _, plaintext, _ []byte) []byte           { return plaintext }
 func (*fakeAEAD) Open(_, _, ciphertext, _ []byte) ([]byte, error) { return ciphertext, nil }
 
+type encryptDecryptTestVector struct {
+	desc   string
+	nonce  []byte
+	outErr bool
+}
+
 func TestSliceForAppend(t *testing.T) {
 	for _, tc := range []struct {
 		desc  string
@@ -74,25 +80,47 @@ func TestInvalidNonceSize(t *testing.T) {
 }
 
 func TestEncrypt(t *testing.T) {
-	plaintext := []byte("test")
-	nonce := make([]byte, nonceSize)
-	ciphertext, err := decrypt(&fakeAEAD{}, nil, plaintext, nonce, nil)
-	if err != nil {
-		t.Fatalf("encrypt(&fakeAEAD{}, nil, %v, %v, nil) failed: %v", plaintext, nonce, err)
-	}
-	if got, want := ciphertext, plaintext; !bytes.Equal(got, want) {
-		t.Fatalf("encrypt(&fakeAEAD{}, nil, %v, %v, nil) = %v, want %v", plaintext, nonce, got, want)
+	for _, tc := range []encryptDecryptTestVector{
+		{
+			desc:  "valid nonce size",
+			nonce: make([]byte, nonceSize),
+		},
+		{
+			desc:   "invalid nonce size",
+			nonce:  make([]byte, 1),
+			outErr: true,
+		},
+	} {
+		plaintext := []byte("test")
+		ciphertext, err := encrypt(&fakeAEAD{}, nil, plaintext, tc.nonce, nil)
+		if got, want := err == nil, !tc.outErr; got != want {
+			t.Fatalf("encrypt(&fakeAEAD{}, nil, %v, %v, nil)=(err=nil)=%v, want %v", plaintext, tc.nonce, got, want)
+		}
+		if got, want := ciphertext, plaintext; err == nil && !bytes.Equal(got, want) {
+			t.Fatalf("encrypt(&fakeAEAD{}, nil, %v, %v, nil) = %v, want %v", plaintext, tc.nonce, got, want)
+		}
 	}
 }
 
 func TestDecrypt(t *testing.T) {
-	ciphertext := []byte("test")
-	nonce := make([]byte, nonceSize)
-	plaintext, err := decrypt(&fakeAEAD{}, nil, ciphertext, nonce, nil)
-	if err != nil {
-		t.Fatalf("decrypt(&fakeAEAD{}, nil, %v, %v, nil) failed: %v", ciphertext, nonce, err)
-	}
-	if got, want := plaintext, ciphertext; !bytes.Equal(got, want) {
-		t.Fatalf("decrypt(&fakeAEAD{}, nil, %v, %v, nil) = %v, want %v", ciphertext, nonce, got, want)
+	for _, tc := range []encryptDecryptTestVector{
+		{
+			desc:  "valid nonce size",
+			nonce: make([]byte, nonceSize),
+		},
+		{
+			desc:   "invalid nonce size",
+			nonce:  make([]byte, 1),
+			outErr: true,
+		},
+	} {
+		ciphertext := []byte("test")
+		plaintext, err := decrypt(&fakeAEAD{}, nil, ciphertext, tc.nonce, nil)
+		if got, want := err == nil, !tc.outErr; got != want {
+			t.Fatalf("decrypt(&fakeAEAD{}, nil, %v, %v, nil)=(err=nil)=%v, want %v", ciphertext, tc.nonce, got, want)
+		}
+		if got, want := plaintext, ciphertext; err == nil && !bytes.Equal(got, want) {
+			t.Fatalf("decrypt(&fakeAEAD{}, nil, %v, %v, nil) = %v, want %v", ciphertext, tc.nonce, got, want)
+		}
 	}
 }
