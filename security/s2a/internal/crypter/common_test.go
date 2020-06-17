@@ -69,16 +69,6 @@ func TestSliceForAppend(t *testing.T) {
 	}
 }
 
-func TestInvalidNonceSize(t *testing.T) {
-	nonce := []byte("1")
-	if _, err := encrypt(&fakeAEAD{}, nil, nil, nonce, nil); err == nil {
-		t.Errorf("encrypt(&fakeAEAD{}, nil, nil, %v, nil) expected error, received none", nonce)
-	}
-	if _, err := decrypt(&fakeAEAD{}, nil, nil, nonce, nil); err == nil {
-		t.Errorf("decrypt(&fakeAEAD{}, nil, nil, %v, nil) expected error, received none", nonce)
-	}
-}
-
 func TestEncrypt(t *testing.T) {
 	for _, tc := range []encryptDecryptTestVector{
 		{
