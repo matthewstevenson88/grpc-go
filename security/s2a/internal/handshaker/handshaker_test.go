@@ -32,7 +32,7 @@ var (
 	// testClientHandshakerOptions are the client handshaker options used
 	// for testing.
 	testClientHandshakerOptions = &ClientHandshakerOptions{
-		ClientIdentity: &s2a.Identity{
+		LocalIdentity: &s2a.Identity{
 			IdentityOneof: &s2a.Identity_SpiffeId{
 				SpiffeId: "spiffe_id",
 			},
