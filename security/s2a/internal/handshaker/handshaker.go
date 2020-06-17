@@ -38,8 +38,8 @@ type ClientHandshakerOptions struct {
 	// authorization check by the S2A if it is provided.
 	TargetName string
 	// TargetIdentities contains a list of allowed server identities. One of
-	// the target identities should match the perr identity in the handshake
-	// result; otherwise, the handshake failes.
+	// the target identities should match the peer identity in the handshake
+	// result; otherwise, the handshake fails.
 	TargetIdentities []*s2a.Identity
 	// MinTLSVersion and MaxTLSVersion specify the min and max TLS versions
 	// supported by the client.
@@ -70,7 +70,7 @@ type s2aHandshaker struct {
 	// The connection to the peer.
 	conn net.Conn
 	// clientOpts should be non-nil iff isClient is true, and serverOpts
-	// should be non-nil iff isClient is false
+	// should be non-nil iff isClient is false.
 	clientOpts *ClientHandshakerOptions
 	serverOpts *ServerHandshakerOptions
 	isClient   bool
@@ -140,9 +140,6 @@ func (h *s2aHandshaker) processUntilDone(resp *s2a.SessionResp, extra []byte) (*
 	return nil, nil, errors.New("Method unimplemented")
 }
 
-// Close shuts down the handshaker and the stream to the S2A handshaker service
-// when the handshake is complete. It should be called when the caller obtains
-// the secure connection at the end of the handshake; otherwise, it is a no-op.
 func (h *s2aHandshaker) Close() {
 	// Method is unimplemented.
 }
