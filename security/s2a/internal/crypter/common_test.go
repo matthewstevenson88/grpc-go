@@ -70,6 +70,7 @@ func TestSliceForAppend(t *testing.T) {
 }
 
 func TestEncrypt(t *testing.T) {
+	plaintext := []byte("test")
 	for _, tc := range []encryptDecryptTestVector{
 		{
 			desc:  "valid nonce size",
@@ -81,7 +82,6 @@ func TestEncrypt(t *testing.T) {
 			outErr: true,
 		},
 	} {
-		plaintext := []byte("test")
 		ciphertext, err := encrypt(&fakeAEAD{}, nil, plaintext, tc.nonce, nil)
 		if got, want := err == nil, !tc.outErr; got != want {
 			t.Fatalf("encrypt(&fakeAEAD{}, nil, %v, %v, nil)=(err=nil)=%v, want %v", plaintext, tc.nonce, got, want)
@@ -93,6 +93,7 @@ func TestEncrypt(t *testing.T) {
 }
 
 func TestDecrypt(t *testing.T) {
+	ciphertext := []byte("test")
 	for _, tc := range []encryptDecryptTestVector{
 		{
 			desc:  "valid nonce size",
@@ -104,7 +105,6 @@ func TestDecrypt(t *testing.T) {
 			outErr: true,
 		},
 	} {
-		ciphertext := []byte("test")
 		plaintext, err := decrypt(&fakeAEAD{}, nil, ciphertext, tc.nonce, nil)
 		if got, want := err == nil, !tc.outErr; got != want {
 			t.Fatalf("decrypt(&fakeAEAD{}, nil, %v, %v, nil)=(err=nil)=%v, want %v", ciphertext, tc.nonce, got, want)
