@@ -23,7 +23,6 @@ func TestNewS2ARecordConn(t *testing.T) {
 	for _, tc := range []struct {
 		desc                     string
 		options                  *ConnOptions
-		outPayloadSizeLimit      int
 		outUnusedBytesBuf        []byte
 		outOverheadSize          int
 		outHandshakerServiceAddr string
@@ -70,7 +69,7 @@ func TestNewS2ARecordConn(t *testing.T) {
 			outErr: true,
 		},
 		{
-			desc: "basic 1",
+			desc: "basic with AES-128-GCM-SHA256",
 			options: &ConnOptions{
 				netConn:               &fakeConn{},
 				ciphersuite:           s2a_proto.Ciphersuite_AES_128_GCM_SHA256,
@@ -79,12 +78,12 @@ func TestNewS2ARecordConn(t *testing.T) {
 				outTrafficSecret:      testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 				handshakerServiceAddr: "test handshaker address",
 			},
-			outPayloadSizeLimit:      2282,
+			// outOverheadSize = header size + record type byte + tag size.
 			outOverheadSize:          22,
 			outHandshakerServiceAddr: "test handshaker address",
 		},
 		{
-			desc: "basic 2",
+			desc: "basic with AES-256-GCM-SHA384",
 			options: &ConnOptions{
 				netConn:               &fakeConn{},
 				ciphersuite:           s2a_proto.Ciphersuite_AES_256_GCM_SHA384,
@@ -93,12 +92,26 @@ func TestNewS2ARecordConn(t *testing.T) {
 				outTrafficSecret:      testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 				handshakerServiceAddr: "test handshaker address",
 			},
-			outPayloadSizeLimit:      2282,
+			// outOverheadSize = header size + record type byte + tag size.
 			outOverheadSize:          22,
 			outHandshakerServiceAddr: "test handshaker address",
 		},
 		{
-			desc: "basic 3",
+			desc: "basic with CHACHA20-POLY1305-SHA256",
+			options: &ConnOptions{
+				netConn:               &fakeConn{},
+				ciphersuite:           s2a_proto.Ciphersuite_CHACHA20_POLY1305_SHA256,
+				tlsVersion:            s2a_proto.TLSVersion_TLS1_3,
+				inTrafficSecret:       testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+				outTrafficSecret:      testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+				handshakerServiceAddr: "test handshaker address",
+			},
+			// outOverheadSize = header size + record type byte + tag size.
+			outOverheadSize:          22,
+			outHandshakerServiceAddr: "test handshaker address",
+		},
+		{
+			desc: "basic with unusedBytes",
 			options: &ConnOptions{
 				netConn:               &fakeConn{},
 				ciphersuite:           s2a_proto.Ciphersuite_CHACHA20_POLY1305_SHA256,
@@ -108,7 +121,8 @@ func TestNewS2ARecordConn(t *testing.T) {
 				unusedBytes:           testutil.Dehex("ffffffff"),
 				handshakerServiceAddr: "test handshaker address",
 			},
-			outUnusedBytesBuf:        testutil.Dehex("ffffffff"),
+			outUnusedBytesBuf: testutil.Dehex("ffffffff"),
+			// outOverheadSize = header size + record type byte + tag size.
 			outOverheadSize:          22,
 			outHandshakerServiceAddr: "test handshaker address",
 		},
