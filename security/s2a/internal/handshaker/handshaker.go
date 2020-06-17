@@ -27,6 +27,7 @@ import (
 
 	grpc "google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/security/s2a/internal/authinfo"
 	s2a "google.golang.org/grpc/security/s2a/internal/proto"
 )
 
@@ -126,9 +127,9 @@ func newServerHandshakerInternal(stream s2a.S2AService_SetUpSessionClient, c net
 
 // ClientHandshake performs a client-side TLS handshake using the S2A handshaker
 // service. When complete, returns a secure TLS connection.
-func (h *s2aHandshaker) ClientHandshake(ctx context.Context) (net.Conn, error) {
+func (h *s2aHandshaker) ClientHandshake(ctx context.Context) (net.Conn, *authinfo.S2AAuthInfo, error) {
 	if !h.isClient {
-		return nil, errors.New("only handshakers created using NewClientHandshaker can perform a client handshaker")
+		return nil, nil, errors.New("only handshakers created using NewClientHandshaker can perform a client handshaker")
 	}
 
 	// Create target identities from service account list.
@@ -148,23 +149,27 @@ func (h *s2aHandshaker) ClientHandshake(ctx context.Context) (net.Conn, error) {
 
 	conn, result, err := h.setUpSession(req)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return conn, nil
+	authInfo, err := authinfo.NewS2AAuthInfo(result)
+	if err != nil {
+		return nil, nil, err
+	}
+	return conn, authInfo, nil
 }
 
 // ServerHandshake performs a server-side TLS handshake using the S2A handshaker
 // service. When complete, returns a secure TLS connection.
-func (h *s2aHandshaker) ServerHandshake(ctx context.Context) (net.Conn, error) {
+func (h *s2aHandshaker) ServerHandshake(ctx context.Context) (net.Conn, *authinfo.S2AAuthInfo, error) {
 
 	if h.isClient {
-		return nil, errors.New("only handshakers created using NewServerHandshaker can perform a server handshaker")
+		return nil, nil, errors.New("only handshakers created using NewServerHandshaker can perform a server handshaker")
 	}
 
 	p := make([]byte, 64*1024) // temp length?
 	n, err := h.conn.Read(p)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	req := &s2a.SessionReq{
 		ReqOneof: &s2a.SessionReq_ServerStart{
@@ -181,9 +186,13 @@ func (h *s2aHandshaker) ServerHandshake(ctx context.Context) (net.Conn, error) {
 
 	conn, result, err := h.setUpSession(req)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return conn, nil
+	authInfo, err := authinfo.NewS2AAuthInfo(result)
+	if err != nil {
+		return nil, nil, err
+	}
+	return conn, authInfo, nil
 }
 
 func (h *s2aHandshaker) setUpSession(req *s2a.SessionReq) (net.Conn, *s2a.SessionResult, error) {
@@ -209,6 +218,7 @@ func (h *s2aHandshaker) setUpSession(req *s2a.SessionReq) (net.Conn, *s2a.Sessio
 	if err != nil {
 		return nil, nil, err
 	}
+	// TODO: implemented record protocol & new Conn
 	return h.conn, result, nil
 }
 
@@ -223,6 +233,8 @@ func (h *s2aHandshaker) accessHandshakerService(req *s2a.SessionReq) (*s2a.Sessi
 	return resp, nil
 }
 
+// processUntilDone processes the handshake until the handshaker service returns
+// the results.
 func (h *s2aHandshaker) processUntilDone(resp *s2a.SessionResp, extra []byte) (*s2a.SessionResult, []byte, error) {
 	for {
 		if len(resp.OutFrames) > 0 {
@@ -268,6 +280,9 @@ func (h *s2aHandshaker) processUntilDone(resp *s2a.SessionResp, extra []byte) (*
 	}
 }
 
+// Close shuts down the handshaker and the stream to the S2A handshaker service
+// when the handshake is complete. It should be called when the caller obtains
+// the secure connection at the end of the handshake; otherwise it is a no-op.
 func (h *s2aHandshaker) Close() {
 	h.stream.CloseSend()
 }
