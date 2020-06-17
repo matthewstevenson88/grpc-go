@@ -5,6 +5,16 @@ import (
 	"testing"
 )
 
+func TestNewCounter(t *testing.T) {
+	counter := newCounter(1)
+	if got, want := counter.val, uint64(1); got != want {
+		t.Errorf("counter.val = %v, want %v", got, want)
+	}
+	if got, want := counter.hasOverflowed, false; got != want {
+		t.Errorf("counter.hasOverflowed = %v, want %v", got, want)
+	}
+}
+
 func TestCounterInc(t *testing.T) {
 	for _, tc := range []struct {
 		desc                     string
