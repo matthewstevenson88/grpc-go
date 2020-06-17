@@ -8,19 +8,20 @@ import (
 )
 
 const (
-	// The TLS constants below (tlsRecordMaxPlaintextSize, tlsRecordHeaderSize,
-	// tlsRecordTypeSize) were taken from
+	// The TLS 1.3-specific constants below (tlsRecordMaxPlaintextSize,
+	// tlsRecordHeaderSize, tlsRecordTypeSize) were taken from
 	// https://tools.ietf.org/html/rfc8446#section-5.1
 
-	// tlsRecordMaxPlaintextSize is the maximum size of the plaintext in a
-	// single TLS 1.3 record.
+	// tlsRecordMaxPlaintextSize is the maximum size in bytes of the plaintext
+	// in a single TLS 1.3 record.
 	tlsRecordMaxPlaintextSize = 16384 // 2^14
-	// tlsRecordHeaderSize is the size of the record header in bytes.
+	// tlsRecordHeaderSize is the size in bytes of the TLS 1.3 record header.
 	tlsRecordHeaderSize = 5
-	// tlsRecordTypeSize is the size of the record type.
+	// tlsRecordTypeSize is the size in bytes of the TLS 1.3 record type.
 	tlsRecordTypeSize = 1
 	// TODO(gud): Revisit what initial size to use when implementating Write.
-	// s2aOutgoingRecordsBufInitialSize is the initial write buffer size.
+	// s2aOutgoingRecordsBufInitialSize is the initial write buffer size in
+	// bytes.
 	s2aOutgoingRecordsBufInitialSize = 32 * 1024
 )
 
@@ -46,8 +47,9 @@ type conn struct {
 	outgoingRecordsBuf []byte
 	// nextRecord stores the next record info in the unusedBytes buffer.
 	nextRecord []byte
-	// overheadSize is the overhead size of each TLS 1.3 record.
-	// overheadSize = header size + record type byte + tag size (no padding).
+	// overheadSize is the overhead size in bytes of each TLS 1.3 record, which
+	// is computed as overheadSize = header size + record type byte + tag size.
+	// Note that there is no padding by zeros in the overhead calculation.
 	overheadSize int
 	// handshakerServiceAddr stores the address of the S2A handshaker service.
 	handshakerServiceAddr string
