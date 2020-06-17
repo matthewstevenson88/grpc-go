@@ -21,10 +21,18 @@ package handshaker
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"net"
 
 	grpc "google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	s2a "google.golang.org/grpc/security/s2a/internal/proto"
+)
+
+var (
+	appProtocols = []string{"grpc"}
+	frameLimit   = 1024 * 128
 )
 
 // ClientHandshakerOptions contains the options needed to configure the S2A
@@ -43,8 +51,8 @@ type ClientHandshakerOptions struct {
 	TargetIdentities []*s2a.Identity
 	// MinTLSVersion and MaxTLSVersion specify the min and max TLS versions
 	// supported by the client.
-	MinTLSVersion s2a.TLSVersion
-	MaxTLSVersion s2a.TLSVersion
+	MinTlsVersion s2a.TLSVersion
+	MaxTlsVersion s2a.TLSVersion
 	// The ordered list of ciphersuites supported by the client.
 	SupportedCiphersuiteList []s2a.Ciphersuite
 }
@@ -54,8 +62,8 @@ type ClientHandshakerOptions struct {
 type ServerHandshakerOptions struct {
 	// MinTLSVersion and MaxTLSVersion specify the min and max TLS versions
 	// supported by the server.
-	MinTLSVersion s2a.TLSVersion
-	MaxTLSVersion s2a.TLSVersion
+	MinTlsVersion s2a.TLSVersion
+	MaxTlsVersion s2a.TLSVersion
 	// The local identities that may be assumed by the server. If no local
 	// identity is specified, then the S2A chooses a default local identity.
 	LocalIdentities []*s2a.Identity
@@ -119,27 +127,147 @@ func newServerHandshakerInternal(stream s2a.S2AService_SetUpSessionClient, c net
 // ClientHandshake performs a client-side TLS handshake using the S2A handshaker
 // service. When complete, returns a secure TLS connection.
 func (h *s2aHandshaker) ClientHandshake(ctx context.Context) (net.Conn, error) {
-	return nil, errors.New("Method unimplemented")
+	if !h.isClient {
+		return nil, errors.New("only handshakers created using NewClientHandshaker can perform a client handshaker")
+	}
+
+	// Create target identities from service account list.
+	req := &s2a.SessionReq{
+		ReqOneof: &s2a.SessionReq_ClientStart{
+			ClientStart: &s2a.ClientSessionStartReq{
+				ApplicationProtocols: appProtocols,
+				MinTlsVersion:        h.clientOpts.MinTlsVersion,
+				MaxTlsVersion:        h.clientOpts.MaxTlsVersion,
+				TlsCiphersuites:      h.clientOpts.SupportedCiphersuiteList,
+				TargetIdentities:     h.clientOpts.TargetIdentities,
+				LocalIdentity:        h.clientOpts.LocalIdentity,
+				TargetName:           h.clientOpts.TargetName,
+			},
+		},
+	}
+
+	conn, result, err := h.setUpSession(req)
+	if err != nil {
+		return nil, err
+	}
+	return conn, nil
 }
 
 // ServerHandshake performs a server-side TLS handshake using the S2A handshaker
 // service. When complete, returns a secure TLS connection.
 func (h *s2aHandshaker) ServerHandshake(ctx context.Context) (net.Conn, error) {
-	return nil, errors.New("Method unimplemented")
+
+	if h.isClient {
+		return nil, errors.New("only handshakers created using NewServerHandshaker can perform a server handshaker")
+	}
+
+	p := make([]byte, 64*1024) // temp length?
+	n, err := h.conn.Read(p)
+	if err != nil {
+		return nil, err
+	}
+	req := &s2a.SessionReq{
+		ReqOneof: &s2a.SessionReq_ServerStart{
+			ServerStart: &s2a.ServerSessionStartReq{
+				ApplicationProtocols: appProtocols,
+				MinTlsVersion:        h.serverOpts.MinTlsVersion,
+				MaxTlsVersion:        h.serverOpts.MaxTlsVersion,
+				TlsCiphersuites:      h.serverOpts.SupportedCiphersuiteList,
+				LocalIdentities:      h.serverOpts.LocalIdentities,
+				InBytes:              p[:n],
+			},
+		},
+	}
+
+	conn, result, err := h.setUpSession(req)
+	if err != nil {
+		return nil, err
+	}
+	return conn, nil
 }
 
 func (h *s2aHandshaker) setUpSession(req *s2a.SessionReq) (net.Conn, *s2a.SessionResult, error) {
-	return nil, nil, errors.New("Method unimplemented")
+	resp, err := h.accessHandshakerService(req)
+	if err != nil {
+		return nil, nil, err
+	}
+	// Check if the returned status is an error.
+	if resp.GetStatus() != nil {
+		if got, want := resp.GetStatus().Code, uint32(codes.OK); got != want {
+			return nil, nil, fmt.Errorf("%v", resp.GetStatus().Details)
+		}
+	}
+
+	var extra []byte
+	if req.GetServerStart() != nil {
+		if resp.GetBytesConsumed() > uint32(len(req.GetServerStart().GetInBytes())) {
+			return nil, nil, errors.New("handshaker service consumed bytes value is out-of-bound")
+		}
+		extra = req.GetServerStart().GetInBytes()[resp.GetBytesConsumed():]
+	}
+	result, extra, err := h.processUntilDone(resp, extra)
+	if err != nil {
+		return nil, nil, err
+	}
+	return h.conn, result, nil
 }
 
 func (h *s2aHandshaker) accessHandshakerService(req *s2a.SessionReq) (*s2a.SessionResp, error) {
-	return nil, errors.New("Method unimplemented")
+	if err := h.stream.Send(req); err != nil {
+		return nil, err
+	}
+	resp, err := h.stream.Recv()
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (h *s2aHandshaker) processUntilDone(resp *s2a.SessionResp, extra []byte) (*s2a.SessionResult, []byte, error) {
-	return nil, nil, errors.New("Method unimplemented")
+	for {
+		if len(resp.OutFrames) > 0 {
+			if _, err := h.conn.Write(resp.OutFrames); err != nil {
+				return nil, nil, err
+			}
+		}
+		if resp.Result != nil {
+			return resp.Result, extra, nil
+		}
+		buf := make([]byte, frameLimit)
+		n, err := h.conn.Read(buf)
+		if err != nil && err != io.EOF {
+			return nil, nil, err
+		}
+		// If there is nothing to send to the handshaker service, and
+		// nothing is received from the peer, then we are stuck.
+		// This covers the case when the peer is not responding. Note
+		// that handshaker service connection issues are caught in
+		// accessHandshakerService before we even get here.
+		if len(resp.OutFrames) == 0 && n == 0 {
+			return nil, nil, errors.New("peer server is not responding and re-connection should be attempted")
+		}
+		// Append extra bytes from the previous interaction with the
+		// handshaker service with the current buffer read from conn.
+		p := append(extra, buf[:n]...)
+		// From here on, p and extra point to the same slice.
+		resp, err = h.accessHandshakerService(&s2a.SessionReq{
+			ReqOneof: &s2a.SessionReq_Next{
+				Next: &s2a.SessionNextReq{
+					InBytes: p,
+				},
+			},
+		})
+		if err != nil {
+			return nil, nil, err
+		}
+		// Set extra based on handshaker service response.
+		if resp.GetBytesConsumed() > uint32(len(p)) {
+			return nil, nil, errors.New("handshaker service consumed bytes value is out-of-bound")
+		}
+		extra = p[resp.GetBytesConsumed():]
+	}
 }
 
 func (h *s2aHandshaker) Close() {
-	// Method is unimplemented.
+	h.stream.CloseSend()
 }

@@ -49,8 +49,8 @@ var (
 				},
 			},
 		},
-		MinTLSVersion: s2a.TLSVersion_TLS1_2,
-		MaxTLSVersion: s2a.TLSVersion_TLS1_3,
+		MinTlsVersion: s2a.TLSVersion_TLS1_2,
+		MaxTlsVersion: s2a.TLSVersion_TLS1_3,
 		SupportedCiphersuiteList: []s2a.Ciphersuite{
 			s2a.Ciphersuite_AES_128_GCM_SHA256,
 			s2a.Ciphersuite_AES_256_GCM_SHA384,
@@ -73,8 +73,8 @@ var (
 				},
 			},
 		},
-		MinTLSVersion: s2a.TLSVersion_TLS1_2,
-		MaxTLSVersion: s2a.TLSVersion_TLS1_3,
+		MinTlsVersion: s2a.TLSVersion_TLS1_2,
+		MaxTlsVersion: s2a.TLSVersion_TLS1_3,
 		SupportedCiphersuiteList: []s2a.Ciphersuite{
 			s2a.Ciphersuite_AES_128_GCM_SHA256,
 			s2a.Ciphersuite_AES_256_GCM_SHA384,
