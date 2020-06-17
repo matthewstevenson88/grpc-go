@@ -30,17 +30,19 @@ import (
 // ClientHandshakerOptions contains the options needed to configure the S2A
 // handshaker service on the client-side.
 type ClientHandshakerOptions struct {
-	// ClientIdentity is the handshaker client local identity of the client
-	// application. If none is provided, then the S2A will choose a default identity.
-	ClientIdentity *s2a.Identity
-	// TargetName is the server service account name for secure name
-	// checking.
+	// ClientIdentity is the local identity of the client
+	// application. If none is provided, then the S2A will choose a default
+	// identity.
+	LocalIdentity *s2a.Identity
+	// TargetName is the allowed server name, which may be used for server
+	// authorization check by the S2A if it is provided.
 	TargetName string
-	// TargetIdentities contains a list of expected target service
-	// accounts. One of these accounts should match one of the accounts in
-	// the handshaker results. Otherwise, the handshake fails.
+	// TargetIdentities contains a list of allowed server identities. One of
+	// the target identities should match the perr identity in the handshake
+	// result; otherwise, the handshake failes.
 	TargetIdentities []*s2a.Identity
-	// MinTLSVersion and MaxTLSVersion specify the TLS Versions accepted by the client.
+	// MinTLSVersion and MaxTLSVersion specify the min and max TLS versions
+	// supported by the client.
 	MinTLSVersion s2a.TLSVersion
 	MaxTLSVersion s2a.TLSVersion
 	// The ordered list of ciphersuites supported by the client.
@@ -50,11 +52,14 @@ type ClientHandshakerOptions struct {
 // ServerHandshakerOptions contains the options needed to configure the S2A
 // handshaker service on the server-side.
 type ServerHandshakerOptions struct {
-	// MinTLSVersion and MaxTLSVersion specify the TLS Versions accepted by the client.
-	MinTLSVersion   s2a.TLSVersion
-	MaxTLSVersion   s2a.TLSVersion
+	// MinTLSVersion and MaxTLSVersion specify the min and max TLS versions
+	// supported by the server.
+	MinTLSVersion s2a.TLSVersion
+	MaxTLSVersion s2a.TLSVersion
+	// The local identities that may be assumed by the server. If no local
+	// identity is specified, then the S2A chooses a default local identity.
 	LocalIdentities []*s2a.Identity
-	// The ordered list of ciphersuites supported by the client.
+	// The ordered list of ciphersuites supported by the server.
 	SupportedCiphersuiteList []s2a.Ciphersuite
 }
 
@@ -76,10 +81,10 @@ func NewClientHandshaker(ctx context.Context, conn *grpc.ClientConn, c net.Conn,
 	if err != nil {
 		return nil, err
 	}
-
 	return newClientHandshakerInternal(stream, c, opts), err
 }
 
+// newClientHandshakerInternal is for testing purposes only.
 func newClientHandshakerInternal(stream s2a.S2AService_SetUpSessionClient, c net.Conn, opts *ClientHandshakerOptions) *s2aHandshaker {
 	return &s2aHandshaker{
 		stream:     stream,
@@ -99,6 +104,7 @@ func NewServerHandshaker(ctx context.Context, conn *grpc.ClientConn, c net.Conn,
 	return newServerHandshakerInternal(stream, c, opts), err
 }
 
+// newClientHandshakerInternal is for testing purposes only.
 func newServerHandshakerInternal(stream s2a.S2AService_SetUpSessionClient, c net.Conn, opts *ServerHandshakerOptions) *s2aHandshaker {
 	return &s2aHandshaker{
 		stream:     stream,
@@ -109,13 +115,13 @@ func newServerHandshakerInternal(stream s2a.S2AService_SetUpSessionClient, c net
 }
 
 // ClientHandshake performs a client-side TLS handshake using the S2A handshaker
-// service. When complete, returns a servure connection.
+// service. When complete, returns a sercure TLS connection.
 func (h *s2aHandshaker) ClientHandshake(ctx context.Context) (net.Conn, error) {
 	return nil, errors.New("Method unimplemented")
 }
 
 // ServerHandshake performs a server-side TLS handshake using the S2A handshaker
-// service. When complete, returns a ssecure connection.
+// service. When complete, returns a secure TLS connection.
 func (h *s2aHandshaker) ServerHandshake(ctx context.Context) (net.Conn, error) {
 	return nil, errors.New("Method unimplemented")
 }
@@ -129,13 +135,14 @@ func (h *s2aHandshaker) accessHandshakerService(req *s2a.SessionReq) (*s2a.Sessi
 }
 
 // processUntilDone processes the handshake until the handshaker service returns
-// the results. Handshaker service takes care of frame parsing, so we read
-// whatever received from the network and send it to the handshaker service.
+// the results.
 func (h *s2aHandshaker) processUntilDone(resp *s2a.SessionResp, extra []byte) (*s2a.SessionResult, []byte, error) {
 	return nil, nil, errors.New("Method unimplemented")
 }
 
-// Close terminates the Handshaker. It should be called when the caller obtains
-// the secure connection.
+// Close shuts down the handhsaker and the stream to the S2A handshaker service
+// when the handshake is complete. It should be called when the caller obtains
+// the secure connection at the end of the handshake.
 func (h *s2aHandshaker) Close() {
+	// Method is unimplemented.
 }
