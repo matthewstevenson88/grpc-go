@@ -1,6 +1,6 @@
 /*
  *
- * Copyright 2018 gRPC authors.
+ * Copyright 2020 gRPC authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,12 +19,11 @@
 package handshaker
 
 import (
-	"bytes"
 	"context"
+	"net"
 	"testing"
 
 	grpc "google.golang.org/grpc"
-	"google.golang.org/grpc/security/s2a/internal/handshaker/testutil"
 	s2a "google.golang.org/grpc/security/s2a/internal/proto"
 )
 
@@ -34,7 +33,7 @@ var (
 	testClientHandshakerOptions = &ClientHandshakerOptions{
 		LocalIdentity: &s2a.Identity{
 			IdentityOneof: &s2a.Identity_SpiffeId{
-				SpiffeId: "spiffe_id",
+				SpiffeId: "client_local_spiffe_id",
 			},
 		},
 		TargetName: "target_name",
@@ -65,12 +64,12 @@ var (
 		LocalIdentities: []*s2a.Identity{
 			&s2a.Identity{
 				IdentityOneof: &s2a.Identity_SpiffeId{
-					SpiffeId: "local_spiffe_id",
+					SpiffeId: "server_local_spiffe_id",
 				},
 			},
 			&s2a.Identity{
 				IdentityOneof: &s2a.Identity_Hostname{
-					Hostname: "target_hostname",
+					Hostname: "server_local__hostname",
 				},
 			},
 		},
@@ -90,16 +89,14 @@ type fakeStream struct{ grpc.ClientStream }
 func (*fakeStream) Recv() (*s2a.SessionResp, error) { return new(s2a.SessionResp), nil }
 func (*fakeStream) Send(*s2a.SessionReq) error      { return nil }
 
+// fakeConn is a fake implementation of a net.Conn used for testing.
+type fakeConn struct{ net.Conn }
+
 // TestNewClientHandshaker creates a fake stream, and ensures that
 // newClientHandshakerInternal returns a valid client-side handshaker instance.
 func TestNewClientHandshaker(t *testing.T) {
 	stream := &fakeStream{}
-	f1 := testutil.MakeFrame("ClientInit")
-	f2 := testutil.MakeFrame("ClientFinished")
-	in := bytes.NewBuffer(f1)
-	in.Write(f2)
-	out := new(bytes.Buffer)
-	c := testutil.NewTestConn(in, out)
+	c := &fakeConn{} // figure out net.conn interface methods
 	shs := newClientHandshakerInternal(stream, c, testClientHandshakerOptions)
 	if !shs.isClient || shs.clientOpts != testClientHandshakerOptions || shs.conn != c {
 		t.Errorf("handshaker parameters incorrect")
@@ -110,19 +107,14 @@ func TestNewClientHandshaker(t *testing.T) {
 // newServerHandshakerInternal returns a valid server-side handshaker instance.
 func TestNewServerHandshaker(t *testing.T) {
 	stream := &fakeStream{}
-	f1 := testutil.MakeFrame("ServerInit")
-	f2 := testutil.MakeFrame("ServerFinished")
-	in := bytes.NewBuffer(f1)
-	in.Write(f2)
-	out := new(bytes.Buffer)
-	c := testutil.NewTestConn(in, out)
+	c := &fakeConn{}
 	shs := newServerHandshakerInternal(stream, c, testServerHandshakerOptions)
 	if shs.isClient || shs.serverOpts != testServerHandshakerOptions || shs.conn != c {
 		t.Errorf("handshaker parameters incorrect")
 	}
 }
 
-// Test unimplemented Methods
+// Test unimplemented methods
 func TestProcessUntilDone(t *testing.T) {
 	shs := &s2aHandshaker{}
 	resp := &s2a.SessionResp{}
@@ -162,6 +154,6 @@ func TestServerHandshake(t *testing.T) {
 	shs := &s2aHandshaker{}
 	context, err := shs.ServerHandshake(context.Background())
 	if err == nil || context != nil {
-		t.Errorf("Method is supposed to be unimplemented")
+		t.Errorf("Method should be unimplemented")
 	}
 }
