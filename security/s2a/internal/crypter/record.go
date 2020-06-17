@@ -8,13 +8,18 @@ import (
 )
 
 const (
-	// TODO(rnkim): Add more documentation around where these values come from.
-	// s2aRecordMaxPlaintextSize is the maximum size of an S2A record message.
-	s2aRecordMaxPlaintextSize = 16384 // 2^14
-	// s2aRecordHeaderSize is the size of the record header in bytes.
-	s2aRecordHeaderSize = 5
-	// s2aRecordTypeSize is the size of the record type.
-	s2aRecordTypeSize = 1
+	// The TLS constants below (tlsRecordMaxPlaintextSize, tlsRecordHeaderSize,
+	// tlsRecordTypeSize) were taken from
+	// https://tools.ietf.org/html/rfc8446#section-5.1
+
+	// tlsRecordMaxPlaintextSize is the maximum size of the plaintext in a
+	// single TLS 1.3 record.
+	tlsRecordMaxPlaintextSize = 16384 // 2^14
+	// tlsRecordHeaderSize is the size of the record header in bytes.
+	tlsRecordHeaderSize = 5
+	// tlsRecordTypeSize is the size of the record type.
+	tlsRecordTypeSize = 1
+	// TODO(gud): Revisit what initial size to use when implementating Write.
 	// s2aOutgoingRecordsBufInitialSize is the initial write buffer size.
 	s2aOutgoingRecordsBufInitialSize = 32 * 1024
 )
@@ -33,15 +38,16 @@ type conn struct {
 	// and decrypted, but has not yet been returned by Read.
 	pendingApplicationData []byte
 	// unusedBytes holds data read from the network that has not yet been
-	// decrypted. This data might not compose a complete record. It may consist
-	// of several records, the last of which could be incomplete.
+	// decrypted. This data might not consist of a complete record. It may
+	// consist of several records, the last of which could be incomplete.
 	unusedBytes []byte
 	// outgoingRecordsBuf is a buffer used to contain outgoing TLS records
 	// before they are written to the network.
 	outgoingRecordsBuf []byte
 	// nextRecord stores the next record info in the unusedBytes buffer.
 	nextRecord []byte
-	// overheadSize is the overhead size of each record.
+	// overheadSize is the overhead size of each TLS 1.3 record.
+	// overheadSize = header size + record type byte + tag size (no padding).
 	overheadSize int
 	// handshakerServiceAddr stores the address of the S2A handshaker service.
 	handshakerServiceAddr string
@@ -78,8 +84,7 @@ func NewConn(o *ConnOptions) (net.Conn, error) {
 	// TODO(rnkim): Add TagSize() to Half Connection? The code below won't work
 	// once we move HalfConn into it's own directory.
 	// Note: The tag size for the in/out connections should be the same.
-	// The inConnection was arbitrarily chosen below.
-	overheadSize := s2aRecordHeaderSize + s2aRecordTypeSize + inConnection.aeadCrypter.tagSize()
+	overheadSize := tlsRecordHeaderSize + tlsRecordTypeSize + inConnection.aeadCrypter.tagSize()
 	var unusedBytesBuf []byte
 	// TODO(gud): Potentially optimize unusedBytesBuf with pre-allocation.
 	if o.unusedBytes != nil {
