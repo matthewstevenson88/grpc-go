@@ -83,13 +83,13 @@ var (
 	}
 )
 
-// fakeStream is a fake implementation of a Client Stream used for testing.
+// fakeStream is a fake implementation of the grpc.ClientStream interface that is used for testing.
 type fakeStream struct{ grpc.ClientStream }
 
 func (*fakeStream) Recv() (*s2a.SessionResp, error) { return new(s2a.SessionResp), nil }
 func (*fakeStream) Send(*s2a.SessionReq) error      { return nil }
 
-// fakeConn is a fake implementation of the net.Conn used for testing.
+// fakeConn is a fake implementation of the net.Conn interface that is used for testing.
 type fakeConn struct{ net.Conn }
 
 // TestNewClientHandshaker creates a fake stream, and ensures that

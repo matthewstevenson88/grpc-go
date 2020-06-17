@@ -68,7 +68,9 @@ type s2aHandshaker struct {
 	// Stream used to communicate with the S2A handshaker service.
 	stream s2a.S2AService_SetUpSessionClient
 	// The connection to the peer.
-	conn       net.Conn
+	conn net.Conn
+	// clientOpts should be non-nil iff isClient is true, and serverOpts
+	// should be non-nil iff isClient is false
 	clientOpts *ClientHandshakerOptions
 	serverOpts *ServerHandshakerOptions
 	isClient   bool
