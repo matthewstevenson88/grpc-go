@@ -89,14 +89,14 @@ type fakeStream struct{ grpc.ClientStream }
 func (*fakeStream) Recv() (*s2a.SessionResp, error) { return new(s2a.SessionResp), nil }
 func (*fakeStream) Send(*s2a.SessionReq) error      { return nil }
 
-// fakeConn is a fake implementation of a net.Conn used for testing.
+// fakeConn is a fake implementation of the net.Conn used for testing.
 type fakeConn struct{ net.Conn }
 
 // TestNewClientHandshaker creates a fake stream, and ensures that
 // newClientHandshakerInternal returns a valid client-side handshaker instance.
 func TestNewClientHandshaker(t *testing.T) {
 	stream := &fakeStream{}
-	c := &fakeConn{} // figure out net.conn interface methods
+	c := &fakeConn{}
 	shs := newClientHandshakerInternal(stream, c, testClientHandshakerOptions)
 	if !shs.isClient || shs.clientOpts != testClientHandshakerOptions || shs.conn != c {
 		t.Errorf("handshaker parameters incorrect")

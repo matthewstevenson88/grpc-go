@@ -30,7 +30,7 @@ import (
 // ClientHandshakerOptions contains the options needed to configure the S2A
 // handshaker service on the client-side.
 type ClientHandshakerOptions struct {
-	// ClientIdentity is the local identity of the client
+	// LocalIdentity is the local identity of the client
 	// application. If none is provided, then the S2A will choose a default
 	// identity.
 	LocalIdentity *s2a.Identity
@@ -63,7 +63,7 @@ type ServerHandshakerOptions struct {
 	SupportedCiphersuiteList []s2a.Ciphersuite
 }
 
-// s2aHandshaker performs a TLS handshake using the S2Ahandshaker service.
+// s2aHandshaker performs a TLS handshake using the S2A handshaker service.
 type s2aHandshaker struct {
 	// Stream used to communicate with the S2A handshaker service.
 	stream s2a.S2AService_SetUpSessionClient
@@ -115,7 +115,7 @@ func newServerHandshakerInternal(stream s2a.S2AService_SetUpSessionClient, c net
 }
 
 // ClientHandshake performs a client-side TLS handshake using the S2A handshaker
-// service. When complete, returns a sercure TLS connection.
+// service. When complete, returns a secure TLS connection.
 func (h *s2aHandshaker) ClientHandshake(ctx context.Context) (net.Conn, error) {
 	return nil, errors.New("Method unimplemented")
 }
@@ -134,15 +134,13 @@ func (h *s2aHandshaker) accessHandshakerService(req *s2a.SessionReq) (*s2a.Sessi
 	return nil, errors.New("Method unimplemented")
 }
 
-// processUntilDone processes the handshake until the handshaker service returns
-// the results.
 func (h *s2aHandshaker) processUntilDone(resp *s2a.SessionResp, extra []byte) (*s2a.SessionResult, []byte, error) {
 	return nil, nil, errors.New("Method unimplemented")
 }
 
-// Close shuts down the handhsaker and the stream to the S2A handshaker service
+// Close shuts down the handshaker and the stream to the S2A handshaker service
 // when the handshake is complete. It should be called when the caller obtains
-// the secure connection at the end of the handshake.
+// the secure connection at the end of the handshake; otherwise, it is a no-op.
 func (h *s2aHandshaker) Close() {
 	// Method is unimplemented.
 }
