@@ -114,6 +114,46 @@ func TestNewServerHandshaker(t *testing.T) {
 	}
 }
 
+func TestClientHandshake(t *testing.T) {
+	errc := make(chan error)
+	stream := &fakeStream{}
+	c := &fakeConn{}
+	chs := &s2aHandshaker{
+		stream:     stream,
+		conn:       c,
+		clientOpts: testClientHandshakerOptions,
+	}
+	go func() {
+		_, context, err := chs.ClientHandshake(context.Background())
+		if err == nil && context == nil {
+			panic("expected non-nil S2A context")
+		}
+		errc <- err
+		chs.Close()
+	}()
+}
+
+func TestServerHandshake(t *testing.T) {
+	errc := make(chan error)
+	stream := &fakeStream{}
+	c := &fakeConn{}
+	shs := &s2aHandshaker{
+		stream:     stream,
+		conn:       c,
+		serverOpts: testServerHandshakerOptions,
+	}
+	go func() {
+		_, context, err := shs.ServerHandshake(context.Background())
+		if err == nil && context == nil {
+			panic("expected non-nil S2A context")
+		}
+		errc <- err
+		shs.Close()
+	}()
+
+}
+
+/*
 // Test unimplemented methods
 func TestProcessUntilDone(t *testing.T) {
 	shs := &s2aHandshaker{}
@@ -141,19 +181,4 @@ func TestSetUpSession(t *testing.T) {
 		t.Errorf("Method should be unimplemented")
 	}
 }
-
-func TestClientHandshake(t *testing.T) {
-	shs := &s2aHandshaker{}
-	context, err := shs.ClientHandshake(context.Background())
-	if err == nil || context != nil {
-		t.Errorf("Method should be unimplemented")
-	}
-}
-
-func TestServerHandshake(t *testing.T) {
-	shs := &s2aHandshaker{}
-	context, err := shs.ServerHandshake(context.Background())
-	if err == nil || context != nil {
-		t.Errorf("Method should be unimplemented")
-	}
-}
+*/
