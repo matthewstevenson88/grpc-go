@@ -39,89 +39,85 @@ var (
 // ClientHandshakerOptions contains the options needed to configure the S2A
 // handshaker service on the client-side.
 type ClientHandshakerOptions struct {
-	// LocalIdentity is the local identity of the client
-	// application. If none is provided, then the S2A will choose a default
-	// identity.
-	LocalIdentity *s2a.Identity
+	// MinTLSVersion specifies the min TLS version supported by the client.
+	MinTLSVersion s2apb.TLSVersion
+	// MaxTLSVersion specifies the max TLS version supported by the client.
+	MaxTLSVersion s2apb.TLSVersion
+	// The ordered list of ciphersuites supported by the client.
+	TLSCiphersuites []s2apb.Ciphersuite
+	// TargetIdentities contains a list of allowed server identities. One of the
+	// target identities should match the peer identity in the handshake
+	// result; otherwise, the handshake fails.
+	TargetIdentities []*s2apb.Identity
+	// LocalIdentity is the local identity of the client application. If none is
+	// provided, then the S2A will choose the default identity.
+	LocalIdentity *s2apb.Identity
 	// TargetName is the allowed server name, which may be used for server
 	// authorization check by the S2A if it is provided.
 	TargetName string
-	// TargetIdentities contains a list of allowed server identities. One of
-	// the target identities should match the peer identity in the handshake
-	// result; otherwise, the handshake fails.
-	TargetIdentities []*s2a.Identity
-	// MinTLSVersion and MaxTLSVersion specify the min and max TLS versions
-	// supported by the client.
-	MinTlsVersion s2a.TLSVersion
-	MaxTlsVersion s2a.TLSVersion
-	// The ordered list of ciphersuites supported by the client.
-	SupportedCiphersuiteList []s2a.Ciphersuite
 }
 
 // ServerHandshakerOptions contains the options needed to configure the S2A
 // handshaker service on the server-side.
 type ServerHandshakerOptions struct {
-	// MinTLSVersion and MaxTLSVersion specify the min and max TLS versions
-	// supported by the server.
-	MinTlsVersion s2a.TLSVersion
-	MaxTlsVersion s2a.TLSVersion
+	// MinTLSVersion specifies the min TLS version supported by the server.
+	MinTLSVersion s2apb.TLSVersion
+	// MaxTLSVersion specifies the max TLS version supported by the server.
+	MaxTLSVersion s2apb.TLSVersion
+	// The ordered list of ciphersuites supported by the server.
+	TLSCiphersuites []s2apb.Ciphersuite
 	// The local identities that may be assumed by the server. If no local
 	// identity is specified, then the S2A chooses a default local identity.
-	LocalIdentities []*s2a.Identity
-	// The ordered list of ciphersuites supported by the server.
-	SupportedCiphersuiteList []s2a.Ciphersuite
+	LocalIdentities []*s2apb.Identity
 }
 
 // s2aHandshaker performs a TLS handshake using the S2A handshaker service.
 type s2aHandshaker struct {
 	// Stream used to communicate with the S2A handshaker service.
-	stream s2a.S2AService_SetUpSessionClient
+	stream s2apb.S2AService_SetUpSessionClient
 	// The connection to the peer.
 	conn net.Conn
-	// clientOpts should be non-nil iff isClient is true, and serverOpts
-	// should be non-nil iff isClient is false.
+	// clientOpts should be non-nil iff the handshaker is client-side.
 	clientOpts *ClientHandshakerOptions
+	// serverOpts should be non-nil iff the handshaker is server-side.
 	serverOpts *ServerHandshakerOptions
-	isClient   bool
 }
 
 // NewClientHandshaker creates an s2aHandshaker instance that performs a
 // client-side TLS handshake using the S2A handshaker service.
 func NewClientHandshaker(ctx context.Context, conn *grpc.ClientConn, c net.Conn, opts *ClientHandshakerOptions) (*s2aHandshaker, error) {
-	stream, err := s2a.NewS2AServiceClient(conn).SetUpSession(ctx, grpc.WaitForReady(true))
+	stream, err := s2apb.NewS2AServiceClient(conn).SetUpSession(ctx, grpc.WaitForReady(true))
 	if err != nil {
 		return nil, err
 	}
-	return newClientHandshakerInternal(stream, c, opts), err
+	return newClientHandshaker(stream, c, opts), err
 }
 
 // newClientHandshakerInternal is for testing purposes only.
-func newClientHandshakerInternal(stream s2a.S2AService_SetUpSessionClient, c net.Conn, opts *ClientHandshakerOptions) *s2aHandshaker {
+func newClientHandshaker(stream s2apb.S2AService_SetUpSessionClient, c net.Conn, opts *ClientHandshakerOptions) *s2aHandshaker {
 	return &s2aHandshaker{
 		stream:     stream,
 		conn:       c,
 		clientOpts: opts,
-		isClient:   true,
 	}
 }
 
 // NewServerHandshaker creates an s2aHandshaker instance that performs a
 // server-side TLS handshake using the S2A handshaker service.
 func NewServerHandshaker(ctx context.Context, conn *grpc.ClientConn, c net.Conn, opts *ServerHandshakerOptions) (*s2aHandshaker, error) {
-	stream, err := s2a.NewS2AServiceClient(conn).SetUpSession(ctx, grpc.WaitForReady(true))
+	stream, err := s2apb.NewS2AServiceClient(conn).SetUpSession(ctx, grpc.WaitForReady(true))
 	if err != nil {
 		return nil, err
 	}
-	return newServerHandshakerInternal(stream, c, opts), err
+	return newServerHandshaker(stream, c, opts), err
 }
 
 // newClientHandshakerInternal is for testing purposes only.
-func newServerHandshakerInternal(stream s2a.S2AService_SetUpSessionClient, c net.Conn, opts *ServerHandshakerOptions) *s2aHandshaker {
+func newServerHandshaker(stream s2apb.S2AService_SetUpSessionClient, c net.Conn, opts *ServerHandshakerOptions) *s2aHandshaker {
 	return &s2aHandshaker{
 		stream:     stream,
 		conn:       c,
 		serverOpts: opts,
-		isClient:   false,
 	}
 }
 
