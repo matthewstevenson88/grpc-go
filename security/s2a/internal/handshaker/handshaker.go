@@ -28,7 +28,7 @@ import (
 	grpc "google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/security/s2a/internal/authinfo"
-	s2a "google.golang.org/grpc/security/s2a/internal/proto"
+	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
 )
 
 var (
@@ -124,18 +124,18 @@ func newServerHandshaker(stream s2apb.S2AService_SetUpSessionClient, c net.Conn,
 // ClientHandshake performs a client-side TLS handshake using the S2A handshaker
 // service. When complete, returns a secure TLS connection.
 func (h *s2aHandshaker) ClientHandshake(ctx context.Context) (net.Conn, *authinfo.S2AAuthInfo, error) {
-	if !h.isClient {
+	if h.clientOpts == nil {
 		return nil, nil, errors.New("only handshakers created using NewClientHandshaker can perform a client handshaker")
 	}
 
 	// Create target identities from service account list.
-	req := &s2a.SessionReq{
-		ReqOneof: &s2a.SessionReq_ClientStart{
-			ClientStart: &s2a.ClientSessionStartReq{
+	req := &s2apb.SessionReq{
+		ReqOneof: &s2apb.SessionReq_ClientStart{
+			ClientStart: &s2apb.ClientSessionStartReq{
 				ApplicationProtocols: appProtocols,
-				MinTlsVersion:        h.clientOpts.MinTlsVersion,
-				MaxTlsVersion:        h.clientOpts.MaxTlsVersion,
-				TlsCiphersuites:      h.clientOpts.SupportedCiphersuiteList,
+				MinTlsVersion:        h.clientOpts.MinTLSVersion,
+				MaxTlsVersion:        h.clientOpts.MaxTLSVersion,
+				TlsCiphersuites:      h.clientOpts.TLSCiphersuites,
 				TargetIdentities:     h.clientOpts.TargetIdentities,
 				LocalIdentity:        h.clientOpts.LocalIdentity,
 				TargetName:           h.clientOpts.TargetName,
@@ -158,7 +158,7 @@ func (h *s2aHandshaker) ClientHandshake(ctx context.Context) (net.Conn, *authinf
 // service. When complete, returns a secure TLS connection.
 func (h *s2aHandshaker) ServerHandshake(ctx context.Context) (net.Conn, *authinfo.S2AAuthInfo, error) {
 
-	if h.isClient {
+	if h.serverOpts == nil {
 		return nil, nil, errors.New("only handshakers created using NewServerHandshaker can perform a server handshaker")
 	}
 
@@ -167,13 +167,13 @@ func (h *s2aHandshaker) ServerHandshake(ctx context.Context) (net.Conn, *authinf
 	if err != nil {
 		return nil, nil, err
 	}
-	req := &s2a.SessionReq{
-		ReqOneof: &s2a.SessionReq_ServerStart{
-			ServerStart: &s2a.ServerSessionStartReq{
+	req := &s2apb.SessionReq{
+		ReqOneof: &s2apb.SessionReq_ServerStart{
+			ServerStart: &s2apb.ServerSessionStartReq{
 				ApplicationProtocols: appProtocols,
-				MinTlsVersion:        h.serverOpts.MinTlsVersion,
-				MaxTlsVersion:        h.serverOpts.MaxTlsVersion,
-				TlsCiphersuites:      h.serverOpts.SupportedCiphersuiteList,
+				MinTlsVersion:        h.serverOpts.MinTLSVersion,
+				MaxTlsVersion:        h.serverOpts.MaxTLSVersion,
+				TlsCiphersuites:      h.serverOpts.TLSCiphersuites,
 				LocalIdentities:      h.serverOpts.LocalIdentities,
 				InBytes:              p[:n],
 			},
@@ -191,7 +191,7 @@ func (h *s2aHandshaker) ServerHandshake(ctx context.Context) (net.Conn, *authinf
 	return conn, authInfo, nil
 }
 
-func (h *s2aHandshaker) setUpSession(req *s2a.SessionReq) (net.Conn, *s2a.SessionResult, error) {
+func (h *s2aHandshaker) setUpSession(req *s2apb.SessionReq) (net.Conn, *s2apb.SessionResult, error) {
 	resp, err := h.accessHandshakerService(req)
 	if err != nil {
 		return nil, nil, err
@@ -218,7 +218,7 @@ func (h *s2aHandshaker) setUpSession(req *s2a.SessionReq) (net.Conn, *s2a.Sessio
 	return h.conn, result, nil
 }
 
-func (h *s2aHandshaker) accessHandshakerService(req *s2a.SessionReq) (*s2a.SessionResp, error) {
+func (h *s2aHandshaker) accessHandshakerService(req *s2apb.SessionReq) (*s2apb.SessionResp, error) {
 	if err := h.stream.Send(req); err != nil {
 		return nil, err
 	}
@@ -231,7 +231,7 @@ func (h *s2aHandshaker) accessHandshakerService(req *s2a.SessionReq) (*s2a.Sessi
 
 // processUntilDone processes the handshake until the handshaker service returns
 // the results.
-func (h *s2aHandshaker) processUntilDone(resp *s2a.SessionResp, extra []byte) (*s2a.SessionResult, []byte, error) {
+func (h *s2aHandshaker) processUntilDone(resp *s2apb.SessionResp, extra []byte) (*s2apb.SessionResult, []byte, error) {
 	for {
 		if len(resp.OutFrames) > 0 {
 			if _, err := h.conn.Write(resp.OutFrames); err != nil {
@@ -258,9 +258,9 @@ func (h *s2aHandshaker) processUntilDone(resp *s2a.SessionResp, extra []byte) (*
 		// handshaker service with the current buffer read from conn.
 		p := append(extra, buf[:n]...)
 		// From here on, p and extra point to the same slice.
-		resp, err = h.accessHandshakerService(&s2a.SessionReq{
-			ReqOneof: &s2a.SessionReq_Next{
-				Next: &s2a.SessionNextReq{
+		resp, err = h.accessHandshakerService(&s2apb.SessionReq{
+			ReqOneof: &s2apb.SessionReq_Next{
+				Next: &s2apb.SessionNextReq{
 					InBytes: p,
 				},
 			},
