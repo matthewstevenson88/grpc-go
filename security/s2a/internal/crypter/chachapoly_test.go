@@ -104,31 +104,6 @@ func TestChachaPolyInvalidKeySize(t *testing.T) {
 	}
 }
 
-// Test update key for Chacha-Poly using a key with different size from the initial
-// key.
-func TestChachaPolyKeySizeUpdate(t *testing.T) {
-	for _, tc := range []struct {
-		desc          string
-		updateKeySize int
-	}{
-		{"invalid key size update", 1 + chacha20Poly1305KeySize},
-	} {
-		t.Run(tc.desc, func(t *testing.T) {
-			key := make([]byte, chacha20Poly1305KeySize)
-			crypter, err := newChachaPoly(key)
-			if err != nil {
-				t.Fatalf("NewChachaPoly(keySize=%v) failed, err: %v", chacha20Poly1305KeySize, err)
-			}
-
-			// Update the key with a new one which is a different from the original.
-			newKey := make([]byte, tc.updateKeySize)
-			if err = crypter.updateKey(newKey); err == nil {
-				t.Fatal("UpdateKey should fail with invalid key size error")
-			}
-		})
-	}
-}
-
 // Test Encrypt/Decrypt using an invalid nonce size.
 func TestChachaPolyEncryptDecryptInvalidNonce(t *testing.T) {
 	key := make([]byte, chacha20Poly1305KeySize)
@@ -146,29 +121,12 @@ func TestChachaPolyEncryptDecryptInvalidNonce(t *testing.T) {
 	}
 }
 
-// Test encrypt and decrypt on roundtrip messages for Chacha-Poly with and without
-// updating the keys.
+// Test encrypt and decrypt on roundtrip messages for Chacha-Poly.
 func TestChachaPolyEncryptRoundtrip(t *testing.T) {
 	for _, keySize := range []int{chacha20Poly1305KeySize} {
 		t.Run(fmt.Sprintf("keySize=%d", keySize), func(t *testing.T) {
 			key := make([]byte, keySize)
 			sender, receiver := getChachaPolyCrypterPair(key, t)
-
-			// Test encrypt/decrypt before updating the key.
-			testChachaPolyEncryptRoundtrip(sender, receiver, t)
-
-			// Update the key with a new one which is different from the
-			// original.
-			newKey := make([]byte, keySize)
-			newKey[0] = '\xbd'
-			if err := sender.updateKey(newKey); err != nil {
-				t.Fatalf("sender UpdateKey failed with: %v", err)
-			}
-			if err := receiver.updateKey(newKey); err != nil {
-				t.Fatalf("receiver UpdateKey failed with: %v", err)
-			}
-
-			// Test encrypt/decrypt after updating the key.
 			testChachaPolyEncryptRoundtrip(sender, receiver, t)
 		})
 	}
