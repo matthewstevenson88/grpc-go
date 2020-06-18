@@ -8,6 +8,9 @@ import (
 	"sync"
 )
 
+// The constants below were taken from Section 7.2 and 7.3 in
+// https://tools.ietf.org/html/rfc8446#section-7. They are used as the label
+// in HKDF-Expand-Label.
 const (
 	tls13Key    = "tls13 key"
 	tls13Nonce  = "tls13 iv"
@@ -17,17 +20,18 @@ const (
 type S2AHalfConnection struct {
 	cs ciphersuite
 	// TODO(rnkim): Add hash function to expander constructor.
-	h           func() hash.Hash
-	aeadCrypter s2aAeadCrypter
-	expander    hkdfExpander
-	sequence    counter
+	h        func() hash.Hash
+	expander hkdfExpander
 	// mutex guards sequence, aeadCrypter, trafficSecret, and nonce.
 	mutex         sync.Mutex
+	aeadCrypter   s2aAeadCrypter
+	sequence      counter
 	trafficSecret []byte
 	nonce         []byte
 }
 
-// NewHalfConn creates a new instance of S2AHalfConnection.
+// NewHalfConn creates a new instance of S2AHalfConnection given a ciphersuite
+// and a traffic secret.
 func NewHalfConn(ciphersuite s2a_proto.Ciphersuite, trafficSecret []byte) (S2AHalfConnection, error) {
 	cs, err := newCiphersuite(ciphersuite)
 	if err != nil {
@@ -38,8 +42,7 @@ func NewHalfConn(ciphersuite s2a_proto.Ciphersuite, trafficSecret []byte) (S2AHa
 	}
 
 	hc := S2AHalfConnection{cs: cs, h: cs.hashFunction(), expander: &defaultHKDFExpander{}, sequence: newCounter(), trafficSecret: trafficSecret}
-
-	if err = hc.updateCrypterAndNonce(hc.trafficSecret, false /* updateCrypterKey */); err != nil {
+	if err = hc.updateCrypterAndNonce(hc.trafficSecret); err != nil {
 		return S2AHalfConnection{}, fmt.Errorf("failed to create half connection using traffic secret: %v", err)
 	}
 
@@ -89,10 +92,10 @@ func (hc *S2AHalfConnection) UpdateKey() error {
 	var err error
 	hc.trafficSecret, err = hc.deriveSecret(hc.trafficSecret, []byte(tls13Update), hc.cs.trafficSecretSize())
 	if err != nil {
-		return fmt.Errorf("failed to advance traffic secret: %v", err)
+		return fmt.Errorf("failed to derive traffic secret: %v", err)
 	}
 
-	if err = hc.updateCrypterAndNonce(hc.trafficSecret, true /* updateCrypterKey */); err != nil {
+	if err = hc.updateCrypterAndNonce(hc.trafficSecret); err != nil {
 		return fmt.Errorf("failed to update half connection: %v", err)
 	}
 
@@ -101,11 +104,8 @@ func (hc *S2AHalfConnection) UpdateKey() error {
 }
 
 // updateCrypterAndNonce takes a new traffic secret and updates the crypter
-// and nonce. The updateCrypterKey flag determines whether a new AEAD crypter
-// is created or the existing one is updated with a new key. The
-// updateCrypterKey flag should only be set to false when called by the
-// constructor.
-func (hc *S2AHalfConnection) updateCrypterAndNonce(newTrafficSecret []byte, updateCrypterKey bool) error {
+// and nonce. Note that the mutex must be held while calling this function.
+func (hc *S2AHalfConnection) updateCrypterAndNonce(newTrafficSecret []byte) error {
 	key, err := hc.deriveSecret(newTrafficSecret, []byte(tls13Key), hc.cs.keySize())
 	if err != nil {
 		return fmt.Errorf("failed to update key: %v", err)
@@ -116,21 +116,15 @@ func (hc *S2AHalfConnection) updateCrypterAndNonce(newTrafficSecret []byte, upda
 		return fmt.Errorf("failed to update nonce: %v", err)
 	}
 
-	if updateCrypterKey {
-		err = hc.aeadCrypter.updateKey(key)
-		if err != nil {
-			return fmt.Errorf("failed to update AEAD crypter: %v", err)
-		}
-	} else {
-		hc.aeadCrypter, err = hc.cs.aeadCrypter(key)
-		if err != nil {
-			return fmt.Errorf("failed to create AEAD crypter: %v", err)
-		}
+	hc.aeadCrypter, err = hc.cs.aeadCrypter(key)
+	if err != nil {
+		return fmt.Errorf("failed to update AEAD crypter: %v", err)
 	}
 	return nil
 }
 
-// getAndIncrement returns the current sequence number and increments it.
+// getAndIncrement returns the current sequence number and increments it. Note
+// that the mutex must be held while calling this function.
 func (hc *S2AHalfConnection) getAndIncrementSequence() (uint64, error) {
 	sequence, err := hc.sequence.value()
 	if err != nil {
@@ -141,7 +135,7 @@ func (hc *S2AHalfConnection) getAndIncrementSequence() (uint64, error) {
 }
 
 // maskedNonce creates a copy of the nonce that is masked with the sequence
-// number.
+// number. Note that the mutex must be held while calling this function.
 func (hc *S2AHalfConnection) maskedNonce(sequence uint64) []byte {
 	const uint64Size = 8
 	nonce := make([]byte, len(hc.nonce))

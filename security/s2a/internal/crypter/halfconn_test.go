@@ -2,7 +2,6 @@ package crypter
 
 import (
 	"bytes"
-	"fmt"
 	"google.golang.org/grpc/security/s2a/internal/crypter/testutil"
 	s2a_proto "google.golang.org/grpc/security/s2a/internal/proto"
 	"math"
@@ -13,27 +12,27 @@ import (
 func getHalfConnPair(ciphersuite s2a_proto.Ciphersuite, trafficSecret []byte, t *testing.T) (S2AHalfConnection, S2AHalfConnection) {
 	sender, err := NewHalfConn(ciphersuite, trafficSecret)
 	if err != nil {
-		t.Fatalf("sender side NewHalfConn(%v, %v) failed, err = %v", ciphersuite, trafficSecret, err)
+		t.Fatalf("sender side NewHalfConn(%v, %v) failed: %v", ciphersuite, trafficSecret, err)
 	}
 	receiver, err := NewHalfConn(ciphersuite, trafficSecret)
 	if err != nil {
-		t.Fatalf("receiver side NewHalfConn(%v, %v) failed, err = %v", ciphersuite, trafficSecret, err)
+		t.Fatalf("receiver side NewHalfConn(%v, %v) failed: %v", ciphersuite, trafficSecret, err)
 	}
 	return sender, receiver
 }
 
-// aeadCrypterEqual checks whether the given s2aAeadCrypters encode a simple
+// aeadCrypterEqual checks whether the given s2aAeadCrypters encrypt a simple
 // string identically.
 func aeadCrypterEqual(a s2aAeadCrypter, b s2aAeadCrypter, t *testing.T) bool {
 	nonce := make([]byte, nonceSize)
 	const plaintext = "This is plaintext"
 	ciphertextA, err := a.encrypt(nil, []byte(plaintext), nonce, nil)
 	if err != nil {
-		t.Errorf("a.encrypt(nil, %v, %v, nil) failed, err = %v", []byte(plaintext), nonce, err)
+		t.Errorf("a.encrypt(nil, %v, %v, nil) failed: %v", []byte(plaintext), nonce, err)
 	}
 	ciphertextB, err := b.encrypt(nil, []byte(plaintext), nonce, nil)
 	if err != nil {
-		t.Errorf("b.encrypt(nil, %v, %v, nil) failed, err = %v", []byte(plaintext), nonce, err)
+		t.Errorf("b.encrypt(nil, %v, %v, nil) failed: %v", []byte(plaintext), nonce, err)
 	}
 	return bytes.Equal(ciphertextA, ciphertextB)
 }
@@ -44,7 +43,7 @@ func testHalfConnRoundtrip(sender S2AHalfConnection, receiver S2AHalfConnection,
 	buf := []byte(plaintext)
 	_, err := sender.Encrypt(buf[:0], buf, nil)
 	if err != nil {
-		t.Fatalf("Encrypt(%v, %v, nil) failed, err = %v", buf[:0], buf, err)
+		t.Fatalf("Encrypt(%v, %v, nil) failed: %v", buf[:0], buf, err)
 	}
 
 	// Encrypt second message.
@@ -52,7 +51,7 @@ func testHalfConnRoundtrip(sender S2AHalfConnection, receiver S2AHalfConnection,
 	buf2 := []byte(plaintext2)
 	ciphertext2, err := sender.Encrypt(buf2[:0], buf2, nil)
 	if err != nil {
-		t.Fatalf("Encrypt(%v, %v, nil) failed, err = %v", buf2[:0], buf2, err)
+		t.Fatalf("Encrypt(%v, %v, nil) failed: %v", buf2[:0], buf2, err)
 	}
 
 	// Encrypt empty message.
@@ -60,7 +59,7 @@ func testHalfConnRoundtrip(sender S2AHalfConnection, receiver S2AHalfConnection,
 	buf3 := []byte(plaintext3)
 	ciphertext3, err := sender.Encrypt(buf3[:0], buf3, nil)
 	if err != nil {
-		t.Fatalf("Encrypt(%v, %v, nil) failed, err = %v", buf3[:0], buf3, err)
+		t.Fatalf("Encrypt(%v, %v, nil) failed: %v", buf3[:0], buf3, err)
 	}
 
 	// Decryption fails: cannot decrypt second message before first.
@@ -72,7 +71,7 @@ func testHalfConnRoundtrip(sender S2AHalfConnection, receiver S2AHalfConnection,
 	// incremented by the previous call to decrypt.
 	decryptedPlaintext2, err := receiver.Decrypt(ciphertext2[:0], ciphertext2, nil)
 	if err != nil {
-		t.Fatalf("Decrypt(%v, %v, nil) failed, err = %v", ciphertext2[:0], ciphertext2, err)
+		t.Fatalf("Decrypt(%v, %v, nil) failed: %v", ciphertext2[:0], ciphertext2, err)
 	}
 	if got, want := string(decryptedPlaintext2), plaintext2; got != want {
 		t.Fatalf("Decrypt(%v, %v, nil) = %v, want %v", ciphertext2[:0], ciphertext2, got, want)
@@ -81,7 +80,7 @@ func testHalfConnRoundtrip(sender S2AHalfConnection, receiver S2AHalfConnection,
 	// Decrypt third (empty) message.
 	decryptedPlaintext3, err := receiver.Decrypt(ciphertext3[:0], ciphertext3, nil)
 	if err != nil {
-		t.Fatalf("Decrypt(%v, %v, nil) failed, err = %v", ciphertext3[:0], ciphertext3, err)
+		t.Fatalf("Decrypt(%v, %v, nil) failed: %v", ciphertext3[:0], ciphertext3, err)
 	}
 	if got, want := string(decryptedPlaintext3), plaintext3; got != want {
 		t.Fatalf("Decrypt(%v, %v, nil) = %v, want %v", ciphertext3[:0], ciphertext3, got, want)
@@ -126,7 +125,7 @@ func TestGetAndIncrementSequence(t *testing.T) {
 			// that was given.
 			value, err := hc.getAndIncrementSequence()
 			if err != nil {
-				t.Errorf("S2A counter starting with %v, hc.getAndIncrementSequence() failed, err = %v", tc.counter, err)
+				t.Errorf("S2A counter starting with %v, hc.getAndIncrementSequence() failed: %v", tc.counter, err)
 			}
 			if value != tc.counter {
 				t.Errorf("S2A counter starting with %v, hc.getAndIncrementSequence() = %v, want %v", tc.counter, value, tc.counter)
@@ -200,68 +199,76 @@ func TestMaskedNonce(t *testing.T) {
 
 func TestNewHalfConn(t *testing.T) {
 	for _, tc := range []struct {
+		desc                      string
 		ciphersuite               s2a_proto.Ciphersuite
 		trafficSecret, key, nonce []byte
 		shouldFail                bool
 	}{
 		{
+			desc:          "AES-128-GCM-SHA256 invalid traffic secret",
 			ciphersuite:   s2a_proto.Ciphersuite_AES_128_GCM_SHA256,
 			trafficSecret: testutil.Dehex("00"),
 			shouldFail:    true,
 		},
 		{
+			desc:          "AES-128-GCM-SHA256 valid",
 			ciphersuite:   s2a_proto.Ciphersuite_AES_128_GCM_SHA256,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			key:           testutil.Dehex("c3ae7509cfced2b803a6186956cda79f"),
 			nonce:         testutil.Dehex("b5803d82ad8854d2e598187f"),
 		},
 		{
+			desc:          "AES-256-GCM-SHA384 invalid traffic secret",
 			ciphersuite:   s2a_proto.Ciphersuite_AES_256_GCM_SHA384,
 			trafficSecret: testutil.Dehex("00"),
 			shouldFail:    true,
 		},
 		{
+			desc:          "AES-256-GCM-SHA384 valid",
 			ciphersuite:   s2a_proto.Ciphersuite_AES_256_GCM_SHA384,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			key:           testutil.Dehex("dac731ae4866677ed2f65c490e18817be5cbbbd03f597ad59041c117b731109a"),
 			nonce:         testutil.Dehex("4db152d27d180b1ee48fa89d"),
 		},
 		{
+			desc:          "CHACHA20-POLY1305-SHA256 invalid traffic secret",
 			ciphersuite:   s2a_proto.Ciphersuite_CHACHA20_POLY1305_SHA256,
 			trafficSecret: testutil.Dehex("00"),
 			shouldFail:    true,
 		},
 		{
+			desc:          "CHACHA20-POLY1305-SHA256 valid",
 			ciphersuite:   s2a_proto.Ciphersuite_CHACHA20_POLY1305_SHA256,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			key:           testutil.Dehex("130e2000508ace00ef265e172d09892e467256cb90dad9de99543cf548be6a8b"),
 			nonce:         testutil.Dehex("b5803d82ad8854d2e598187f"),
 		},
 	} {
-		t.Run(fmt.Sprintf("%v/shouldFail=%v", tc.ciphersuite.String(), tc.shouldFail), func(t *testing.T) {
+		t.Run(tc.desc, func(t *testing.T) {
 			hc, err := NewHalfConn(tc.ciphersuite, tc.trafficSecret)
 			if got, want := err == nil, !tc.shouldFail; got != want {
 				t.Errorf("NewHalfConn(%v, %v)=(err=nil)=%v, want %v", tc.ciphersuite, tc.trafficSecret, got, want)
 			}
-			if err == nil {
-				// Check that the traffic secret wasn't changed.
-				if got, want := hc.trafficSecret, tc.trafficSecret; !bytes.Equal(got, want) {
-					t.Errorf("NewHalfConn(%v, %v).trafficSecret=%v, want %v", tc.ciphersuite, tc.trafficSecret, got, want)
-				}
-				if got, want := hc.nonce, tc.nonce; !bytes.Equal(got, want) {
-					t.Errorf("NewHalfConn(%v, %v).nonce=%v, want %v", tc.ciphersuite, tc.trafficSecret, got, want)
-				}
-				cs, err := newCiphersuite(tc.ciphersuite)
-				if err != nil {
-					t.Errorf("newCipherSuite(%v) failed, err = %v", tc.ciphersuite, err)
-				}
-				aeadCrypter, err := cs.aeadCrypter(tc.key)
-				if err != nil {
-					t.Errorf("cs.aeadCrypter(%v) failed, err = %v", tc.key, err)
-				}
-				if got, want := hc.aeadCrypter, aeadCrypter; !aeadCrypterEqual(got, want, t) {
-					t.Errorf("aeadCrypterEqual returned false, expected true")
-				}
+			if err != nil {
+				return
+			}
+			// Check that the traffic secret wasn't changed.
+			if got, want := hc.trafficSecret, tc.trafficSecret; !bytes.Equal(got, want) {
+				t.Errorf("NewHalfConn(%v, %v).trafficSecret=%v, want %v", tc.ciphersuite, tc.trafficSecret, got, want)
+			}
+			if got, want := hc.nonce, tc.nonce; !bytes.Equal(got, want) {
+				t.Errorf("NewHalfConn(%v, %v).nonce=%v, want %v", tc.ciphersuite, tc.trafficSecret, got, want)
+			}
+			cs, err := newCiphersuite(tc.ciphersuite)
+			if err != nil {
+				t.Errorf("newCipherSuite(%v) failed: %v", tc.ciphersuite, err)
+			}
+			aeadCrypter, err := cs.aeadCrypter(tc.key)
+			if err != nil {
+				t.Errorf("cs.aeadCrypter(%v) failed: %v", tc.key, err)
+			}
+			if got, want := hc.aeadCrypter, aeadCrypter; !aeadCrypterEqual(got, want, t) {
+				t.Errorf("aeadCrypterEqual returned false, expected true")
 			}
 		})
 	}
@@ -322,10 +329,10 @@ func TestS2AHalfConnectionUpdateKey(t *testing.T) {
 		t.Run(tc.ciphersuite.String(), func(t *testing.T) {
 			hc, err := NewHalfConn(tc.ciphersuite, tc.trafficSecret)
 			if err != nil {
-				t.Fatalf("NewHalfConn(%v, %v) failed, err = %v", tc.ciphersuite, tc.trafficSecret, err)
+				t.Fatalf("NewHalfConn(%v, %v) failed: %v", tc.ciphersuite, tc.trafficSecret, err)
 			}
 			if err := hc.UpdateKey(); err != nil {
-				t.Fatalf("hc.updateKey() failed, err = %v", err)
+				t.Fatalf("hc.updateKey() failed: %v", err)
 			}
 			if got, want := hc.trafficSecret, tc.advancedTrafficSecret; !bytes.Equal(got, want) {
 				t.Errorf("hc.trafficSecret = %v, want %v", got, want)
@@ -335,11 +342,11 @@ func TestS2AHalfConnectionUpdateKey(t *testing.T) {
 			}
 			cs, err := newCiphersuite(tc.ciphersuite)
 			if err != nil {
-				t.Errorf("newCipherSuite(%v) failed, err = %v", tc.ciphersuite, err)
+				t.Errorf("newCipherSuite(%v) failed: %v", tc.ciphersuite, err)
 			}
 			aeadCrypter, err := cs.aeadCrypter(tc.key)
 			if err != nil {
-				t.Errorf("cs.aeadCrypter(%v) failed, err = %v", tc.key, err)
+				t.Errorf("cs.aeadCrypter(%v) failed: %v", tc.key, err)
 			}
 			if got, want := hc.aeadCrypter, aeadCrypter; !aeadCrypterEqual(got, want, t) {
 				t.Errorf("aeadCrypterEqual returned false, expected true")
