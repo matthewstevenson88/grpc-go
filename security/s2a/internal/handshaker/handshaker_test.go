@@ -105,7 +105,7 @@ func (fc *fakeConn) Write(b []byte) (n int, err error) { return fc.out.Write(b) 
 func (fc *fakeConn) Close() error                      { return nil }
 
 // fakeInvalidConn is a fake implementation of a invalid net.Conn interface that is
-// used for testing
+// used for testing.
 type fakeInvalidConn struct {
 	net.Conn
 }
@@ -114,6 +114,7 @@ func (fc *fakeInvalidConn) Read(b []byte) (n int, err error)  { return 0, io.EOF
 func (fc *fakeInvalidConn) Write(b []byte) (n int, err error) { return 0, nil }
 func (fc *fakeInvalidConn) Close() error                      { return nil }
 
+// MakeFrame creates a handshake frame.
 func MakeFrame(pl string) []byte {
 	f := make([]byte, len(pl)+4)
 	binary.LittleEndian.PutUint32(f, uint32(len(pl)))
@@ -153,6 +154,8 @@ func TestNewServerHandshaker(t *testing.T) {
 	}
 }
 
+// TestClienthandshake creates a fake S2A handshaker and performs a client-side
+// handshake
 func TestClientHandshake(t *testing.T) {
 	errc := make(chan error)
 	stream := &fakeStream{}
@@ -170,13 +173,15 @@ func TestClientHandshake(t *testing.T) {
 	go func() {
 		_, context, err := chs.ClientHandshake(context.Background())
 		if err == nil && context == nil {
-			t.Error("expected non-nil S2A context")
+			panic("expected non-nil S2A context")
 		}
 		errc <- err
 		chs.Close()
 	}()
 }
 
+// TestServerHandshake creates a fake S2A handshaker and performs a server-side
+// handshake
 func TestServerHandshake(t *testing.T) {
 	errc := make(chan error)
 	stream := &fakeStream{}
@@ -194,13 +199,15 @@ func TestServerHandshake(t *testing.T) {
 	go func() {
 		_, context, err := shs.ServerHandshake(context.Background())
 		if err == nil && context == nil {
-			t.Error("expected non-nil S2A context")
+			panic("expected non-nil S2A context")
 		}
 		errc <- err
 		shs.Close()
 	}()
 }
 
+// TestPeerNotResponding uses an invalid net.Conn instance and performs a
+// handshake to test PeerNotRespondingError
 func TestPeerNotResponding(t *testing.T) {
 	stream := &fakeStream{}
 	c := &fakeInvalidConn{}
@@ -209,14 +216,13 @@ func TestPeerNotResponding(t *testing.T) {
 		conn:       c,
 		clientOpts: testClientHandshakerOptions,
 	}
-	go func() {
-		_, context, err := chs.ClientHandshake(context.Background())
-		chs.Close()
-		if context != nil {
-			t.Error("expected non-nil S2A context")
-		}
-		if got, want := err, PeerNotRespondingError; got != want {
-			t.Errorf("ClientHandshake() = %v, want %v", got, want)
-		}
-	}()
+	_, context, err := chs.ClientHandshake(context.Background())
+	chs.Close()
+	if context != nil {
+		t.Error("expected non-nil S2A context")
+	}
+	if got, want := err, PeerNotRespondingError; got != want {
+		t.Errorf("ClientHandshake() = %v, want %v", got, want)
+	}
+
 }
