@@ -93,7 +93,7 @@ func NewClientHandshaker(ctx context.Context, conn *grpc.ClientConn, c net.Conn,
 	return newClientHandshaker(stream, c, opts), err
 }
 
-// newClientHandshakerInternal is for testing purposes only.
+// newClientHandshaker is for testing purposes only.
 func newClientHandshaker(stream s2apb.S2AService_SetUpSessionClient, c net.Conn, opts *ClientHandshakerOptions) *s2aHandshaker {
 	return &s2aHandshaker{
 		stream:     stream,
@@ -112,7 +112,7 @@ func NewServerHandshaker(ctx context.Context, conn *grpc.ClientConn, c net.Conn,
 	return newServerHandshaker(stream, c, opts), err
 }
 
-// newClientHandshakerInternal is for testing purposes only.
+// newClientHandshaker is for testing purposes only.
 func newServerHandshaker(stream s2apb.S2AService_SetUpSessionClient, c net.Conn, opts *ServerHandshakerOptions) *s2aHandshaker {
 	return &s2aHandshaker{
 		stream:     stream,
@@ -127,8 +127,7 @@ func (h *s2aHandshaker) ClientHandshake(ctx context.Context) (net.Conn, *authinf
 	if h.clientOpts == nil {
 		return nil, nil, errors.New("only handshakers created using NewClientHandshaker can perform a client handshaker")
 	}
-
-	// Create target identities from service account list.
+	// Prepare a client start message to send to the S2A handshaker service.
 	req := &s2apb.SessionReq{
 		ReqOneof: &s2apb.SessionReq_ClientStart{
 			ClientStart: &s2apb.ClientSessionStartReq{
@@ -142,7 +141,6 @@ func (h *s2aHandshaker) ClientHandshake(ctx context.Context) (net.Conn, *authinf
 			},
 		},
 	}
-
 	conn, result, err := h.setUpSession(req)
 	if err != nil {
 		return nil, nil, err
@@ -157,16 +155,15 @@ func (h *s2aHandshaker) ClientHandshake(ctx context.Context) (net.Conn, *authinf
 // ServerHandshake performs a server-side TLS handshake using the S2A handshaker
 // service. When complete, returns a secure TLS connection.
 func (h *s2aHandshaker) ServerHandshake(ctx context.Context) (net.Conn, *authinfo.S2AAuthInfo, error) {
-
 	if h.serverOpts == nil {
 		return nil, nil, errors.New("only handshakers created using NewServerHandshaker can perform a server handshaker")
 	}
-
-	p := make([]byte, 64*1024) // temp length?
+	p := make([]byte, frameLimit)
 	n, err := h.conn.Read(p)
 	if err != nil {
 		return nil, nil, err
 	}
+	// Prepare a server start message to send to the S2A handshaker service.
 	req := &s2apb.SessionReq{
 		ReqOneof: &s2apb.SessionReq_ServerStart{
 			ServerStart: &s2apb.ServerSessionStartReq{
@@ -179,7 +176,6 @@ func (h *s2aHandshaker) ServerHandshake(ctx context.Context) (net.Conn, *authinf
 			},
 		},
 	}
-
 	conn, result, err := h.setUpSession(req)
 	if err != nil {
 		return nil, nil, err
@@ -191,6 +187,7 @@ func (h *s2aHandshaker) ServerHandshake(ctx context.Context) (net.Conn, *authinf
 	return conn, authInfo, nil
 }
 
+// setUpSession sets up and runs the session that the S2A handshaker occurs on.
 func (h *s2aHandshaker) setUpSession(req *s2apb.SessionReq) (net.Conn, *s2apb.SessionResult, error) {
 	resp, err := h.accessHandshakerService(req)
 	if err != nil {
@@ -202,7 +199,6 @@ func (h *s2aHandshaker) setUpSession(req *s2apb.SessionReq) (net.Conn, *s2apb.Se
 			return nil, nil, fmt.Errorf("%v", resp.GetStatus().Details)
 		}
 	}
-
 	var extra []byte
 	if req.GetServerStart() != nil {
 		if resp.GetBytesConsumed() > uint32(len(req.GetServerStart().GetInBytes())) {
@@ -214,10 +210,12 @@ func (h *s2aHandshaker) setUpSession(req *s2apb.SessionReq) (net.Conn, *s2apb.Se
 	if err != nil {
 		return nil, nil, err
 	}
-	// TODO: implemented record protocol & new Conn
+	// TODO: implement record protocol & new Conn
 	return h.conn, result, nil
 }
 
+// accessHandshakerService sends the session request over the Handshaker service
+// stream and returns the response
 func (h *s2aHandshaker) accessHandshakerService(req *s2apb.SessionReq) (*s2apb.SessionResp, error) {
 	if err := h.stream.Send(req); err != nil {
 		return nil, err
