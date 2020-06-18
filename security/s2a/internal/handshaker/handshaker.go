@@ -30,12 +30,12 @@ import (
 // ClientHandshakerOptions contains the options needed to configure the S2A
 // handshaker service on the client-side.
 type ClientHandshakerOptions struct {
-	// MinTlsVersion specifies the min TLS versions supported by the client.
-	MinTlsVersion s2apb.TLSVersion
-	// MaxTlsVersion specifies the max TLS versions supported by the client.
-	MaxTlsVersion s2apb.TLSVersion
+	// MinTLSVersion specifies the min TLS version supported by the client.
+	MinTLSVersion s2apb.TLSVersion
+	// MaxTLSVersion specifies the max TLS version supported by the client.
+	MaxTLSVersion s2apb.TLSVersion
 	// The ordered list of ciphersuites supported by the client.
-	TlsCiphersuites []s2apb.Ciphersuite
+	TLSCiphersuites []s2apb.Ciphersuite
 	// TargetIdentities contains a list of allowed server identities. One of the
 	// target identities should match the peer identity in the handshake
 	// result; otherwise, the handshake fails.
@@ -51,12 +51,12 @@ type ClientHandshakerOptions struct {
 // ServerHandshakerOptions contains the options needed to configure the S2A
 // handshaker service on the server-side.
 type ServerHandshakerOptions struct {
-	// MinTlsVersion specifies the min TLS versions supported by the server.
-	MinTlsVersion s2apb.TLSVersion
-	// MaxTlsVersion specifies the max TLS versions supported by the server.
-	MaxTlsVersion s2apb.TLSVersion
+	// MinTLSVersion specifies the min TLS version supported by the server.
+	MinTLSVersion s2apb.TLSVersion
+	// MaxTLSVersion specifies the max TLS version supported by the server.
+	MaxTLSVersion s2apb.TLSVersion
 	// The ordered list of ciphersuites supported by the server.
-	TlsCiphersuites []s2apb.Ciphersuite
+	TLSCiphersuites []s2apb.Ciphersuite
 	// The local identities that may be assumed by the server. If no local
 	// identity is specified, then the S2A chooses a default local identity.
 	LocalIdentities []*s2apb.Identity

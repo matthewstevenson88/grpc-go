@@ -30,9 +30,9 @@ import (
 var (
 	// testClientHandshakerOptions are the client handshaker options used for testing
 	testClientHandshakerOptions = &ClientHandshakerOptions{
-		MinTlsVersion: s2apb.TLSVersion_TLS1_2,
-		MaxTlsVersion: s2apb.TLSVersion_TLS1_3,
-		TlsCiphersuites: []s2apb.Ciphersuite{
+		MinTLSVersion: s2apb.TLSVersion_TLS1_2,
+		MaxTLSVersion: s2apb.TLSVersion_TLS1_3,
+		TLSCiphersuites: []s2apb.Ciphersuite{
 			s2apb.Ciphersuite_AES_128_GCM_SHA256,
 			s2apb.Ciphersuite_AES_256_GCM_SHA384,
 			s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
@@ -59,9 +59,9 @@ var (
 
 	// testServerHandshakerOptions are the server handshaker options used for testing
 	testServerHandshakerOptions = &ServerHandshakerOptions{
-		MinTlsVersion: s2apb.TLSVersion_TLS1_2,
-		MaxTlsVersion: s2apb.TLSVersion_TLS1_3,
-		TlsCiphersuites: []s2apb.Ciphersuite{
+		MinTLSVersion: s2apb.TLSVersion_TLS1_2,
+		MaxTLSVersion: s2apb.TLSVersion_TLS1_3,
+		TLSCiphersuites: []s2apb.Ciphersuite{
 			s2apb.Ciphersuite_AES_128_GCM_SHA256,
 			s2apb.Ciphersuite_AES_256_GCM_SHA384,
 			s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
