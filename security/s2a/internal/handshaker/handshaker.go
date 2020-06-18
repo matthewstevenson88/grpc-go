@@ -32,8 +32,9 @@ import (
 )
 
 var (
-	appProtocols = []string{"grpc"}
-	frameLimit   = 1024 * 128
+	appProtocols           = []string{"grpc"}
+	frameLimit             = 1024 * 128
+	PeerNotRespondingError = errors.New("peer server is not responding and re-connection should be attempted")
 )
 
 // ClientHandshakerOptions contains the options needed to configure the S2A
@@ -250,7 +251,7 @@ func (h *s2aHandshaker) processUntilDone(resp *s2apb.SessionResp, extra []byte) 
 		// that handshaker service connection issues are caught in
 		// accessHandshakerService before we even get here.
 		if len(resp.OutFrames) == 0 && n == 0 {
-			return nil, nil, errors.New("peer server is not responding and re-connection should be attempted")
+			return nil, nil, PeerNotRespondingError
 		}
 		// Append extra bytes from the previous interaction with the
 		// handshaker service with the current buffer read from conn.

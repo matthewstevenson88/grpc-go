@@ -19,7 +19,10 @@
 package handshaker
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
+	"io"
 	"net"
 	"testing"
 
@@ -87,18 +90,49 @@ type fakeStream struct{ grpc.ClientStream }
 
 func (*fakeStream) Recv() (*s2apb.SessionResp, error) { return new(s2apb.SessionResp), nil }
 func (*fakeStream) Send(*s2apb.SessionReq) error      { return nil }
+func (*fakeStream) CloseSend() error                  { return nil }
 
 // fakeConn is a fake implementation of the net.Conn interface that is used for
 // testing.
-type fakeConn struct{ net.Conn }
+type fakeConn struct {
+	net.Conn
+	in  *bytes.Buffer
+	out *bytes.Buffer
+}
+
+func (fc *fakeConn) Read(b []byte) (n int, err error)  { return fc.in.Read(b) }
+func (fc *fakeConn) Write(b []byte) (n int, err error) { return fc.out.Write(b) }
+func (fc *fakeConn) Close() error                      { return nil }
+
+// fakeInvalidConn is a fake implementation of a invalid net.Conn interface that is
+// used for testing
+type fakeInvalidConn struct {
+	net.Conn
+}
+
+func (fc *fakeInvalidConn) Read(b []byte) (n int, err error)  { return 0, io.EOF }
+func (fc *fakeInvalidConn) Write(b []byte) (n int, err error) { return 0, nil }
+func (fc *fakeInvalidConn) Close() error                      { return nil }
+
+func MakeFrame(pl string) []byte {
+	f := make([]byte, len(pl)+4)
+	binary.LittleEndian.PutUint32(f, uint32(len(pl)))
+	copy(f[4:], []byte(pl))
+	return f
+}
 
 // TestNewClientHandshaker creates a fake stream, and ensures that
 // newClientHandshakerInternal returns a valid client-side handshaker instance.
 func TestNewClientHandshaker(t *testing.T) {
 	stream := &fakeStream{}
-	c := &fakeConn{}
-	shs := newClientHandshaker(stream, c, testClientHandshakerOptions)
-	if shs.clientOpts != testClientHandshakerOptions || shs.conn != c {
+	in := bytes.NewBuffer(MakeFrame("ClientInit"))
+	in.Write(MakeFrame("ClientFinished"))
+	c := &fakeConn{
+		in:  in,
+		out: new(bytes.Buffer),
+	}
+	chs := newClientHandshaker(stream, c, testClientHandshakerOptions)
+	if chs.clientOpts != testClientHandshakerOptions || chs.conn != c {
 		t.Errorf("handshaker parameters incorrect")
 	}
 }
@@ -107,7 +141,12 @@ func TestNewClientHandshaker(t *testing.T) {
 // newServerHandshakerInternal returns a valid server-side handshaker instance.
 func TestNewServerHandshaker(t *testing.T) {
 	stream := &fakeStream{}
-	c := &fakeConn{}
+	in := bytes.NewBuffer(MakeFrame("ServerInit"))
+	in.Write(MakeFrame("ServerFinished"))
+	c := &fakeConn{
+		in:  in,
+		out: new(bytes.Buffer),
+	}
 	shs := newServerHandshaker(stream, c, testServerHandshakerOptions)
 	if shs.serverOpts != testServerHandshakerOptions || shs.conn != c {
 		t.Errorf("handshaker parameters incorrect")
@@ -117,7 +156,12 @@ func TestNewServerHandshaker(t *testing.T) {
 func TestClientHandshake(t *testing.T) {
 	errc := make(chan error)
 	stream := &fakeStream{}
-	c := &fakeConn{}
+	in := bytes.NewBuffer(MakeFrame("ClientInit"))
+	in.Write(MakeFrame("ClientFinished"))
+	c := &fakeConn{
+		in:  in,
+		out: new(bytes.Buffer),
+	}
 	chs := &s2aHandshaker{
 		stream:     stream,
 		conn:       c,
@@ -126,7 +170,7 @@ func TestClientHandshake(t *testing.T) {
 	go func() {
 		_, context, err := chs.ClientHandshake(context.Background())
 		if err == nil && context == nil {
-			panic("expected non-nil S2A context")
+			t.Error("expected non-nil S2A context")
 		}
 		errc <- err
 		chs.Close()
@@ -136,7 +180,12 @@ func TestClientHandshake(t *testing.T) {
 func TestServerHandshake(t *testing.T) {
 	errc := make(chan error)
 	stream := &fakeStream{}
-	c := &fakeConn{}
+	in := bytes.NewBuffer(MakeFrame("ServerInit"))
+	in.Write(MakeFrame("ServerFinished"))
+	c := &fakeConn{
+		in:  in,
+		out: new(bytes.Buffer),
+	}
 	shs := &s2aHandshaker{
 		stream:     stream,
 		conn:       c,
@@ -145,40 +194,29 @@ func TestServerHandshake(t *testing.T) {
 	go func() {
 		_, context, err := shs.ServerHandshake(context.Background())
 		if err == nil && context == nil {
-			panic("expected non-nil S2A context")
+			t.Error("expected non-nil S2A context")
 		}
 		errc <- err
 		shs.Close()
 	}()
-
 }
 
-/*
-// Test unimplemented methods
-func TestProcessUntilDone(t *testing.T) {
-	shs := &s2aHandshaker{}
-	resp := &s2apb.SessionResp{}
-	result, extra, err := shs.processUntilDone(resp, make([]byte, 4))
-	if err == nil || result != nil || extra != nil {
-		t.Errorf("Method should be unimplemented")
+func TestPeerNotResponding(t *testing.T) {
+	stream := &fakeStream{}
+	c := &fakeInvalidConn{}
+	chs := &s2aHandshaker{
+		stream:     stream,
+		conn:       c,
+		clientOpts: testClientHandshakerOptions,
 	}
+	go func() {
+		_, context, err := chs.ClientHandshake(context.Background())
+		chs.Close()
+		if context != nil {
+			t.Error("expected non-nil S2A context")
+		}
+		if got, want := err, PeerNotRespondingError; got != want {
+			t.Errorf("ClientHandshake() = %v, want %v", got, want)
+		}
+	}()
 }
-
-func TestAccessHandshakerService(t *testing.T) {
-	shs := &s2aHandshaker{}
-	req := &s2apb.SessionReq{}
-	resp, err := shs.accessHandshakerService(req)
-	if err == nil || resp != nil {
-		t.Errorf("Method should be unimplemented")
-	}
-}
-
-func TestSetUpSession(t *testing.T) {
-	shs := &s2aHandshaker{}
-	req := &s2apb.SessionReq{}
-	context, result, err := shs.setUpSession(req)
-	if err == nil || context != nil || result != nil {
-		t.Errorf("Method should be unimplemented")
-	}
-}
-*/
