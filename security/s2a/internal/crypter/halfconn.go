@@ -32,7 +32,7 @@ type S2AHalfConnection struct {
 
 // NewHalfConn creates a new instance of S2AHalfConnection given a ciphersuite
 // and a traffic secret.
-func NewHalfConn(ciphersuite s2apb.Ciphersuite, trafficSecret []byte) (*S2AHalfConnection, error) {
+func NewHalfConn(ciphersuite s2apb.Ciphersuite, trafficSecret []byte, sequence uint64) (*S2AHalfConnection, error) {
 	cs, err := newCiphersuite(ciphersuite)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new ciphersuite: %v", ciphersuite)
@@ -41,7 +41,7 @@ func NewHalfConn(ciphersuite s2apb.Ciphersuite, trafficSecret []byte) (*S2AHalfC
 		return nil, fmt.Errorf("supplied traffic secret must be %v bytes, given: %v bytes", cs.trafficSecretSize(), len(trafficSecret))
 	}
 
-	hc := &S2AHalfConnection{cs: cs, h: cs.hashFunction(), expander: &defaultHKDFExpander{}, sequence: newCounter(0), trafficSecret: trafficSecret}
+	hc := &S2AHalfConnection{cs: cs, h: cs.hashFunction(), expander: &defaultHKDFExpander{}, sequence: newCounter(sequence), trafficSecret: trafficSecret}
 	if err = hc.updateCrypterAndNonce(hc.trafficSecret); err != nil {
 		return nil, fmt.Errorf("failed to create half connection using traffic secret: %v", err)
 	}

@@ -3,7 +3,7 @@ package crypter
 import (
 	"errors"
 	"fmt"
-	s2a_proto "google.golang.org/grpc/security/s2a/internal/proto"
+	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
 	"net"
 )
 
@@ -31,10 +31,10 @@ type conn struct {
 	net.Conn
 	// inConnection is the half connection responsible for decrypting incoming
 	// bytes.
-	inConnection S2AHalfConnection
+	inConnection *S2AHalfConnection
 	// outConnection is the half connection responsible for encrypting outgoing
 	// bytes.
-	outConnection S2AHalfConnection
+	outConnection *S2AHalfConnection
 	// pendingApplicationData holds data that has been read from the connection
 	// and decrypted, but has not yet been returned by Read.
 	pendingApplicationData []byte
@@ -58,33 +58,31 @@ type conn struct {
 // ConnOptions holds the options used for creating a new conn object.
 type ConnOptions struct {
 	netConn                                        net.Conn
-	ciphersuite                                    s2a_proto.Ciphersuite
-	tlsVersion                                     s2a_proto.TLSVersion
+	ciphersuite                                    s2apb.Ciphersuite
+	tlsVersion                                     s2apb.TLSVersion
 	inTrafficSecret, outTrafficSecret, unusedBytes []byte
-	// TODO(rnkim): Pass these to HalfConn constructor.
-	inSequence, outSequence uint64
-	handshakerServiceAddr   string
+	inSequence, outSequence                        uint64
+	handshakerServiceAddr                          string
 }
 
 func NewConn(o *ConnOptions) (net.Conn, error) {
 	if o == nil {
 		return nil, errors.New("conn options must be not nil")
 	}
-	if o.tlsVersion != s2a_proto.TLSVersion_TLS1_3 {
+	if o.tlsVersion != s2apb.TLSVersion_TLS1_3 {
 		return nil, errors.New("TLS version must be TLS 1.3")
 	}
 
-	inConnection, err := NewHalfConn(o.ciphersuite, o.inTrafficSecret)
+	inConnection, err := NewHalfConn(o.ciphersuite, o.inTrafficSecret, o.inSequence)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create inbound half connection: %v", err)
 	}
-	outConnection, err := NewHalfConn(o.ciphersuite, o.outTrafficSecret)
+	outConnection, err := NewHalfConn(o.ciphersuite, o.outTrafficSecret, o.outSequence)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create outbound half connection: %v", err)
 	}
 
-	// TODO(rnkim): Add TagSize() to Half Connection? The code below won't work
-	// once we move HalfConn into it's own directory.
+	// TODO(rnkim): Add TagSize() to Half Connection.
 	// Note: The tag size for the in/out connections should be the same.
 	overheadSize := tlsRecordHeaderSize + tlsRecordTypeSize + inConnection.aeadCrypter.tagSize()
 	var unusedBytesBuf []byte
