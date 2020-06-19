@@ -37,7 +37,7 @@ type aesgcm struct {
 
 // newAESGCM creates an AES-GCM crypter instance. Note that the key must be
 // either 128 bits or 256 bits.
-func newAESGCM(key []byte) (s2aAeadCrypter, error) {
+func newAESGCM(key []byte) (s2aAEADCrypter, error) {
 	if len(key) != aes128GcmKeySize && len(key) != aes256GcmKeySize {
 		return nil, fmt.Errorf("%d or %d bytes, given: %d", aes128GcmKeySize, aes256GcmKeySize, len(key))
 	}

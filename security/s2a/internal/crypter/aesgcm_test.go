@@ -26,7 +26,7 @@ import (
 )
 
 // getGCMCryptoPair outputs a sender/receiver pair on AES-GCM.
-func getGCMCryptoPair(key []byte, t *testing.T) (s2aAeadCrypter, s2aAeadCrypter) {
+func getGCMCryptoPair(key []byte, t *testing.T) (s2aAEADCrypter, s2aAEADCrypter) {
 	sender, err := newAESGCM(key)
 	if err != nil {
 		t.Fatalf("newAESGCM(ClientSide, key) = %v", err)
@@ -47,7 +47,7 @@ func wycheProofTestVectorFilter(testGroup testutil.TestGroup) bool {
 		testGroup.TagSize != 128
 }
 
-func testGCMEncryptionDecryption(sender s2aAeadCrypter, receiver s2aAeadCrypter, tc *testutil.CryptoTestVector, t *testing.T) {
+func testGCMEncryptionDecryption(sender s2aAEADCrypter, receiver s2aAEADCrypter, tc *testutil.CryptoTestVector, t *testing.T) {
 	// ciphertext is: encrypted text + tag.
 	ciphertext := append(tc.Ciphertext, tc.Tag...)
 
@@ -70,7 +70,7 @@ func testGCMEncryptionDecryption(sender s2aAeadCrypter, receiver s2aAeadCrypter,
 	}
 }
 
-func testGCMEncryptRoundtrip(sender s2aAeadCrypter, receiver s2aAeadCrypter, t *testing.T) {
+func testGCMEncryptRoundtrip(sender s2aAEADCrypter, receiver s2aAEADCrypter, t *testing.T) {
 	// Construct a dummy nonce.
 	nonce := make([]byte, nonceSize)
 

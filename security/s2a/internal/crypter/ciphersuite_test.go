@@ -17,7 +17,7 @@ func TestCiphersuites(t *testing.T) {
 		key                                   []byte
 		keySize, nonceSize, trafficSecretSize int
 		hashFunction                          func() hash.Hash
-		aeadCrypter                           s2aAeadCrypter
+		aeadCrypter                           s2aAEADCrypter
 	}{
 		{
 			s2aProtoCiphersuite: s2a_proto.Ciphersuite_AES_128_GCM_SHA256,
