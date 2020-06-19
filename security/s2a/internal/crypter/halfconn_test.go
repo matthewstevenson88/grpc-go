@@ -10,11 +10,11 @@ import (
 
 // getHalfConnPair returns a sender/receiver pair of S2A Half Connections.
 func getHalfConnPair(ciphersuite s2apb.Ciphersuite, trafficSecret []byte, t *testing.T) (*S2AHalfConnection, *S2AHalfConnection) {
-	sender, err := NewHalfConn(ciphersuite, trafficSecret)
+	sender, err := NewHalfConn(ciphersuite, trafficSecret, 0 /* sequence */)
 	if err != nil {
 		t.Fatalf("sender side NewHalfConn(%v, %v) failed: %v", ciphersuite, trafficSecret, err)
 	}
-	receiver, err := NewHalfConn(ciphersuite, trafficSecret)
+	receiver, err := NewHalfConn(ciphersuite, trafficSecret, 0 /* sequence */)
 	if err != nil {
 		t.Fatalf("receiver side NewHalfConn(%v, %v) failed: %v", ciphersuite, trafficSecret, err)
 	}
@@ -248,7 +248,7 @@ func TestNewHalfConn(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			hc, err := NewHalfConn(tc.ciphersuite, tc.trafficSecret)
+			hc, err := NewHalfConn(tc.ciphersuite, tc.trafficSecret, 0 /* sequence */)
 			if got, want := err == nil, !tc.shouldFail; got != want {
 				t.Errorf("NewHalfConn(%v, %v)=(err=nil)=%v, want %v", tc.ciphersuite, tc.trafficSecret, got, want)
 			}
@@ -333,7 +333,7 @@ func TestS2AHalfConnectionUpdateKey(t *testing.T) {
 		},
 	} {
 		t.Run(tc.ciphersuite.String(), func(t *testing.T) {
-			hc, err := NewHalfConn(tc.ciphersuite, tc.trafficSecret)
+			hc, err := NewHalfConn(tc.ciphersuite, tc.trafficSecret, 0 /* sequence */)
 			if err != nil {
 				t.Fatalf("NewHalfConn(%v, %v) failed: %v", tc.ciphersuite, tc.trafficSecret, err)
 			}
