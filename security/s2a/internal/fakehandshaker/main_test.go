@@ -4,23 +4,23 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	s2a_proto "google.golang.org/grpc/security/s2a/internal/proto"
+	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
 	"testing"
 )
 
 type fakeS2ASetupSessionServer struct {
 	grpc.ServerStream
 	recvCount int
-	reqs      []*s2a_proto.SessionReq
-	resps     []*s2a_proto.SessionResp
+	reqs      []*s2apb.SessionReq
+	resps     []*s2apb.SessionResp
 }
 
-func (f *fakeS2ASetupSessionServer) Send(resp *s2a_proto.SessionResp) error {
+func (f *fakeS2ASetupSessionServer) Send(resp *s2apb.SessionResp) error {
 	f.resps = append(f.resps, resp)
 	return nil
 }
 
-func (f *fakeS2ASetupSessionServer) Recv() (*s2a_proto.SessionReq, error) {
+func (f *fakeS2ASetupSessionServer) Recv() (*s2apb.SessionReq, error) {
 	if f.recvCount == len(f.reqs) {
 		return nil, nil
 	}
@@ -33,16 +33,16 @@ func TestSetupSession(t *testing.T) {
 	for _, tc := range []struct {
 		desc string
 		// Note that outResps[i] is the output for reqs[i].
-		reqs           []*s2a_proto.SessionReq
-		outResps       []*s2a_proto.SessionResp
+		reqs           []*s2apb.SessionReq
+		outResps       []*s2apb.SessionResp
 		hasNonOKStatus bool
 	}{
 		{
 			desc: "client failure no app protocols",
-			reqs: []*s2a_proto.SessionReq{
+			reqs: []*s2apb.SessionReq{
 				{
-					ReqOneof: &s2a_proto.SessionReq_ClientStart{
-						ClientStart: &s2a_proto.ClientSessionStartReq{},
+					ReqOneof: &s2apb.SessionReq_ClientStart{
+						ClientStart: &s2apb.ClientSessionStartReq{},
 					},
 				},
 			},
@@ -50,40 +50,40 @@ func TestSetupSession(t *testing.T) {
 		},
 		{
 			desc: "client failure non initial state",
-			reqs: []*s2a_proto.SessionReq{
+			reqs: []*s2apb.SessionReq{
 				{
-					ReqOneof: &s2a_proto.SessionReq_ClientStart{
-						ClientStart: &s2a_proto.ClientSessionStartReq{
-							ApplicationProtocols: []string{"app protocol"},
-							MinTlsVersion:        s2a_proto.TLSVersion_TLS1_3,
-							MaxTlsVersion:        s2a_proto.TLSVersion_TLS1_3,
-							TlsCiphersuites: []s2a_proto.Ciphersuite{
-								s2a_proto.Ciphersuite_AES_128_GCM_SHA256,
-								s2a_proto.Ciphersuite_AES_256_GCM_SHA384,
-								s2a_proto.Ciphersuite_CHACHA20_POLY1305_SHA256,
+					ReqOneof: &s2apb.SessionReq_ClientStart{
+						ClientStart: &s2apb.ClientSessionStartReq{
+							ApplicationProtocols: []string{grpcAppProtocol},
+							MinTlsVersion:        s2apb.TLSVersion_TLS1_3,
+							MaxTlsVersion:        s2apb.TLSVersion_TLS1_3,
+							TlsCiphersuites: []s2apb.Ciphersuite{
+								s2apb.Ciphersuite_AES_128_GCM_SHA256,
+								s2apb.Ciphersuite_AES_256_GCM_SHA384,
+								s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
 							},
 						},
 					},
 				},
 				{
-					ReqOneof: &s2a_proto.SessionReq_ClientStart{
-						ClientStart: &s2a_proto.ClientSessionStartReq{
-							ApplicationProtocols: []string{"app protocol"},
-							MinTlsVersion:        s2a_proto.TLSVersion_TLS1_3,
-							MaxTlsVersion:        s2a_proto.TLSVersion_TLS1_3,
-							TlsCiphersuites: []s2a_proto.Ciphersuite{
-								s2a_proto.Ciphersuite_AES_128_GCM_SHA256,
-								s2a_proto.Ciphersuite_AES_256_GCM_SHA384,
-								s2a_proto.Ciphersuite_CHACHA20_POLY1305_SHA256,
+					ReqOneof: &s2apb.SessionReq_ClientStart{
+						ClientStart: &s2apb.ClientSessionStartReq{
+							ApplicationProtocols: []string{grpcAppProtocol},
+							MinTlsVersion:        s2apb.TLSVersion_TLS1_3,
+							MaxTlsVersion:        s2apb.TLSVersion_TLS1_3,
+							TlsCiphersuites: []s2apb.Ciphersuite{
+								s2apb.Ciphersuite_AES_128_GCM_SHA256,
+								s2apb.Ciphersuite_AES_256_GCM_SHA384,
+								s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
 							},
 						},
 					},
 				},
 			},
-			outResps: []*s2a_proto.SessionResp{
+			outResps: []*s2apb.SessionResp{
 				{
-					OutFrames: []byte(ClientInitFrame),
-					Status: &s2a_proto.SessionStatus{
+					OutFrames: []byte(clientHelloFrame),
+					Status: &s2apb.SessionStatus{
 						Code: uint32(codes.OK),
 					},
 				},
@@ -92,41 +92,61 @@ func TestSetupSession(t *testing.T) {
 		},
 		{
 			desc: "client test",
-			reqs: []*s2a_proto.SessionReq{
+			reqs: []*s2apb.SessionReq{
 				{
-					ReqOneof: &s2a_proto.SessionReq_ClientStart{
-						ClientStart: &s2a_proto.ClientSessionStartReq{
-							ApplicationProtocols: []string{"app protocol"},
-							MinTlsVersion:        s2a_proto.TLSVersion_TLS1_3,
-							MaxTlsVersion:        s2a_proto.TLSVersion_TLS1_3,
-							TlsCiphersuites: []s2a_proto.Ciphersuite{
-								s2a_proto.Ciphersuite_AES_128_GCM_SHA256,
-								s2a_proto.Ciphersuite_AES_256_GCM_SHA384,
-								s2a_proto.Ciphersuite_CHACHA20_POLY1305_SHA256,
+					ReqOneof: &s2apb.SessionReq_ClientStart{
+						ClientStart: &s2apb.ClientSessionStartReq{
+							ApplicationProtocols: []string{grpcAppProtocol},
+							MinTlsVersion:        s2apb.TLSVersion_TLS1_3,
+							MaxTlsVersion:        s2apb.TLSVersion_TLS1_3,
+							TlsCiphersuites: []s2apb.Ciphersuite{
+								s2apb.Ciphersuite_AES_128_GCM_SHA256,
+								s2apb.Ciphersuite_AES_256_GCM_SHA384,
+								s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
+							},
+							LocalIdentity: &s2apb.Identity{
+								IdentityOneof: &s2apb.Identity_Hostname{Hostname: "local hostname"},
+							},
+							TargetIdentities: []*s2apb.Identity{
+								{
+									IdentityOneof: &s2apb.Identity_SpiffeId{SpiffeId: "peer spiffe identity"},
+								},
 							},
 						},
 					},
 				},
 				{
-					ReqOneof: &s2a_proto.SessionReq_Next{
-						Next: &s2a_proto.SessionNextReq{
-							InBytes: []byte(ServerFrame),
+					ReqOneof: &s2apb.SessionReq_Next{
+						Next: &s2apb.SessionNextReq{
+							InBytes: []byte(serverFrame),
 						},
 					},
 				},
 			},
-			outResps: []*s2a_proto.SessionResp{
+			outResps: []*s2apb.SessionResp{
 				{
-					OutFrames: []byte(ClientInitFrame),
-					Status: &s2a_proto.SessionStatus{
+					OutFrames: []byte(clientHelloFrame),
+					Status: &s2apb.SessionStatus{
 						Code: uint32(codes.OK),
 					},
 				},
 				{
-					OutFrames:     []byte(ClientFinishFrame),
-					BytesConsumed: uint32(len(ServerFrame)),
-					Result:        getSessionResult(),
-					Status: &s2a_proto.SessionStatus{
+					OutFrames:     []byte(clientFinishedFrame),
+					BytesConsumed: uint32(len(serverFrame)),
+					Result: &s2apb.SessionResult{
+						ApplicationProtocol: grpcAppProtocol,
+						State: &s2apb.SessionState{
+							TlsVersion:     s2apb.TLSVersion_TLS1_3,
+							TlsCiphersuite: s2apb.Ciphersuite_AES_128_GCM_SHA256,
+						},
+						PeerIdentity: &s2apb.Identity{
+							IdentityOneof: &s2apb.Identity_SpiffeId{SpiffeId: "peer spiffe identity"},
+						},
+						LocalIdentity: &s2apb.Identity{
+							IdentityOneof: &s2apb.Identity_Hostname{Hostname: "local hostname"},
+						},
+					},
+					Status: &s2apb.SessionStatus{
 						Code: uint32(codes.OK),
 					},
 				},
@@ -134,10 +154,10 @@ func TestSetupSession(t *testing.T) {
 		},
 		{
 			desc: "server failure no app protocols",
-			reqs: []*s2a_proto.SessionReq{
+			reqs: []*s2apb.SessionReq{
 				{
-					ReqOneof: &s2a_proto.SessionReq_ServerStart{
-						ServerStart: &s2a_proto.ServerSessionStartReq{},
+					ReqOneof: &s2apb.SessionReq_ServerStart{
+						ServerStart: &s2apb.ServerSessionStartReq{},
 					},
 				},
 			},
@@ -145,39 +165,39 @@ func TestSetupSession(t *testing.T) {
 		},
 		{
 			desc: "server failure non initial state",
-			reqs: []*s2a_proto.SessionReq{
+			reqs: []*s2apb.SessionReq{
 				{
-					ReqOneof: &s2a_proto.SessionReq_ServerStart{
-						ServerStart: &s2a_proto.ServerSessionStartReq{
-							ApplicationProtocols: []string{"app protocol"},
-							MinTlsVersion:        s2a_proto.TLSVersion_TLS1_3,
-							MaxTlsVersion:        s2a_proto.TLSVersion_TLS1_3,
-							TlsCiphersuites: []s2a_proto.Ciphersuite{
-								s2a_proto.Ciphersuite_AES_128_GCM_SHA256,
-								s2a_proto.Ciphersuite_AES_256_GCM_SHA384,
-								s2a_proto.Ciphersuite_CHACHA20_POLY1305_SHA256,
+					ReqOneof: &s2apb.SessionReq_ServerStart{
+						ServerStart: &s2apb.ServerSessionStartReq{
+							ApplicationProtocols: []string{grpcAppProtocol},
+							MinTlsVersion:        s2apb.TLSVersion_TLS1_3,
+							MaxTlsVersion:        s2apb.TLSVersion_TLS1_3,
+							TlsCiphersuites: []s2apb.Ciphersuite{
+								s2apb.Ciphersuite_AES_128_GCM_SHA256,
+								s2apb.Ciphersuite_AES_256_GCM_SHA384,
+								s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
 							},
 						},
 					},
 				},
 				{
-					ReqOneof: &s2a_proto.SessionReq_ServerStart{
-						ServerStart: &s2a_proto.ServerSessionStartReq{
-							ApplicationProtocols: []string{"app protocol"},
-							MinTlsVersion:        s2a_proto.TLSVersion_TLS1_3,
-							MaxTlsVersion:        s2a_proto.TLSVersion_TLS1_3,
-							TlsCiphersuites: []s2a_proto.Ciphersuite{
-								s2a_proto.Ciphersuite_AES_128_GCM_SHA256,
-								s2a_proto.Ciphersuite_AES_256_GCM_SHA384,
-								s2a_proto.Ciphersuite_CHACHA20_POLY1305_SHA256,
+					ReqOneof: &s2apb.SessionReq_ServerStart{
+						ServerStart: &s2apb.ServerSessionStartReq{
+							ApplicationProtocols: []string{grpcAppProtocol},
+							MinTlsVersion:        s2apb.TLSVersion_TLS1_3,
+							MaxTlsVersion:        s2apb.TLSVersion_TLS1_3,
+							TlsCiphersuites: []s2apb.Ciphersuite{
+								s2apb.Ciphersuite_AES_128_GCM_SHA256,
+								s2apb.Ciphersuite_AES_256_GCM_SHA384,
+								s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
 							},
 						},
 					},
 				},
 			},
-			outResps: []*s2a_proto.SessionResp{
+			outResps: []*s2apb.SessionResp{
 				{
-					Status: &s2a_proto.SessionStatus{
+					Status: &s2apb.SessionStatus{
 						Code: uint32(codes.OK),
 					},
 				},
@@ -186,42 +206,59 @@ func TestSetupSession(t *testing.T) {
 		},
 		{
 			desc: "server test",
-			reqs: []*s2a_proto.SessionReq{
+			reqs: []*s2apb.SessionReq{
 				{
-					ReqOneof: &s2a_proto.SessionReq_ServerStart{
-						ServerStart: &s2a_proto.ServerSessionStartReq{
-							ApplicationProtocols: []string{"app protocol"},
-							MinTlsVersion:        s2a_proto.TLSVersion_TLS1_3,
-							MaxTlsVersion:        s2a_proto.TLSVersion_TLS1_3,
-							TlsCiphersuites: []s2a_proto.Ciphersuite{
-								s2a_proto.Ciphersuite_AES_128_GCM_SHA256,
-								s2a_proto.Ciphersuite_AES_256_GCM_SHA384,
-								s2a_proto.Ciphersuite_CHACHA20_POLY1305_SHA256,
+					ReqOneof: &s2apb.SessionReq_ServerStart{
+						ServerStart: &s2apb.ServerSessionStartReq{
+							ApplicationProtocols: []string{grpcAppProtocol},
+							MinTlsVersion:        s2apb.TLSVersion_TLS1_3,
+							MaxTlsVersion:        s2apb.TLSVersion_TLS1_3,
+							TlsCiphersuites: []s2apb.Ciphersuite{
+								s2apb.Ciphersuite_AES_128_GCM_SHA256,
+								s2apb.Ciphersuite_AES_256_GCM_SHA384,
+								s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
 							},
-							InBytes: []byte(ClientInitFrame),
+							InBytes: []byte(clientHelloFrame),
+							LocalIdentities: []*s2apb.Identity{
+								{
+									IdentityOneof: &s2apb.Identity_Hostname{Hostname: "local hostname"},
+								},
+							},
 						},
 					},
 				},
 				{
-					ReqOneof: &s2a_proto.SessionReq_Next{
-						Next: &s2a_proto.SessionNextReq{
-							InBytes: []byte(ClientFinishFrame),
+					ReqOneof: &s2apb.SessionReq_Next{
+						Next: &s2apb.SessionNextReq{
+							InBytes: []byte(clientFinishedFrame),
 						},
 					},
 				},
 			},
-			outResps: []*s2a_proto.SessionResp{
+			outResps: []*s2apb.SessionResp{
 				{
-					OutFrames:     []byte(ServerFrame),
-					BytesConsumed: uint32(len(ClientInitFrame)),
-					Status: &s2a_proto.SessionStatus{
+					OutFrames:     []byte(serverFrame),
+					BytesConsumed: uint32(len(clientHelloFrame)),
+					Status: &s2apb.SessionStatus{
 						Code: uint32(codes.OK),
 					},
 				},
 				{
-					BytesConsumed: uint32(len(ClientFinishFrame)),
-					Result:        getSessionResult(),
-					Status: &s2a_proto.SessionStatus{
+					BytesConsumed: uint32(len(clientFinishedFrame)),
+					Result: &s2apb.SessionResult{
+						ApplicationProtocol: grpcAppProtocol,
+						State: &s2apb.SessionState{
+							TlsVersion:     s2apb.TLSVersion_TLS1_3,
+							TlsCiphersuite: s2apb.Ciphersuite_AES_128_GCM_SHA256,
+						},
+						PeerIdentity: &s2apb.Identity{
+							IdentityOneof: &s2apb.Identity_SpiffeId{SpiffeId: ""},
+						},
+						LocalIdentity: &s2apb.Identity{
+							IdentityOneof: &s2apb.Identity_Hostname{Hostname: "local hostname"},
+						},
+					},
+					Status: &s2apb.SessionStatus{
 						Code: uint32(codes.OK),
 					},
 				},

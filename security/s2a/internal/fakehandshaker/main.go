@@ -5,7 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"google.golang.org/grpc/codes"
-	s2a_proto "google.golang.org/grpc/security/s2a/internal/proto"
+	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
 	"log"
 	"net"
 
@@ -16,28 +16,33 @@ var (
 	port = flag.String("port", "50051", "port number to use for connection")
 )
 
-type HandshakeState int
+type handshakeState int
 
 const (
-	Initial   HandshakeState = 0
-	Started   HandshakeState = 1
-	Sent      HandshakeState = 2
-	Completed HandshakeState = 3
+	initial   handshakeState = 0
+	started   handshakeState = 1
+	sent      handshakeState = 2
+	completed handshakeState = 3
 )
 
 const (
-	ClientInitFrame   = "ClientInit"
-	ClientFinishFrame = "ClientFinished"
-	ServerFrame       = "ServerInitAndFinished"
+	clientHelloFrame    = "ClientHello"
+	clientFinishedFrame = "ClientFinished"
+	serverFrame         = "ServerHelloAndFinished"
 )
 
-// fakeHandshakerService is used to implement s2a_proto.S2AServiceServer.
+const grpcAppProtocol = "grpc"
+
+// fakeHandshakerService implements the s2apb.S2AServiceServer.
 type fakeHandshakerService struct {
-	isClient       bool
-	handshakeState HandshakeState
+	assistingClient       bool
+	state                 handshakeState
+	peerIdentitySpiffeID  string
+	localIdentityHostname string
 }
 
-func (hs *fakeHandshakerService) SetUpSession(stream s2a_proto.S2AService_SetUpSessionServer) error {
+// SetUpSession sets up the S2A session.
+func (hs *fakeHandshakerService) SetUpSession(stream s2apb.S2AService_SetUpSessionServer) error {
 	for {
 		sessionReq, err := stream.Recv()
 		if err != nil {
@@ -47,13 +52,13 @@ func (hs *fakeHandshakerService) SetUpSession(stream s2a_proto.S2AService_SetUpS
 			return nil
 		}
 
-		var resp *s2a_proto.SessionResp
+		var resp *s2apb.SessionResp
 		switch req := sessionReq.ReqOneof.(type) {
-		case *s2a_proto.SessionReq_ClientStart:
+		case *s2apb.SessionReq_ClientStart:
 			resp = hs.processClientStart(req)
-		case *s2a_proto.SessionReq_ServerStart:
+		case *s2apb.SessionReq_ServerStart:
 			resp = hs.processServerStart(req)
-		case *s2a_proto.SessionReq_Next:
+		case *s2apb.SessionReq_Next:
 			resp = hs.processNext(req)
 		default:
 			return fmt.Errorf("session request has unexpected type %T", req)
@@ -65,107 +70,125 @@ func (hs *fakeHandshakerService) SetUpSession(stream s2a_proto.S2AService_SetUpS
 	}
 }
 
-func (hs *fakeHandshakerService) processClientStart(req *s2a_proto.SessionReq_ClientStart) *s2a_proto.SessionResp {
-	resp := s2a_proto.SessionResp{}
-	if hs.handshakeState != Initial {
-		resp.Status = &s2a_proto.SessionStatus{Code: uint32(codes.FailedPrecondition)}
+// processClientStart processes the client start request.
+func (hs *fakeHandshakerService) processClientStart(req *s2apb.SessionReq_ClientStart) *s2apb.SessionResp {
+	resp := s2apb.SessionResp{}
+	if hs.state != initial {
+		resp.Status = &s2apb.SessionStatus{Code: uint32(codes.FailedPrecondition), Details: "client start handshake not in initial state"}
 		return &resp
 	}
-	if len(req.ClientStart.GetApplicationProtocols()) == 0 {
-		resp.Status = &s2a_proto.SessionStatus{Code: uint32(codes.InvalidArgument)}
+	if len(req.ClientStart.GetApplicationProtocols()) != 1 {
+		resp.Status = &s2apb.SessionStatus{Code: uint32(codes.InvalidArgument), Details: "only one application protocol must be passed"}
 		return &resp
 	}
-
-	resp.OutFrames = []byte(ClientInitFrame)
+	if req.ClientStart.GetApplicationProtocols()[0] != grpcAppProtocol {
+		resp.Status = &s2apb.SessionStatus{Code: uint32(codes.InvalidArgument), Details: "application protocol was not grpc"}
+		return &resp
+	}
+	resp.OutFrames = []byte(clientHelloFrame)
 	resp.BytesConsumed = 0
-	resp.Status = &s2a_proto.SessionStatus{Code: uint32(codes.OK)}
-	hs.isClient = true
-	hs.handshakeState = Sent
+	resp.Status = &s2apb.SessionStatus{Code: uint32(codes.OK)}
+	hs.localIdentityHostname = req.ClientStart.LocalIdentity.GetHostname()
+	if len(req.ClientStart.TargetIdentities) > 0 {
+		hs.peerIdentitySpiffeID = req.ClientStart.TargetIdentities[0].GetSpiffeId()
+	}
+	hs.assistingClient = true
+	hs.state = sent
 	return &resp
 }
 
-func (hs *fakeHandshakerService) processServerStart(req *s2a_proto.SessionReq_ServerStart) *s2a_proto.SessionResp {
-	resp := s2a_proto.SessionResp{}
-	if hs.handshakeState != Initial {
-		resp.Status = &s2a_proto.SessionStatus{Code: uint32(codes.FailedPrecondition)}
+// processServerStart processes the server start request.
+func (hs *fakeHandshakerService) processServerStart(req *s2apb.SessionReq_ServerStart) *s2apb.SessionResp {
+	resp := s2apb.SessionResp{}
+	if hs.state != initial {
+		resp.Status = &s2apb.SessionStatus{Code: uint32(codes.FailedPrecondition), Details: "server start handshake not in initial state"}
 		return &resp
 	}
-	if len(req.ServerStart.GetApplicationProtocols()) == 0 {
-		resp.Status = &s2a_proto.SessionStatus{Code: uint32(codes.InvalidArgument)}
+	if len(req.ServerStart.GetApplicationProtocols()) != 1 {
+		resp.Status = &s2apb.SessionStatus{Code: uint32(codes.InvalidArgument), Details: "only one application protocol must be passed"}
+		return &resp
+	}
+	if req.ServerStart.GetApplicationProtocols()[0] != grpcAppProtocol {
+		resp.Status = &s2apb.SessionStatus{Code: uint32(codes.InvalidArgument), Details: "application protocol was not grpc"}
 		return &resp
 	}
 
 	if len(req.ServerStart.InBytes) == 0 {
 		resp.BytesConsumed = 0
-		hs.handshakeState = Started
-	} else if bytes.Equal(req.ServerStart.InBytes, []byte(ClientInitFrame)) {
-		resp.OutFrames = []byte(ServerFrame)
-		resp.BytesConsumed = uint32(len(ClientInitFrame))
-		hs.handshakeState = Sent
+		hs.state = started
+	} else if bytes.Equal(req.ServerStart.InBytes, []byte(clientHelloFrame)) {
+		resp.OutFrames = []byte(serverFrame)
+		resp.BytesConsumed = uint32(len(clientHelloFrame))
+		hs.state = sent
 	} else {
-		resp.Status = &s2a_proto.SessionStatus{Code: uint32(codes.Unknown)}
+		resp.Status = &s2apb.SessionStatus{Code: uint32(codes.Unknown)}
 		return &resp
 	}
 
-	resp.Status = &s2a_proto.SessionStatus{Code: uint32(codes.OK)}
-	hs.isClient = false
+	resp.Status = &s2apb.SessionStatus{Code: uint32(codes.OK)}
+	if len(req.ServerStart.LocalIdentities) > 0 {
+		hs.localIdentityHostname = req.ServerStart.LocalIdentities[0].GetHostname()
+	}
+	hs.assistingClient = false
 	return &resp
 }
 
-func (hs *fakeHandshakerService) processNext(req *s2a_proto.SessionReq_Next) *s2a_proto.SessionResp {
-	resp := s2a_proto.SessionResp{}
-	if hs.isClient {
-		if hs.handshakeState != Sent {
-			resp.Status = &s2a_proto.SessionStatus{Code: uint32(codes.FailedPrecondition)}
+// processNext processes the next request.
+func (hs *fakeHandshakerService) processNext(req *s2apb.SessionReq_Next) *s2apb.SessionResp {
+	resp := s2apb.SessionResp{}
+	if hs.assistingClient {
+		if hs.state != sent {
+			resp.Status = &s2apb.SessionStatus{Code: uint32(codes.FailedPrecondition), Details: "client handshake was not in sent state"}
 			return &resp
 		}
-		if !bytes.Equal(req.Next.InBytes, []byte(ServerFrame)) {
-			resp.Status = &s2a_proto.SessionStatus{Code: uint32(codes.Unknown)}
+		if !bytes.Equal(req.Next.InBytes, []byte(serverFrame)) {
+			resp.Status = &s2apb.SessionStatus{Code: uint32(codes.Unknown), Details: "client request did not match server frame"}
 			return &resp
 		}
-		resp.OutFrames = []byte(ClientFinishFrame)
-		resp.BytesConsumed = uint32(len(ServerFrame))
-		hs.handshakeState = Completed
+		resp.OutFrames = []byte(clientFinishedFrame)
+		resp.BytesConsumed = uint32(len(serverFrame))
+		hs.state = completed
 	} else {
-		if hs.handshakeState == Started {
-			if !bytes.Equal(req.Next.InBytes, []byte(ClientInitFrame)) {
-				resp.Status = &s2a_proto.SessionStatus{Code: uint32(codes.Unknown)}
+		if hs.state == started {
+			if !bytes.Equal(req.Next.InBytes, []byte(clientHelloFrame)) {
+				resp.Status = &s2apb.SessionStatus{Code: uint32(codes.Unknown), Details: "server request did not match client hello frame"}
 				return &resp
 			}
-			resp.OutFrames = []byte(ServerFrame)
-			resp.BytesConsumed = uint32(len(ClientInitFrame))
-			hs.handshakeState = Sent
-		} else if hs.handshakeState == Sent {
-			if !bytes.Equal(req.Next.InBytes[:len(ClientFinishFrame)], []byte(ClientFinishFrame)) {
-				resp.Status = &s2a_proto.SessionStatus{Code: uint32(codes.Unknown)}
+			resp.OutFrames = []byte(serverFrame)
+			resp.BytesConsumed = uint32(len(clientHelloFrame))
+			hs.state = sent
+		} else if hs.state == sent {
+			if !bytes.Equal(req.Next.InBytes[:len(clientFinishedFrame)], []byte(clientFinishedFrame)) {
+				resp.Status = &s2apb.SessionStatus{Code: uint32(codes.Unknown), Details: "server request did not match client finished frame"}
 				return &resp
 			}
-			resp.BytesConsumed = uint32(len(ClientFinishFrame))
-			hs.handshakeState = Completed
+			resp.BytesConsumed = uint32(len(clientFinishedFrame))
+			hs.state = completed
 		} else {
-			resp.Status = &s2a_proto.SessionStatus{Code: uint32(codes.FailedPrecondition)}
+			resp.Status = &s2apb.SessionStatus{Code: uint32(codes.FailedPrecondition), Details: "server request was not in expected state"}
 			return &resp
 		}
 	}
-	resp.Status = &s2a_proto.SessionStatus{Code: uint32(codes.OK)}
-	if hs.handshakeState == Completed {
-		resp.Result = getSessionResult()
+	resp.Status = &s2apb.SessionStatus{Code: uint32(codes.OK)}
+	if hs.state == completed {
+		resp.Result = hs.getSessionResult()
 	}
 	return &resp
 }
 
-func getSessionResult() *s2a_proto.SessionResult {
-	res := s2a_proto.SessionResult{}
-	res.ApplicationProtocol = "app protocol"
-	res.State = &s2a_proto.SessionState{
-		TlsVersion:     s2a_proto.TLSVersion_TLS1_3,
-		TlsCiphersuite: s2a_proto.Ciphersuite_AES_128_GCM_SHA256,
+// getSessionResult returns a dummy session result.
+func (hs *fakeHandshakerService) getSessionResult() *s2apb.SessionResult {
+	res := s2apb.SessionResult{}
+	res.ApplicationProtocol = grpcAppProtocol
+	res.State = &s2apb.SessionState{
+		TlsVersion:     s2apb.TLSVersion_TLS1_3,
+		TlsCiphersuite: s2apb.Ciphersuite_AES_128_GCM_SHA256,
 	}
-	res.PeerIdentity = &s2a_proto.Identity{
-		IdentityOneof: &s2a_proto.Identity_SpiffeId{SpiffeId: "peer spiffe identity"},
+	res.PeerIdentity = &s2apb.Identity{
+		IdentityOneof: &s2apb.Identity_SpiffeId{SpiffeId: hs.peerIdentitySpiffeID},
 	}
-	res.LocalIdentity = &s2a_proto.Identity{
-		IdentityOneof: &s2a_proto.Identity_Hostname{Hostname: "local hostname"},
+	res.LocalIdentity = &s2apb.Identity{
+		IdentityOneof: &s2apb.Identity_Hostname{Hostname: hs.localIdentityHostname},
 	}
 	return &res
 }
@@ -178,7 +201,7 @@ func main() {
 		log.Fatalf("failed to listen on port %s: %v", *port, err)
 	}
 	s := grpc.NewServer()
-	s2a_proto.RegisterS2AServiceServer(s, &fakeHandshakerService{})
+	s2apb.RegisterS2AServiceServer(s, &fakeHandshakerService{})
 	if err := s.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)
 	}
