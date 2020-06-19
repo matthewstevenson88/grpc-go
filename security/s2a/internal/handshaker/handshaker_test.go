@@ -88,11 +88,62 @@ var (
 // is used for testing.
 type fakeStream struct {
 	grpc.ClientStream
+	t            *testing.T
+	ExpectedResp *s2apb.SessionResp
+	first        bool
+	isClient     bool
 }
 
-func (*fakeStream) Recv() (*s2apb.SessionResp, error) { return new(s2apb.SessionResp), nil }
-func (*fakeStream) Send(*s2apb.SessionReq) error      { return nil }
-func (*fakeStream) CloseSend() error                  { return nil }
+func (fs *fakeStream) Recv() (*s2apb.SessionResp, error) {
+	resp := fs.ExpectedResp
+	fs.ExpectedResp = nil
+	return resp, nil
+}
+func (fs *fakeStream) Send(*s2apb.SessionReq) error {
+	var resp *s2apb.SessionResp
+	if !fs.first {
+		// Generate the bytes to be returned by Recv() for the initial
+		// handshaking.
+		fs.first = true
+		if fs.isClient {
+			resp = &s2apb.SessionResp{
+				OutFrames: MakeFrame("ClientInit"),
+				// Simulate consuming ServerInit.
+				BytesConsumed: 14,
+			}
+		} else {
+			resp = &s2apb.SessionResp{
+				OutFrames: MakeFrame("ServerInit"),
+				// Simulate consuming ClientInit.
+				BytesConsumed: 14,
+			}
+		}
+	} else {
+		// Generate the response to be returned by Recv() for the
+		// follow-up handshaking.
+		result := &s2apb.SessionResult{
+			ApplicationProtocol: "grpc",
+		}
+		resp = &s2apb.SessionResp{
+			Result: result,
+			// Simulate consuming ClientFinished or ServerFinished.
+			BytesConsumed: 18,
+		}
+	}
+	fs.ExpectedResp = resp
+	return nil
+}
+func (*fakeStream) CloseSend() error { return nil }
+
+//fakeInvalidStream is a fake implementation of an invalid grpc.ClientStream
+//interface that is used for testing.
+type fakeInvalidStream struct {
+	grpc.ClientStream
+}
+
+func (*fakeInvalidStream) Recv() (*s2apb.SessionResp, error) { return &s2apb.SessionResp{}, nil }
+func (*fakeInvalidStream) Send(*s2apb.SessionReq) error      { return nil }
+func (*fakeInvalidStream) CloseSend() error                  { return nil }
 
 // fakeConn is a fake implementation of the net.Conn interface that is used for
 // testing.
@@ -160,7 +211,10 @@ func TestNewServerHandshaker(t *testing.T) {
 // handshake.
 func TestClientHandshake(t *testing.T) {
 	errc := make(chan error)
-	stream := &fakeStream{}
+	stream := &fakeStream{
+		t:        t,
+		isClient: true,
+	}
 	in := bytes.NewBuffer(MakeFrame("ClientInit"))
 	in.Write(MakeFrame("ClientFinished"))
 	c := &fakeConn{
@@ -175,7 +229,7 @@ func TestClientHandshake(t *testing.T) {
 	go func() {
 		// returned conn is ignored until record Protocol is implemented.
 		_, _, err := chs.ClientHandshake(context.Background())
-		if err != nil{
+		if err != nil {
 			panic("expected non-nil S2A context")
 		}
 		errc <- err
@@ -183,7 +237,7 @@ func TestClientHandshake(t *testing.T) {
 	}()
 
 	if err := <-errc; err != nil {
-				t.Errorf("ClientHandshake() = _, %v", err)
+		t.Errorf("ClientHandshake() = _, %v", err)
 	}
 }
 
@@ -191,7 +245,10 @@ func TestClientHandshake(t *testing.T) {
 // handshake.
 func TestServerHandshake(t *testing.T) {
 	errc := make(chan error)
-	stream := &fakeStream{}
+	stream := &fakeStream{
+		t:        t,
+		isClient: false,
+	}
 	in := bytes.NewBuffer(MakeFrame("ServerInit"))
 	in.Write(MakeFrame("ServerFinished"))
 	c := &fakeConn{
@@ -214,7 +271,7 @@ func TestServerHandshake(t *testing.T) {
 	}()
 
 	if err := <-errc; err != nil {
-				t.Errorf("ServerHandshake() = _, %v", err)
+		t.Errorf("ServerHandshake() = _, %v", err)
 	}
 }
 
@@ -231,9 +288,9 @@ func TestInvalidHandshaker(t *testing.T) {
 }
 
 // TestPeerNotResponding uses an invalid net.Conn instance and performs a
-// handshake to test the case when the peer is not responding.
-func TestPeerNotResponding(t *testing.T) {
-	stream := &fakeStream{}
+// client-side handshake to test the case when the peer is not responding.
+func TestClientPeerNotResponding(t *testing.T) {
+	stream := &fakeInvalidStream{}
 	c := &fakeInvalidConn{}
 	chs := &s2aHandshaker{
 		stream:     stream,

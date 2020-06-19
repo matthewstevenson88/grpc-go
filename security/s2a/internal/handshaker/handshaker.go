@@ -186,8 +186,8 @@ func (h *s2aHandshaker) ServerHandshake(ctx context.Context) (net.Conn, *authinf
 	return conn, authInfo, nil
 }
 
-// setUpSession sproxies messages between the peer and the S2A handshaker
-// service
+// setUpSession proxies messages between the peer and the S2A handshaker
+// service.
 func (h *s2aHandshaker) setUpSession(req *s2apb.SessionReq) (net.Conn, *s2apb.SessionResult, error) {
 	resp, err := h.accessHandshakerService(req)
 	if err != nil {
@@ -215,7 +215,7 @@ func (h *s2aHandshaker) setUpSession(req *s2apb.SessionReq) (net.Conn, *s2apb.Se
 }
 
 // accessHandshakerService sends the session request over the Handshaker service
-// stream and returns the response
+// stream and returns the response.
 func (h *s2aHandshaker) accessHandshakerService(req *s2apb.SessionReq) (*s2apb.SessionResp, error) {
 	if err := h.stream.Send(req); err != nil {
 		return nil, err
