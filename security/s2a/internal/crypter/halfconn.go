@@ -3,7 +3,7 @@ package crypter
 import (
 	"fmt"
 	"golang.org/x/crypto/cryptobyte"
-	s2a_proto "google.golang.org/grpc/security/s2a/internal/proto"
+	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
 	"hash"
 	"sync"
 )
@@ -32,18 +32,18 @@ type S2AHalfConnection struct {
 
 // NewHalfConn creates a new instance of S2AHalfConnection given a ciphersuite
 // and a traffic secret.
-func NewHalfConn(ciphersuite s2a_proto.Ciphersuite, trafficSecret []byte) (S2AHalfConnection, error) {
+func NewHalfConn(ciphersuite s2apb.Ciphersuite, trafficSecret []byte) (*S2AHalfConnection, error) {
 	cs, err := newCiphersuite(ciphersuite)
 	if err != nil {
-		return S2AHalfConnection{}, fmt.Errorf("failed to create new ciphersuite: %v", ciphersuite)
+		return nil, fmt.Errorf("failed to create new ciphersuite: %v", ciphersuite)
 	}
 	if cs.trafficSecretSize() != len(trafficSecret) {
-		return S2AHalfConnection{}, fmt.Errorf("supplied traffic secret must be %v bytes, given: %v bytes", cs.trafficSecretSize(), len(trafficSecret))
+		return nil, fmt.Errorf("supplied traffic secret must be %v bytes, given: %v bytes", cs.trafficSecretSize(), len(trafficSecret))
 	}
 
-	hc := S2AHalfConnection{cs: cs, h: cs.hashFunction(), expander: &defaultHKDFExpander{}, sequence: newCounter(), trafficSecret: trafficSecret}
+	hc := &S2AHalfConnection{cs: cs, h: cs.hashFunction(), expander: &defaultHKDFExpander{}, sequence: newCounter(), trafficSecret: trafficSecret}
 	if err = hc.updateCrypterAndNonce(hc.trafficSecret); err != nil {
-		return S2AHalfConnection{}, fmt.Errorf("failed to create half connection using traffic secret: %v", err)
+		return nil, fmt.Errorf("failed to create half connection using traffic secret: %v", err)
 	}
 
 	return hc, nil

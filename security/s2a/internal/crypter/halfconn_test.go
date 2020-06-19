@@ -3,13 +3,13 @@ package crypter
 import (
 	"bytes"
 	"google.golang.org/grpc/security/s2a/internal/crypter/testutil"
-	s2a_proto "google.golang.org/grpc/security/s2a/internal/proto"
+	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
 	"math"
 	"testing"
 )
 
 // getHalfConnPair returns a sender/receiver pair of S2A Half Connections.
-func getHalfConnPair(ciphersuite s2a_proto.Ciphersuite, trafficSecret []byte, t *testing.T) (S2AHalfConnection, S2AHalfConnection) {
+func getHalfConnPair(ciphersuite s2apb.Ciphersuite, trafficSecret []byte, t *testing.T) (*S2AHalfConnection, *S2AHalfConnection) {
 	sender, err := NewHalfConn(ciphersuite, trafficSecret)
 	if err != nil {
 		t.Fatalf("sender side NewHalfConn(%v, %v) failed: %v", ciphersuite, trafficSecret, err)
@@ -37,7 +37,7 @@ func aeadCrypterEqual(a s2aAeadCrypter, b s2aAeadCrypter, t *testing.T) bool {
 	return bytes.Equal(ciphertextA, ciphertextB)
 }
 
-func testHalfConnRoundtrip(sender S2AHalfConnection, receiver S2AHalfConnection, t *testing.T) {
+func testHalfConnRoundtrip(sender *S2AHalfConnection, receiver *S2AHalfConnection, t *testing.T) {
 	// Encrypt first message.
 	const plaintext = "This is plaintext."
 	buf := []byte(plaintext)
@@ -200,45 +200,48 @@ func TestMaskedNonce(t *testing.T) {
 func TestNewHalfConn(t *testing.T) {
 	for _, tc := range []struct {
 		desc                      string
-		ciphersuite               s2a_proto.Ciphersuite
+		ciphersuite               s2apb.Ciphersuite
 		trafficSecret, key, nonce []byte
 		shouldFail                bool
 	}{
+		// The traffic secrets were chosen randomly and are equivalent to the
+		// ones used C++ and Java. The key and nonce were constructed using an
+		// existing TLS library.
 		{
 			desc:          "AES-128-GCM-SHA256 invalid traffic secret",
-			ciphersuite:   s2a_proto.Ciphersuite_AES_128_GCM_SHA256,
+			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
 			trafficSecret: testutil.Dehex("00"),
 			shouldFail:    true,
 		},
 		{
 			desc:          "AES-128-GCM-SHA256 valid",
-			ciphersuite:   s2a_proto.Ciphersuite_AES_128_GCM_SHA256,
+			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			key:           testutil.Dehex("c3ae7509cfced2b803a6186956cda79f"),
 			nonce:         testutil.Dehex("b5803d82ad8854d2e598187f"),
 		},
 		{
 			desc:          "AES-256-GCM-SHA384 invalid traffic secret",
-			ciphersuite:   s2a_proto.Ciphersuite_AES_256_GCM_SHA384,
+			ciphersuite:   s2apb.Ciphersuite_AES_256_GCM_SHA384,
 			trafficSecret: testutil.Dehex("00"),
 			shouldFail:    true,
 		},
 		{
 			desc:          "AES-256-GCM-SHA384 valid",
-			ciphersuite:   s2a_proto.Ciphersuite_AES_256_GCM_SHA384,
+			ciphersuite:   s2apb.Ciphersuite_AES_256_GCM_SHA384,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			key:           testutil.Dehex("dac731ae4866677ed2f65c490e18817be5cbbbd03f597ad59041c117b731109a"),
 			nonce:         testutil.Dehex("4db152d27d180b1ee48fa89d"),
 		},
 		{
 			desc:          "CHACHA20-POLY1305-SHA256 invalid traffic secret",
-			ciphersuite:   s2a_proto.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			ciphersuite:   s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
 			trafficSecret: testutil.Dehex("00"),
 			shouldFail:    true,
 		},
 		{
 			desc:          "CHACHA20-POLY1305-SHA256 valid",
-			ciphersuite:   s2a_proto.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			ciphersuite:   s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			key:           testutil.Dehex("130e2000508ace00ef265e172d09892e467256cb90dad9de99543cf548be6a8b"),
 			nonce:         testutil.Dehex("b5803d82ad8854d2e598187f"),
@@ -276,19 +279,19 @@ func TestNewHalfConn(t *testing.T) {
 
 func TestS2AHalfConnectionRoundtrip(t *testing.T) {
 	for _, tc := range []struct {
-		ciphersuite   s2a_proto.Ciphersuite
+		ciphersuite   s2apb.Ciphersuite
 		trafficSecret []byte
 	}{
 		{
-			ciphersuite:   s2a_proto.Ciphersuite_AES_128_GCM_SHA256,
+			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 		},
 		{
-			ciphersuite:   s2a_proto.Ciphersuite_AES_256_GCM_SHA384,
+			ciphersuite:   s2apb.Ciphersuite_AES_256_GCM_SHA384,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 		},
 		{
-			ciphersuite:   s2a_proto.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			ciphersuite:   s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 		},
 	} {
@@ -301,25 +304,28 @@ func TestS2AHalfConnectionRoundtrip(t *testing.T) {
 
 func TestS2AHalfConnectionUpdateKey(t *testing.T) {
 	for _, tc := range []struct {
-		ciphersuite                                      s2a_proto.Ciphersuite
+		ciphersuite                                      s2apb.Ciphersuite
 		trafficSecret, advancedTrafficSecret, key, nonce []byte
 	}{
+		// The traffic secrets were chosen randomly and are equivalent to the
+		// ones used C++ and Java. The advanced traffic secret, key, and nonce
+		// were constructed using an existing TLS library.
 		{
-			ciphersuite:           s2a_proto.Ciphersuite_AES_128_GCM_SHA256,
+			ciphersuite:           s2apb.Ciphersuite_AES_128_GCM_SHA256,
 			trafficSecret:         testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			advancedTrafficSecret: testutil.Dehex("f38b9455ea5871235a69fc37610c6ca1215779e66b45a047d7390111e00081c4"),
 			key:                   testutil.Dehex("07dfdfca2fc3f015b6e51e579679b503"),
 			nonce:                 testutil.Dehex("79fdebc61b5fb9d9a34d9406"),
 		},
 		{
-			ciphersuite:           s2a_proto.Ciphersuite_AES_256_GCM_SHA384,
+			ciphersuite:           s2apb.Ciphersuite_AES_256_GCM_SHA384,
 			trafficSecret:         testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			advancedTrafficSecret: testutil.Dehex("016c835db664beb5526a9bb3d9a4fba63e67255dcfa460a114d9f1ef9a9a1f685a518739f557d0e66fdb89bdafa26257"),
 			key:                   testutil.Dehex("4ee0f141c9a497a1db6f1ee0995248e804406fe39f35bcdff9f386048108bef1"),
 			nonce:                 testutil.Dehex("90f241fbc9f9f55100168d8b"),
 		},
 		{
-			ciphersuite:           s2a_proto.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			ciphersuite:           s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
 			trafficSecret:         testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			advancedTrafficSecret: testutil.Dehex("f38b9455ea5871235a69fc37610c6ca1215779e66b45a047d7390111e00081c4"),
 			key:                   testutil.Dehex("18b61f93ee2d927d2f478f2220409738affb0092602d0812c96b965323e30878"),
