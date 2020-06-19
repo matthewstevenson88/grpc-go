@@ -360,3 +360,20 @@ func TestS2AHalfConnectionUpdateKey(t *testing.T) {
 		})
 	}
 }
+
+func TestS2AHalfConnectionTagSize(t *testing.T) {
+	ciphersuite := s2apb.Ciphersuite_AES_256_GCM_SHA384
+	trafficSecret := make([]byte, 48)
+	key := make([]byte, 32)
+	hc, err := NewHalfConn(ciphersuite, trafficSecret)
+	if err != nil {
+		t.Fatalf("NewHalfConn(%v, %v) failed: %v", ciphersuite, trafficSecret, err)
+	}
+	crypter, err := newAESGCM(key)
+	if err != nil {
+		t.Fatalf("newAESGCM(%v) failed: %v", key, err)
+	}
+	if got, want := hc.TagSize(), crypter.tagSize(); got != want {
+		t.Errorf("hc.TagSize() = %v, want %v", got, want)
+	}
+}
