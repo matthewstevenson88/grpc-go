@@ -174,13 +174,17 @@ func TestClientHandshake(t *testing.T) {
 	}
 	go func() {
 		// returned conn is ignored until record Protocol is implemented.
-		_, context, err := chs.ClientHandshake(context.Background())
-		if err == nil && context == nil {
+		_, _, err := chs.ClientHandshake(context.Background())
+		if err != nil{
 			panic("expected non-nil S2A context")
 		}
 		errc <- err
 		chs.Close()
 	}()
+
+	if err := <-errc; err != nil {
+				t.Errorf("ClientHandshake() = _, %v", err)
+	}
 }
 
 // TestServerHandshake creates a fake S2A handshaker and performs a server-side
@@ -201,13 +205,17 @@ func TestServerHandshake(t *testing.T) {
 	}
 	go func() {
 		// returned conn is ignored until record Protocol is implemented.
-		_, context, err := shs.ServerHandshake(context.Background())
-		if err == nil && context == nil {
+		_, _, err := shs.ServerHandshake(context.Background())
+		if err != nil {
 			panic("expected non-nil S2A context")
 		}
 		errc <- err
 		shs.Close()
 	}()
+
+	if err := <-errc; err != nil {
+				t.Errorf("ServerHandshake() = _, %v", err)
+	}
 }
 
 func TestInvalidHandshaker(t *testing.T) {
