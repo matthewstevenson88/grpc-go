@@ -205,8 +205,8 @@ func TestNewHalfConn(t *testing.T) {
 		shouldFail                bool
 	}{
 		// The traffic secrets were chosen randomly and are equivalent to the
-		// ones used C++ and Java. The key and nonce were constructed using an
-		// existing TLS library.
+		// ones used in C++ and Java. The key and nonce were constructed using
+		// an existing TLS library.
 		{
 			desc:          "AES-128-GCM-SHA256 invalid traffic secret",
 			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
@@ -308,8 +308,8 @@ func TestS2AHalfConnectionUpdateKey(t *testing.T) {
 		trafficSecret, advancedTrafficSecret, key, nonce []byte
 	}{
 		// The traffic secrets were chosen randomly and are equivalent to the
-		// ones used C++ and Java. The advanced traffic secret, key, and nonce
-		// were constructed using an existing TLS library.
+		// ones used in C++ and Java. The advanced traffic secret, key, and
+		// nonce were constructed using an existing TLS library.
 		{
 			ciphersuite:           s2apb.Ciphersuite_AES_128_GCM_SHA256,
 			trafficSecret:         testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
