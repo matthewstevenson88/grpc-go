@@ -2,38 +2,38 @@ package authinfo
 
 import (
 	"bytes"
-	s2a_proto "google.golang.org/grpc/security/s2a/internal/proto"
+	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
 	"testing"
 )
 
 func TestS2AAuthInfo(t *testing.T) {
 	for _, tc := range []struct {
 		desc                    string
-		sessionResult           *s2a_proto.SessionResult
+		sessionResult           *s2apb.SessionResult
 		outAppProtocol          string
-		outTLSVersion           s2a_proto.TLSVersion
-		outCiphersuite          s2a_proto.Ciphersuite
-		outPeerIdentity         *s2a_proto.Identity
-		outLocalIdentity        *s2a_proto.Identity
+		outTLSVersion           s2apb.TLSVersion
+		outCiphersuite          s2apb.Ciphersuite
+		outPeerIdentity         *s2apb.Identity
+		outLocalIdentity        *s2apb.Identity
 		outPeerCertFingerprint  []byte
 		outLocalCertFingerprint []byte
 		outErr                  bool
 	}{
 		{
 			desc: "basic 1",
-			sessionResult: &s2a_proto.SessionResult{
+			sessionResult: &s2apb.SessionResult{
 				ApplicationProtocol: "app protocol",
-				State: &s2a_proto.SessionState{
-					TlsVersion:     s2a_proto.TLSVersion_TLS1_3,
-					TlsCiphersuite: s2a_proto.Ciphersuite_AES_128_GCM_SHA256,
+				State: &s2apb.SessionState{
+					TlsVersion:     s2apb.TLSVersion_TLS1_3,
+					TlsCiphersuite: s2apb.Ciphersuite_AES_128_GCM_SHA256,
 				},
-				PeerIdentity: &s2a_proto.Identity{
-					IdentityOneof: &s2a_proto.Identity_SpiffeId{
+				PeerIdentity: &s2apb.Identity{
+					IdentityOneof: &s2apb.Identity_SpiffeId{
 						SpiffeId: "peer spiffe identity",
 					},
 				},
-				LocalIdentity: &s2a_proto.Identity{
-					IdentityOneof: &s2a_proto.Identity_Hostname{
+				LocalIdentity: &s2apb.Identity{
+					IdentityOneof: &s2apb.Identity_Hostname{
 						Hostname: "local hostname",
 					},
 				},
@@ -41,15 +41,15 @@ func TestS2AAuthInfo(t *testing.T) {
 				LocalCertFingerprint: []byte("local cert fingerprint"),
 			},
 			outAppProtocol: "app protocol",
-			outTLSVersion:  s2a_proto.TLSVersion_TLS1_3,
-			outCiphersuite: s2a_proto.Ciphersuite_AES_128_GCM_SHA256,
-			outPeerIdentity: &s2a_proto.Identity{
-				IdentityOneof: &s2a_proto.Identity_SpiffeId{
+			outTLSVersion:  s2apb.TLSVersion_TLS1_3,
+			outCiphersuite: s2apb.Ciphersuite_AES_128_GCM_SHA256,
+			outPeerIdentity: &s2apb.Identity{
+				IdentityOneof: &s2apb.Identity_SpiffeId{
 					SpiffeId: "peer spiffe identity",
 				},
 			},
-			outLocalIdentity: &s2a_proto.Identity{
-				IdentityOneof: &s2a_proto.Identity_Hostname{
+			outLocalIdentity: &s2apb.Identity{
+				IdentityOneof: &s2apb.Identity_Hostname{
 					Hostname: "local hostname",
 				},
 			},
@@ -58,19 +58,19 @@ func TestS2AAuthInfo(t *testing.T) {
 		},
 		{
 			desc: "basic 2",
-			sessionResult: &s2a_proto.SessionResult{
+			sessionResult: &s2apb.SessionResult{
 				ApplicationProtocol: "app protocol",
-				State: &s2a_proto.SessionState{
-					TlsVersion:     s2a_proto.TLSVersion_TLS1_2,
-					TlsCiphersuite: s2a_proto.Ciphersuite_CHACHA20_POLY1305_SHA256,
+				State: &s2apb.SessionState{
+					TlsVersion:     s2apb.TLSVersion_TLS1_2,
+					TlsCiphersuite: s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
 				},
-				PeerIdentity: &s2a_proto.Identity{
-					IdentityOneof: &s2a_proto.Identity_Hostname{
+				PeerIdentity: &s2apb.Identity{
+					IdentityOneof: &s2apb.Identity_Hostname{
 						Hostname: "local hostname",
 					},
 				},
-				LocalIdentity: &s2a_proto.Identity{
-					IdentityOneof: &s2a_proto.Identity_SpiffeId{
+				LocalIdentity: &s2apb.Identity{
+					IdentityOneof: &s2apb.Identity_SpiffeId{
 						SpiffeId: "peer spiffe identity",
 					},
 				},
@@ -78,15 +78,15 @@ func TestS2AAuthInfo(t *testing.T) {
 				LocalCertFingerprint: []byte("local cert fingerprint"),
 			},
 			outAppProtocol: "app protocol",
-			outTLSVersion:  s2a_proto.TLSVersion_TLS1_2,
-			outCiphersuite: s2a_proto.Ciphersuite_CHACHA20_POLY1305_SHA256,
-			outPeerIdentity: &s2a_proto.Identity{
-				IdentityOneof: &s2a_proto.Identity_Hostname{
+			outTLSVersion:  s2apb.TLSVersion_TLS1_2,
+			outCiphersuite: s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			outPeerIdentity: &s2apb.Identity{
+				IdentityOneof: &s2apb.Identity_Hostname{
 					Hostname: "local hostname",
 				},
 			},
-			outLocalIdentity: &s2a_proto.Identity{
-				IdentityOneof: &s2a_proto.Identity_SpiffeId{
+			outLocalIdentity: &s2apb.Identity{
+				IdentityOneof: &s2apb.Identity_SpiffeId{
 					SpiffeId: "peer spiffe identity",
 				},
 			},
@@ -95,16 +95,16 @@ func TestS2AAuthInfo(t *testing.T) {
 		},
 		{
 			desc: "nil identities and fingerprints",
-			sessionResult: &s2a_proto.SessionResult{
+			sessionResult: &s2apb.SessionResult{
 				ApplicationProtocol: "app protocol",
-				State: &s2a_proto.SessionState{
-					TlsVersion:     s2a_proto.TLSVersion_TLS1_3,
-					TlsCiphersuite: s2a_proto.Ciphersuite_CHACHA20_POLY1305_SHA256,
+				State: &s2apb.SessionState{
+					TlsVersion:     s2apb.TLSVersion_TLS1_3,
+					TlsCiphersuite: s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
 				},
 			},
 			outAppProtocol: "app protocol",
-			outTLSVersion:  s2a_proto.TLSVersion_TLS1_3,
-			outCiphersuite: s2a_proto.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			outTLSVersion:  s2apb.TLSVersion_TLS1_3,
+			outCiphersuite: s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
 		},
 		{
 			desc:   "nil session result",
