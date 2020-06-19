@@ -19,7 +19,6 @@
 package handshaker
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -95,7 +94,6 @@ func NewClientHandshaker(ctx context.Context, conn *grpc.ClientConn, c net.Conn,
 	return newClientHandshaker(stream, c, opts), err
 }
 
-// newClientHandshaker is for testing purposes only.
 func newClientHandshaker(stream s2apb.S2AService_SetUpSessionClient, c net.Conn, opts *ClientHandshakerOptions) *s2aHandshaker {
 	return &s2aHandshaker{
 		stream:     stream,
@@ -114,7 +112,6 @@ func NewServerHandshaker(ctx context.Context, conn *grpc.ClientConn, c net.Conn,
 	return newServerHandshaker(stream, c, opts), err
 }
 
-// newClientHandshaker is for testing purposes only.
 func newServerHandshaker(stream s2apb.S2AService_SetUpSessionClient, c net.Conn, opts *ServerHandshakerOptions) *s2aHandshaker {
 	return &s2aHandshaker{
 		stream:     stream,
@@ -189,7 +186,8 @@ func (h *s2aHandshaker) ServerHandshake(ctx context.Context) (net.Conn, *authinf
 	return conn, authInfo, nil
 }
 
-// setUpSession sets up and runs the session that the S2A handshaker occurs on.
+// setUpSession sproxies messages between the peer and the S2A handshaker
+// service
 func (h *s2aHandshaker) setUpSession(req *s2apb.SessionReq) (net.Conn, *s2apb.SessionResult, error) {
 	resp, err := h.accessHandshakerService(req)
 	if err != nil {
@@ -204,7 +202,7 @@ func (h *s2aHandshaker) setUpSession(req *s2apb.SessionReq) (net.Conn, *s2apb.Se
 	var extra []byte
 	if req.GetServerStart() != nil {
 		if resp.GetBytesConsumed() > uint32(len(req.GetServerStart().GetInBytes())) {
-			return nil, nil, errors.New("handshaker service consumed bytes value is out-of-bound")
+			return nil, nil, errors.New("handshaker service consumed bytes value is out-of-bounds")
 		}
 		extra = req.GetServerStart().GetInBytes()[resp.GetBytesConsumed():]
 	}
@@ -212,15 +210,8 @@ func (h *s2aHandshaker) setUpSession(req *s2apb.SessionReq) (net.Conn, *s2apb.Se
 	if err != nil {
 		return nil, nil, err
 	}
-	// TODO: implement record protocol & new Conn
-
-	in := bytes.NewBuffer(MakeFrame("ServerInit"))
-	in.Write(MakeFrame("ServerFinished"))
-	c := &fakeConn{
-		in:  in,
-		out: new(bytes.Buffer),
-	}
-	return c, result, nil
+	// TODO: gud, implement record protocol & new Conn
+	return h.conn, result, nil
 }
 
 // accessHandshakerService sends the session request over the Handshaker service
@@ -238,7 +229,7 @@ func (h *s2aHandshaker) accessHandshakerService(req *s2apb.SessionReq) (*s2apb.S
 
 // processUntilDone processes the handshake until the handshaker service returns
 // the results.
-func (h *s2aHandshaker) processUntilDone(resp *s2apb.SessionResp, extra []byte) (*s2apb.SessionResult, []byte, error) {
+func (h *s2aHandshaker) processUntilDone(resp *s2apb.SessionResp, unusedBytes []byte) (*s2apb.SessionResult, []byte, error) {
 	for {
 		if len(resp.OutFrames) > 0 {
 			if _, err := h.conn.Write(resp.OutFrames); err != nil {
@@ -246,14 +237,14 @@ func (h *s2aHandshaker) processUntilDone(resp *s2apb.SessionResp, extra []byte) 
 			}
 		}
 		if resp.Result != nil {
-			return resp.Result, extra, nil
+			return resp.Result, unusedBytes, nil
 		}
 		buf := make([]byte, frameLimit)
 		n, err := h.conn.Read(buf)
 		if err != nil && err != io.EOF {
 			return nil, nil, err
 		}
-		// If there is nothing to send to the handshaker service, and
+		// If there is nothing to send to the handshaker service and
 		// nothing is received from the peer, then we are stuck.
 		// This covers the case when the peer is not responding. Note
 		// that handshaker service connection issues are caught in
@@ -263,8 +254,8 @@ func (h *s2aHandshaker) processUntilDone(resp *s2apb.SessionResp, extra []byte) 
 		}
 		// Append extra bytes from the previous interaction with the
 		// handshaker service with the current buffer read from conn.
-		p := append(extra, buf[:n]...)
-		// From here on, p and extra point to the same slice.
+		p := append(unusedBytes, buf[:n]...)
+		// From here on, p and unusedBytes point to the same slice.
 		resp, err = h.accessHandshakerService(&s2apb.SessionReq{
 			ReqOneof: &s2apb.SessionReq_Next{
 				Next: &s2apb.SessionNextReq{
@@ -275,11 +266,11 @@ func (h *s2aHandshaker) processUntilDone(resp *s2apb.SessionResp, extra []byte) 
 		if err != nil {
 			return nil, nil, err
 		}
-		// Set extra based on handshaker service response.
+		// Set unusedBytes based on the handshaker service response.
 		if resp.GetBytesConsumed() > uint32(len(p)) {
-			return nil, nil, errors.New("handshaker service consumed bytes value is out-of-bound")
+			return nil, nil, errors.New("handshaker service consumed bytes value is out-of-bounds")
 		}
-		extra = p[resp.GetBytesConsumed():]
+		unusedBytes = p[resp.GetBytesConsumed():]
 	}
 }
 

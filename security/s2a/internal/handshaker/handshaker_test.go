@@ -125,7 +125,7 @@ func MakeFrame(pl string) []byte {
 }
 
 // TestNewClientHandshaker creates a fake stream, and ensures that
-// newClientHandshakerInternal returns a valid client-side handshaker instance.
+// newClientHandshaker returns a valid client-side handshaker instance.
 func TestNewClientHandshaker(t *testing.T) {
 	stream := &fakeStream{}
 	in := bytes.NewBuffer(MakeFrame("ClientInit"))
@@ -141,7 +141,7 @@ func TestNewClientHandshaker(t *testing.T) {
 }
 
 // TestNewServerHandshaker creates a fake stream, and ensures that
-// newServerHandshakerInternal returns a valid server-side handshaker instance.
+// newServerHandshaker  returns a valid server-side handshaker instance.
 func TestNewServerHandshaker(t *testing.T) {
 	stream := &fakeStream{}
 	in := bytes.NewBuffer(MakeFrame("ServerInit"))
@@ -157,7 +157,7 @@ func TestNewServerHandshaker(t *testing.T) {
 }
 
 // TestClienthandshake creates a fake S2A handshaker and performs a client-side
-// handshake
+// handshake.
 func TestClientHandshake(t *testing.T) {
 	errc := make(chan error)
 	stream := &fakeStream{}
@@ -173,6 +173,7 @@ func TestClientHandshake(t *testing.T) {
 		clientOpts: testClientHandshakerOptions,
 	}
 	go func() {
+		// returned conn is ignored until record Protocol is implemented.
 		_, context, err := chs.ClientHandshake(context.Background())
 		if err == nil && context == nil {
 			panic("expected non-nil S2A context")
@@ -183,7 +184,7 @@ func TestClientHandshake(t *testing.T) {
 }
 
 // TestServerHandshake creates a fake S2A handshaker and performs a server-side
-// handshake
+// handshake.
 func TestServerHandshake(t *testing.T) {
 	errc := make(chan error)
 	stream := &fakeStream{}
@@ -199,6 +200,7 @@ func TestServerHandshake(t *testing.T) {
 		serverOpts: testServerHandshakerOptions,
 	}
 	go func() {
+		// returned conn is ignored until record Protocol is implemented.
 		_, context, err := shs.ServerHandshake(context.Background())
 		if err == nil && context == nil {
 			panic("expected non-nil S2A context")
@@ -221,7 +223,7 @@ func TestInvalidHandshaker(t *testing.T) {
 }
 
 // TestPeerNotResponding uses an invalid net.Conn instance and performs a
-// handshake to test PeerNotRespondingError
+// handshake to test the case when the peer is not responding.
 func TestPeerNotResponding(t *testing.T) {
 	stream := &fakeStream{}
 	c := &fakeInvalidConn{}
