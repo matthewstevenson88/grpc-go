@@ -77,7 +77,7 @@ var (
 			},
 			&s2apb.Identity{
 				IdentityOneof: &s2apb.Identity_Hostname{
-					Hostname: "server_local__hostname",
+					Hostname: "server_local_hostname",
 				},
 			},
 		},
@@ -86,7 +86,9 @@ var (
 
 // fakeStream is a fake implementation of the grpc.ClientStream interface that
 // is used for testing.
-type fakeStream struct{ grpc.ClientStream }
+type fakeStream struct {
+	grpc.ClientStream
+}
 
 func (*fakeStream) Recv() (*s2apb.SessionResp, error) { return new(s2apb.SessionResp), nil }
 func (*fakeStream) Send(*s2apb.SessionReq) error      { return nil }
@@ -204,6 +206,18 @@ func TestServerHandshake(t *testing.T) {
 		errc <- err
 		shs.Close()
 	}()
+}
+
+func TestInvalidHandshaker(t *testing.T) {
+	emptyHS := &s2aHandshaker{}
+	_, _, err := emptyHS.ClientHandshake(context.Background())
+	if err == nil {
+		t.Error("ClientHandshake() shouldn't work with empty ClientOptions")
+	}
+	_, _, err = emptyHS.ServerHandshake(context.Background())
+	if err == nil {
+		t.Error("ServerHandshake() shouldnt' work with empty ServerOptions")
+	}
 }
 
 // TestPeerNotResponding uses an invalid net.Conn instance and performs a

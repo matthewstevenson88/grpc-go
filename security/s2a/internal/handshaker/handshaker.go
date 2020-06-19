@@ -19,6 +19,7 @@
 package handshaker
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -33,7 +34,7 @@ import (
 
 var (
 	appProtocols           = []string{"grpc"}
-	frameLimit             = 1024 * 128
+	frameLimit             = 1024 * 64
 	PeerNotRespondingError = errors.New("peer server is not responding and re-connection should be attempted")
 )
 
@@ -212,7 +213,14 @@ func (h *s2aHandshaker) setUpSession(req *s2apb.SessionReq) (net.Conn, *s2apb.Se
 		return nil, nil, err
 	}
 	// TODO: implement record protocol & new Conn
-	return h.conn, result, nil
+
+	in := bytes.NewBuffer(MakeFrame("ServerInit"))
+	in.Write(MakeFrame("ServerFinished"))
+	c := &fakeConn{
+		in:  in,
+		out: new(bytes.Buffer),
+	}
+	return c, result, nil
 }
 
 // accessHandshakerService sends the session request over the Handshaker service
