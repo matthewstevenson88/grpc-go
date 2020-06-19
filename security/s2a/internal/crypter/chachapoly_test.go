@@ -82,13 +82,13 @@ func testChachaPolyEncryptRoundtrip(sender s2aAeadCrypter, receiver s2aAeadCrypt
 	buf := []byte(plaintext)
 	ciphertext, err := sender.encrypt(buf[:0], buf, nonce, nil)
 	if err != nil {
-		t.Fatalf("Encrypt(%v, %v, %v, nil) failed, err = %v", buf[:0], buf, nonce, err)
+		t.Fatalf("Encrypt(%v, %v, %v, nil) failed: %v", buf[:0], buf, nonce, err)
 	}
 
 	// Decrypt first message.
 	decryptedPlaintext, err := receiver.decrypt(ciphertext[:0], ciphertext, nonce, nil)
 	if err != nil {
-		t.Fatalf("Decrypt(%v, %v, %v, nil) failed, err = %v", ciphertext[:0], ciphertext, nonce, err)
+		t.Fatalf("Decrypt(%v, %v, %v, nil) failed: %v", ciphertext[:0], ciphertext, nonce, err)
 	}
 	if string(decryptedPlaintext) != plaintext {
 		t.Fatalf("Decrypt(%v, %v, %v, nil) = %v, want %v", ciphertext[:0], ciphertext, nonce, decryptedPlaintext, plaintext)
