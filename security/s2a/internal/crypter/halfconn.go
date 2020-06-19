@@ -41,7 +41,7 @@ func NewHalfConn(ciphersuite s2apb.Ciphersuite, trafficSecret []byte) (*S2AHalfC
 		return nil, fmt.Errorf("supplied traffic secret must be %v bytes, given: %v bytes", cs.trafficSecretSize(), len(trafficSecret))
 	}
 
-	hc := &S2AHalfConnection{cs: cs, h: cs.hashFunction(), expander: &defaultHKDFExpander{}, sequence: newCounter(), trafficSecret: trafficSecret}
+	hc := &S2AHalfConnection{cs: cs, h: cs.hashFunction(), expander: &defaultHKDFExpander{}, sequence: newCounter(0), trafficSecret: trafficSecret}
 	if err = hc.updateCrypterAndNonce(hc.trafficSecret); err != nil {
 		return nil, fmt.Errorf("failed to create half connection using traffic secret: %v", err)
 	}
