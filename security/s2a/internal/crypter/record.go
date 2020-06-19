@@ -61,8 +61,9 @@ type ConnOptions struct {
 	ciphersuite                                    s2apb.Ciphersuite
 	tlsVersion                                     s2apb.TLSVersion
 	inTrafficSecret, outTrafficSecret, unusedBytes []byte
-	inSequence, outSequence                        uint64
-	handshakerServiceAddr                          string
+	// TODO(rnkim): Add initial sequence number to half conneciton.
+	inSequence, outSequence uint64
+	handshakerServiceAddr   string
 }
 
 func NewConn(o *ConnOptions) (net.Conn, error) {
@@ -73,11 +74,11 @@ func NewConn(o *ConnOptions) (net.Conn, error) {
 		return nil, errors.New("TLS version must be TLS 1.3")
 	}
 
-	inConnection, err := NewHalfConn(o.ciphersuite, o.inTrafficSecret, o.inSequence)
+	inConnection, err := NewHalfConn(o.ciphersuite, o.inTrafficSecret)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create inbound half connection: %v", err)
 	}
-	outConnection, err := NewHalfConn(o.ciphersuite, o.outTrafficSecret, o.outSequence)
+	outConnection, err := NewHalfConn(o.ciphersuite, o.outTrafficSecret)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create outbound half connection: %v", err)
 	}
