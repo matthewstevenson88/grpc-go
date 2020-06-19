@@ -33,24 +33,23 @@ const (
 // aesgcm is the struct that holds an AES-GCM cipher for the S2A AEAD crypter.
 type aesgcm struct {
 	aead cipher.AEAD
-	// keySize stores the size of the key which was initially used. This
-	// is necessary to restrict key updates to the same key length as the
-	// initial key.
-	keySize int
 }
 
 // newAESGCM creates an AES-GCM crypter instance. Note that the key must be
 // either 128 bits or 256 bits.
 func newAESGCM(key []byte) (s2aAeadCrypter, error) {
 	if len(key) != aes128GcmKeySize && len(key) != aes256GcmKeySize {
-		return nil, fmt.Errorf("supplied key must be 128 or 256 bits, given: %d", len(key)*8)
+		return nil, fmt.Errorf("%d or %d bytes, given: %d", aes128GcmKeySize, aes256GcmKeySize, len(key))
 	}
-	crypter := aesgcm{keySize: len(key)}
-	err := crypter.updateKey(key)
+	c, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
 	}
-	return &crypter, err
+	a, err := cipher.NewGCM(c)
+	if err != nil {
+		return nil, err
+	}
+	return &aesgcm{aead: a}, nil
 }
 
 // encrypt is the encryption function. dst can contain bytes at the beginning of
@@ -68,20 +67,4 @@ func (s *aesgcm) decrypt(dst, ciphertext, nonce, aad []byte) ([]byte, error) {
 
 func (s *aesgcm) tagSize() int {
 	return tagSize
-}
-
-func (s *aesgcm) updateKey(key []byte) error {
-	if s.keySize != len(key) {
-		return fmt.Errorf("supplied key must have same size as initial key: %d bits", s.keySize*8)
-	}
-	c, err := aes.NewCipher(key)
-	if err != nil {
-		return err
-	}
-	a, err := cipher.NewGCM(c)
-	if err != nil {
-		return err
-	}
-	s.aead = a
-	return nil
 }

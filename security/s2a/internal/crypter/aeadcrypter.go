@@ -11,6 +11,4 @@ type s2aAeadCrypter interface {
 	decrypt(dst, ciphertext, nonce, aad []byte) ([]byte, error)
 	// tagSize returns the tag size in bytes.
 	tagSize() int
-	// updateKey updates the key used for encryption and decryption.
-	updateKey(key []byte) error
 }
