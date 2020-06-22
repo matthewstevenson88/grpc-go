@@ -32,9 +32,9 @@ import (
 )
 
 var (
-	appProtocols           = []string{"grpc"}
+	appProtocols           = "grpc"
 	frameLimit             = 1024 * 64
-	PeerNotRespondingError = errors.New("peer server is not responding and re-connection should be attempted")
+	PeerNotRespondingError = errors.New("Peer server is not responding and re-connection should be attempted.")
 )
 
 // ClientHandshakerOptions contains the options needed to configure the S2A
@@ -124,13 +124,13 @@ func newServerHandshaker(stream s2apb.S2AService_SetUpSessionClient, c net.Conn,
 // service. When complete, returns a secure TLS connection.
 func (h *s2aHandshaker) ClientHandshake(ctx context.Context) (net.Conn, *authinfo.S2AAuthInfo, error) {
 	if h.clientOpts == nil {
-		return nil, nil, errors.New("only handshakers created using NewClientHandshaker can perform a client handshaker")
+		return nil, nil, errors.New("Only handshakers created using NewClientHandshaker can perform a client handshaker.")
 	}
 	// Prepare a client start message to send to the S2A handshaker service.
 	req := &s2apb.SessionReq{
 		ReqOneof: &s2apb.SessionReq_ClientStart{
 			ClientStart: &s2apb.ClientSessionStartReq{
-				ApplicationProtocols: appProtocols,
+				ApplicationProtocols: []string{appProtocols},
 				MinTlsVersion:        h.clientOpts.MinTLSVersion,
 				MaxTlsVersion:        h.clientOpts.MaxTLSVersion,
 				TlsCiphersuites:      h.clientOpts.TLSCiphersuites,
@@ -155,7 +155,7 @@ func (h *s2aHandshaker) ClientHandshake(ctx context.Context) (net.Conn, *authinf
 // service. When complete, returns a secure TLS connection.
 func (h *s2aHandshaker) ServerHandshake(ctx context.Context) (net.Conn, *authinfo.S2AAuthInfo, error) {
 	if h.serverOpts == nil {
-		return nil, nil, errors.New("only handshakers created using NewServerHandshaker can perform a server handshaker")
+		return nil, nil, errors.New("Only handshakers created using NewServerHandshaker can perform a server handshaker.")
 	}
 	p := make([]byte, frameLimit)
 	n, err := h.conn.Read(p)
@@ -166,7 +166,7 @@ func (h *s2aHandshaker) ServerHandshake(ctx context.Context) (net.Conn, *authinf
 	req := &s2apb.SessionReq{
 		ReqOneof: &s2apb.SessionReq_ServerStart{
 			ServerStart: &s2apb.ServerSessionStartReq{
-				ApplicationProtocols: appProtocols,
+				ApplicationProtocols: []string{appProtocols},
 				MinTlsVersion:        h.serverOpts.MinTLSVersion,
 				MaxTlsVersion:        h.serverOpts.MaxTLSVersion,
 				TlsCiphersuites:      h.serverOpts.TLSCiphersuites,
@@ -189,6 +189,9 @@ func (h *s2aHandshaker) ServerHandshake(ctx context.Context) (net.Conn, *authinf
 // setUpSession proxies messages between the peer and the S2A handshaker
 // service.
 func (h *s2aHandshaker) setUpSession(req *s2apb.SessionReq) (net.Conn, *s2apb.SessionResult, error) {
+	if req == nil {
+		return nil,nil,errors.New("Session Request can not be nil.")
+	}
 	resp, err := h.accessHandshakerService(req)
 	if err != nil {
 		return nil, nil, err
@@ -199,10 +202,12 @@ func (h *s2aHandshaker) setUpSession(req *s2apb.SessionReq) (net.Conn, *s2apb.Se
 			return nil, nil, fmt.Errorf("%v", resp.GetStatus().Details)
 		}
 	}
+	// Calculate the extra unread bytes from the Session. Attempting to consume more 
+	// than the bytes sent will throw an error.
 	var extra []byte
 	if req.GetServerStart() != nil {
 		if resp.GetBytesConsumed() > uint32(len(req.GetServerStart().GetInBytes())) {
-			return nil, nil, errors.New("handshaker service consumed bytes value is out-of-bounds")
+			return nil, nil, errors.New("Handshaker service consumed bytes value is out-of-bounds.")
 		}
 		extra = req.GetServerStart().GetInBytes()[resp.GetBytesConsumed():]
 	}
@@ -210,12 +215,12 @@ func (h *s2aHandshaker) setUpSession(req *s2apb.SessionReq) (net.Conn, *s2apb.Se
 	if err != nil {
 		return nil, nil, err
 	}
-	// TODO: gud, implement record protocol & new Conn
+	// TODO(gud): implement record protocol & new Conn
 	return h.conn, result, nil
 }
 
-// accessHandshakerService sends the session request over the Handshaker service
-// stream and returns the response.
+// accessHandshakerService sends the session request to the S2A Handshaker service
+// and returns the session response.
 func (h *s2aHandshaker) accessHandshakerService(req *s2apb.SessionReq) (*s2apb.SessionResp, error) {
 	if err := h.stream.Send(req); err != nil {
 		return nil, err
@@ -227,8 +232,9 @@ func (h *s2aHandshaker) accessHandshakerService(req *s2apb.SessionReq) (*s2apb.S
 	return resp, nil
 }
 
-// processUntilDone processes the handshake until the handshaker service returns
-// the results.
+// processUntilDone continues proxying messages between the peer and the S2A 
+// handshaker service until the handshaker service returns the SessionResult
+//  at the end of the handshake or an error occurs.
 func (h *s2aHandshaker) processUntilDone(resp *s2apb.SessionResp, unusedBytes []byte) (*s2apb.SessionResult, []byte, error) {
 	for {
 		if len(resp.OutFrames) > 0 {
@@ -268,7 +274,7 @@ func (h *s2aHandshaker) processUntilDone(resp *s2apb.SessionResp, unusedBytes []
 		}
 		// Set unusedBytes based on the handshaker service response.
 		if resp.GetBytesConsumed() > uint32(len(p)) {
-			return nil, nil, errors.New("handshaker service consumed bytes value is out-of-bounds")
+			return nil, nil, errors.New("Handshaker service consumed bytes value is out-of-bounds.")
 		}
 		unusedBytes = p[resp.GetBytesConsumed():]
 	}

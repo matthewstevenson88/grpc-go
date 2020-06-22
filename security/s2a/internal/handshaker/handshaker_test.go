@@ -89,32 +89,34 @@ var (
 type fakeStream struct {
 	grpc.ClientStream
 	t            *testing.T
-	ExpectedResp *s2apb.SessionResp
-	first        bool
+	// expectedResp is the expected Session Response from the handshaker service.  
+	expectedResp *s2apb.SessionResp
+	// isFirstAccess determines if it is the first access to the Handshaker Service.
+	isFirstAccess       bool
 	isClient     bool
 }
 
 func (fs *fakeStream) Recv() (*s2apb.SessionResp, error) {
-	resp := fs.ExpectedResp
-	fs.ExpectedResp = nil
+	resp := fs.expectedResp
+	fs.expectedResp = nil
 	return resp, nil
 }
 func (fs *fakeStream) Send(*s2apb.SessionReq) error {
 	var resp *s2apb.SessionResp
-	if !fs.first {
-		// Generate the bytes to be returned by Recv() for the initial
-		// handshaking.
-		fs.first = true
+	if !fs.isFirstAccess {
+		// Generate the bytes to be returned by Recv() for the first
+		// handshake message
+		fs.isFirstAccess = true
 		if fs.isClient {
 			resp = &s2apb.SessionResp{
-				OutFrames: MakeFrame("ClientInit"),
-				// Simulate consuming ServerInit.
+				OutFrames: makeFrame("ClientHello"),
+				// Simulate consuming ServerHello.
 				BytesConsumed: 14,
 			}
 		} else {
 			resp = &s2apb.SessionResp{
-				OutFrames: MakeFrame("ServerInit"),
-				// Simulate consuming ClientInit.
+				OutFrames: makeFrame("ServerHello"),
+				// Simulate consuming ClientHello.
 				BytesConsumed: 14,
 			}
 		}
@@ -130,13 +132,13 @@ func (fs *fakeStream) Send(*s2apb.SessionReq) error {
 			BytesConsumed: 18,
 		}
 	}
-	fs.ExpectedResp = resp
+	fs.expectedResp = resp
 	return nil
 }
 func (*fakeStream) CloseSend() error { return nil }
 
-//fakeInvalidStream is a fake implementation of an invalid grpc.ClientStream
-//interface that is used for testing.
+// fakeInvalidStream is a fake implementation of an invalid grpc.ClientStream
+// interface that is used for testing.
 type fakeInvalidStream struct {
 	grpc.ClientStream
 }
@@ -167,8 +169,8 @@ func (fc *fakeInvalidConn) Read(b []byte) (n int, err error)  { return 0, io.EOF
 func (fc *fakeInvalidConn) Write(b []byte) (n int, err error) { return 0, nil }
 func (fc *fakeInvalidConn) Close() error                      { return nil }
 
-// MakeFrame creates a handshake frame.
-func MakeFrame(pl string) []byte {
+// makeFrame creates a handshake frame.
+func makeFrame(pl string) []byte {
 	f := make([]byte, len(pl)+4)
 	binary.LittleEndian.PutUint32(f, uint32(len(pl)))
 	copy(f[4:], []byte(pl))
@@ -179,8 +181,8 @@ func MakeFrame(pl string) []byte {
 // newClientHandshaker returns a valid client-side handshaker instance.
 func TestNewClientHandshaker(t *testing.T) {
 	stream := &fakeStream{}
-	in := bytes.NewBuffer(MakeFrame("ClientInit"))
-	in.Write(MakeFrame("ClientFinished"))
+	in := bytes.NewBuffer(makeFrame("ClientInit"))
+	in.Write(makeFrame("ClientFinished"))
 	c := &fakeConn{
 		in:  in,
 		out: new(bytes.Buffer),
@@ -195,8 +197,8 @@ func TestNewClientHandshaker(t *testing.T) {
 // newServerHandshaker  returns a valid server-side handshaker instance.
 func TestNewServerHandshaker(t *testing.T) {
 	stream := &fakeStream{}
-	in := bytes.NewBuffer(MakeFrame("ServerInit"))
-	in.Write(MakeFrame("ServerFinished"))
+	in := bytes.NewBuffer(makeFrame("ServerInit"))
+	in.Write(makeFrame("ServerFinished"))
 	c := &fakeConn{
 		in:  in,
 		out: new(bytes.Buffer),
@@ -215,8 +217,8 @@ func TestClientHandshake(t *testing.T) {
 		t:        t,
 		isClient: true,
 	}
-	in := bytes.NewBuffer(MakeFrame("ClientInit"))
-	in.Write(MakeFrame("ClientFinished"))
+	in := bytes.NewBuffer(makeFrame("ClientHello"))
+	in.Write(makeFrame("ClientFinished"))
 	c := &fakeConn{
 		in:  in,
 		out: new(bytes.Buffer),
@@ -227,7 +229,8 @@ func TestClientHandshake(t *testing.T) {
 		clientOpts: testClientHandshakerOptions,
 	}
 	go func() {
-		// returned conn is ignored until record Protocol is implemented.
+		// Returned conn is ignored until record protocol is implemented.
+		// TODO(gud): Add tests for returned conn.
 		_, _, err := chs.ClientHandshake(context.Background())
 		if err != nil {
 			panic("expected non-nil S2A context")
@@ -249,8 +252,8 @@ func TestServerHandshake(t *testing.T) {
 		t:        t,
 		isClient: false,
 	}
-	in := bytes.NewBuffer(MakeFrame("ServerInit"))
-	in.Write(MakeFrame("ServerFinished"))
+	in := bytes.NewBuffer(makeFrame("ServerHello"))
+	in.Write(makeFrame("ServerFinished"))
 	c := &fakeConn{
 		in:  in,
 		out: new(bytes.Buffer),
@@ -261,7 +264,9 @@ func TestServerHandshake(t *testing.T) {
 		serverOpts: testServerHandshakerOptions,
 	}
 	go func() {
-		// returned conn is ignored until record Protocol is implemented.
+		// The conn returned by ServerHandshake is ignored until record protocol 
+		// is implemented.
+		// TODO(gud): Add tests for returned conn.
 		_, _, err := shs.ServerHandshake(context.Background())
 		if err != nil {
 			panic("expected non-nil S2A context")
@@ -283,7 +288,7 @@ func TestInvalidHandshaker(t *testing.T) {
 	}
 	_, _, err = emptyHS.ServerHandshake(context.Background())
 	if err == nil {
-		t.Error("ServerHandshake() shouldnt' work with empty ServerOptions")
+		t.Error("ServerHandshake() shouldn't work with empty ServerOptions")
 	}
 }
 
