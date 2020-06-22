@@ -1,16 +1,16 @@
-package crypter
+package aeadcrypter
 
 import (
 	"bytes"
-	"google.golang.org/grpc/security/s2a/internal/crypter/testutil"
+	"google.golang.org/grpc/security/s2a/internal/record/internal/aeadcrypter/testutil"
 	"testing"
 )
 
 // fakeAEAD is a fake implementation of an AEAD interface used for testing.
 type fakeAEAD struct{}
 
-func (*fakeAEAD) NonceSize() int                                  { return nonceSize }
-func (*fakeAEAD) Overhead() int                                   { return tagSize }
+func (*fakeAEAD) NonceSize() int                                  { return NonceSize }
+func (*fakeAEAD) Overhead() int                                   { return TagSize }
 func (*fakeAEAD) Seal(_, _, plaintext, _ []byte) []byte           { return plaintext }
 func (*fakeAEAD) Open(_, _, ciphertext, _ []byte) ([]byte, error) { return ciphertext, nil }
 
@@ -74,7 +74,7 @@ func TestEncrypt(t *testing.T) {
 	for _, tc := range []encryptDecryptTestVector{
 		{
 			desc:  "valid nonce size",
-			nonce: make([]byte, nonceSize),
+			nonce: make([]byte, NonceSize),
 		},
 		{
 			desc:   "invalid nonce size",
@@ -97,7 +97,7 @@ func TestDecrypt(t *testing.T) {
 	for _, tc := range []encryptDecryptTestVector{
 		{
 			desc:  "valid nonce size",
-			nonce: make([]byte, nonceSize),
+			nonce: make([]byte, NonceSize),
 		},
 		{
 			desc:   "invalid nonce size",

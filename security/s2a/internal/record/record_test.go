@@ -1,9 +1,9 @@
-package crypter
+package record
 
 import (
 	"bytes"
-	"google.golang.org/grpc/security/s2a/internal/crypter/testutil"
 	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
+	"google.golang.org/grpc/security/s2a/internal/record/internal/aeadcrypter/testutil"
 	"net"
 	"testing"
 )
