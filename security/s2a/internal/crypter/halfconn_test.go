@@ -362,18 +362,30 @@ func TestS2AHalfConnectionUpdateKey(t *testing.T) {
 }
 
 func TestS2AHalfConnectionTagSize(t *testing.T) {
-	ciphersuite := s2apb.Ciphersuite_AES_256_GCM_SHA384
-	trafficSecret := make([]byte, 48)
-	key := make([]byte, 32)
-	hc, err := NewHalfConn(ciphersuite, trafficSecret)
-	if err != nil {
-		t.Fatalf("NewHalfConn(%v, %v) failed: %v", ciphersuite, trafficSecret, err)
-	}
-	crypter, err := newAESGCM(key)
-	if err != nil {
-		t.Fatalf("newAESGCM(%v) failed: %v", key, err)
-	}
-	if got, want := hc.TagSize(), crypter.tagSize(); got != want {
-		t.Errorf("hc.TagSize() = %v, want %v", got, want)
+	for _, ciphersuite := range []s2apb.Ciphersuite{
+		s2apb.Ciphersuite_AES_128_GCM_SHA256,
+		s2apb.Ciphersuite_AES_256_GCM_SHA384,
+		s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
+	} {
+		t.Run(ciphersuite.String(), func(t *testing.T) {
+			cs, err := newCiphersuite(ciphersuite)
+			if err != nil {
+				t.Fatalf("newCiphersuite(%v) failed: %v", ciphersuite, err)
+			}
+			trafficSecret := make([]byte, cs.trafficSecretSize())
+			key := make([]byte, cs.keySize())
+			hc, err := NewHalfConn(ciphersuite, trafficSecret)
+			if err != nil {
+				t.Fatalf("NewHalfConn(%v, %v) failed: %v", ciphersuite, trafficSecret, err)
+			}
+			crypter, err := newAESGCM(key)
+			if err != nil {
+				t.Fatalf("newAESGCM(%v) failed: %v", key, err)
+			}
+			if got, want := hc.TagSize(), crypter.tagSize(); got != want {
+				t.Errorf("hc.TagSize() = %v, want %v", got, want)
+			}
+		})
+
 	}
 }
