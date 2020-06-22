@@ -111,13 +111,13 @@ func (fs *fakeStream) Send(*s2apb.SessionReq) error {
 			resp = &s2apb.SessionResp{
 				OutFrames: makeFrame("ClientHello"),
 				// Simulate consuming ServerHello.
-				BytesConsumed: 14,
+				BytesConsumed: 16,
 			}
 		} else {
 			resp = &s2apb.SessionResp{
 				OutFrames: makeFrame("ServerHello"),
 				// Simulate consuming ClientHello.
-				BytesConsumed: 14,
+				BytesConsumed: 16,
 			}
 		}
 	} else {
@@ -129,7 +129,7 @@ func (fs *fakeStream) Send(*s2apb.SessionReq) error {
 		resp = &s2apb.SessionResp{
 			Result: result,
 			// Simulate consuming ClientFinished or ServerFinished.
-			BytesConsumed: 18,
+			BytesConsumed: 19,
 		}
 	}
 	fs.expectedResp = resp
@@ -169,11 +169,12 @@ func (fc *fakeInvalidConn) Read(b []byte) (n int, err error)  { return 0, io.EOF
 func (fc *fakeInvalidConn) Write(b []byte) (n int, err error) { return 0, nil }
 func (fc *fakeInvalidConn) Close() error                      { return nil }
 
-// makeFrame creates a handshake frame.
+// makeFrame creates a frame.
 func makeFrame(pl string) []byte {
-	f := make([]byte, len(pl)+4)
+	// TODO(gud): replace "5" with variable tlsRecordHeaderSize from record.go
+	f := make([]byte, len(pl)+5)
 	binary.LittleEndian.PutUint32(f, uint32(len(pl)))
-	copy(f[4:], []byte(pl))
+	copy(f[5:], []byte(pl))
 	return f
 }
 
@@ -232,9 +233,6 @@ func TestClientHandshake(t *testing.T) {
 		// Returned conn is ignored until record protocol is implemented.
 		// TODO(gud): Add tests for returned conn.
 		_, _, err := chs.ClientHandshake(context.Background())
-		if err != nil {
-			panic("expected non-nil S2A context")
-		}
 		errc <- err
 		chs.Close()
 	}()
@@ -268,9 +266,6 @@ func TestServerHandshake(t *testing.T) {
 		// is implemented.
 		// TODO(gud): Add tests for returned conn.
 		_, _, err := shs.ServerHandshake(context.Background())
-		if err != nil {
-			panic("expected non-nil S2A context")
-		}
 		errc <- err
 		shs.Close()
 	}()
