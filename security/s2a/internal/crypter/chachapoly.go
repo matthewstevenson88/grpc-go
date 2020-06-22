@@ -37,7 +37,7 @@ type chachapoly struct {
 
 // newChachaPoly creates a Chacha-Poly crypter instance. Note that the key must be
 // chacha20Poly1305KeySize bytes in length.
-func newChachaPoly(key []byte) (s2aAeadCrypter, error) {
+func newChachaPoly(key []byte) (s2aAEADCrypter, error) {
 	if len(key) != chacha20Poly1305KeySize {
 		return nil, fmt.Errorf("%d bytes, given: %d", chacha20Poly1305KeySize, len(key))
 	}

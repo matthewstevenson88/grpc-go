@@ -21,9 +21,9 @@ func getHalfConnPair(ciphersuite s2apb.Ciphersuite, trafficSecret []byte, t *tes
 	return sender, receiver
 }
 
-// aeadCrypterEqual checks whether the given s2aAeadCrypters encrypt a simple
+// aeadCrypterEqual checks whether the given s2aAEADCrypters encrypt a simple
 // string identically.
-func aeadCrypterEqual(a s2aAeadCrypter, b s2aAeadCrypter, t *testing.T) bool {
+func aeadCrypterEqual(a s2aAEADCrypter, b s2aAEADCrypter, t *testing.T) bool {
 	nonce := make([]byte, nonceSize)
 	const plaintext = "This is plaintext"
 	ciphertextA, err := a.encrypt(nil, []byte(plaintext), nonce, nil)

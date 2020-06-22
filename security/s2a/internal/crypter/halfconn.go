@@ -24,7 +24,7 @@ type S2AHalfConnection struct {
 	expander hkdfExpander
 	// mutex guards sequence, aeadCrypter, trafficSecret, and nonce.
 	mutex         sync.Mutex
-	aeadCrypter   s2aAeadCrypter
+	aeadCrypter   s2aAEADCrypter
 	sequence      counter
 	trafficSecret []byte
 	nonce         []byte
