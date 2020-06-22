@@ -4,7 +4,7 @@ import (
 	"crypto/sha256"
 	"crypto/sha512"
 	"fmt"
-	s2a_proto "google.golang.org/grpc/security/s2a/internal/proto"
+	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
 	"hash"
 )
 
@@ -28,13 +28,13 @@ type ciphersuite interface {
 	aeadCrypter(key []byte) (s2aAEADCrypter, error)
 }
 
-func newCiphersuite(ciphersuite s2a_proto.Ciphersuite) (ciphersuite, error) {
+func newCiphersuite(ciphersuite s2apb.Ciphersuite) (ciphersuite, error) {
 	switch ciphersuite {
-	case s2a_proto.Ciphersuite_AES_128_GCM_SHA256:
+	case s2apb.Ciphersuite_AES_128_GCM_SHA256:
 		return &aesgcm128sha256{}, nil
-	case s2a_proto.Ciphersuite_AES_256_GCM_SHA384:
+	case s2apb.Ciphersuite_AES_256_GCM_SHA384:
 		return &aesgcm256sha384{}, nil
-	case s2a_proto.Ciphersuite_CHACHA20_POLY1305_SHA256:
+	case s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256:
 		return &chachapolysha256{}, nil
 	default:
 		return nil, fmt.Errorf("unrecognized ciphersuite: %v", ciphersuite)

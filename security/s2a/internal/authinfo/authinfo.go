@@ -3,7 +3,7 @@ package authinfo
 import (
 	"errors"
 	"google.golang.org/grpc/credentials"
-	s2a_proto "google.golang.org/grpc/security/s2a/internal/proto"
+	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
 )
 
 const s2aAuthType = "s2a"
@@ -12,17 +12,17 @@ const s2aAuthType = "s2a"
 // S2A session result to the gRPC stack.
 type S2AAuthInfo struct {
 	credentials.CommonAuthInfo
-	s2aContext *s2a_proto.S2AContext
+	s2aContext *s2apb.S2AContext
 }
 
 // NewS2aAuthInfo returns a new S2AAuthInfo object from the S2A session result.
-func NewS2AAuthInfo(result *s2a_proto.SessionResult) (*S2AAuthInfo, error) {
+func NewS2AAuthInfo(result *s2apb.SessionResult) (*S2AAuthInfo, error) {
 	if result == nil {
 		return nil, errors.New("NewS2aAuthInfo given nil session result")
 	}
 	return &S2AAuthInfo{
 		CommonAuthInfo: credentials.CommonAuthInfo{SecurityLevel: credentials.PrivacyAndIntegrity},
-		s2aContext: &s2a_proto.S2AContext{
+		s2aContext: &s2apb.S2AContext{
 			ApplicationProtocol:  result.GetApplicationProtocol(),
 			TlsVersion:           result.GetState().GetTlsVersion(),
 			Ciphersuite:          result.GetState().GetTlsCiphersuite(),
@@ -45,23 +45,23 @@ func (s *S2AAuthInfo) ApplicationProtocol() string {
 }
 
 // TLSVersion returns the TLS version negotiated during the handshake.
-func (s *S2AAuthInfo) TLSVersion() s2a_proto.TLSVersion {
+func (s *S2AAuthInfo) TLSVersion() s2apb.TLSVersion {
 	return s.s2aContext.GetTlsVersion()
 }
 
 // Ciphersuite returns the ciphersuite negotiated during the handshake.
-func (s *S2AAuthInfo) Ciphersuite() s2a_proto.Ciphersuite {
+func (s *S2AAuthInfo) Ciphersuite() s2apb.Ciphersuite {
 	return s.s2aContext.GetCiphersuite()
 }
 
 // PeerIdentity returns the authenticated identity of the peer.
-func (s *S2AAuthInfo) PeerIdentity() *s2a_proto.Identity {
+func (s *S2AAuthInfo) PeerIdentity() *s2apb.Identity {
 	return s.s2aContext.GetPeerIdentity()
 }
 
 // LocalIdentity returns the local identity of the application used during
 // session setup.
-func (s *S2AAuthInfo) LocalIdentity() *s2a_proto.Identity {
+func (s *S2AAuthInfo) LocalIdentity() *s2apb.Identity {
 	return s.s2aContext.GetLocalIdentity()
 }
 
