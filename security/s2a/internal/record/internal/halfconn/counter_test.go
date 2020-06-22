@@ -1,4 +1,4 @@
-package crypter
+package halfconn
 
 import (
 	"math"

@@ -1,9 +1,10 @@
-package crypter
+package halfconn
 
 import (
 	"bytes"
-	"google.golang.org/grpc/security/s2a/internal/crypter/testutil"
 	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
+	"google.golang.org/grpc/security/s2a/internal/record/internal/aeadcrypter"
+	"google.golang.org/grpc/security/s2a/internal/record/internal/aeadcrypter/testutil"
 	"math"
 	"testing"
 )
@@ -21,18 +22,18 @@ func getHalfConnPair(ciphersuite s2apb.Ciphersuite, trafficSecret []byte, t *tes
 	return sender, receiver
 }
 
-// aeadCrypterEqual checks whether the given s2aAEADCrypters encrypt a simple
+// aeadCrypterEqual checks whether the given S2AAEADCrypters encrypt a simple
 // string identically.
-func aeadCrypterEqual(a s2aAEADCrypter, b s2aAEADCrypter, t *testing.T) bool {
-	nonce := make([]byte, nonceSize)
+func aeadCrypterEqual(a aeadcrypter.S2AAEADCrypter, b aeadcrypter.S2AAEADCrypter, t *testing.T) bool {
+	nonce := make([]byte, aeadcrypter.NonceSize)
 	const plaintext = "This is plaintext"
-	ciphertextA, err := a.encrypt(nil, []byte(plaintext), nonce, nil)
+	ciphertextA, err := a.Encrypt(nil, []byte(plaintext), nonce, nil)
 	if err != nil {
-		t.Errorf("a.encrypt(nil, %v, %v, nil) failed: %v", []byte(plaintext), nonce, err)
+		t.Errorf("a.Encrypt(nil, %v, %v, nil) failed: %v", []byte(plaintext), nonce, err)
 	}
-	ciphertextB, err := b.encrypt(nil, []byte(plaintext), nonce, nil)
+	ciphertextB, err := b.Encrypt(nil, []byte(plaintext), nonce, nil)
 	if err != nil {
-		t.Errorf("b.encrypt(nil, %v, %v, nil) failed: %v", []byte(plaintext), nonce, err)
+		t.Errorf("b.Encrypt(nil, %v, %v, nil) failed: %v", []byte(plaintext), nonce, err)
 	}
 	return bytes.Equal(ciphertextA, ciphertextB)
 }
@@ -378,11 +379,11 @@ func TestS2AHalfConnectionTagSize(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewHalfConn(%v, %v) failed: %v", ciphersuite, trafficSecret, err)
 			}
-			crypter, err := newAESGCM(key)
+			crypter, err := aeadcrypter.NewAESGCM(key)
 			if err != nil {
-				t.Fatalf("newAESGCM(%v) failed: %v", key, err)
+				t.Fatalf("NewAESGCM(%v) failed: %v", key, err)
 			}
-			if got, want := hc.TagSize(), crypter.tagSize(); got != want {
+			if got, want := hc.TagSize(), crypter.TagSize(); got != want {
 				t.Errorf("hc.TagSize() = %v, want %v", got, want)
 			}
 		})

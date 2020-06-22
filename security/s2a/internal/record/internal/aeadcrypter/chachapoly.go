@@ -16,7 +16,7 @@
  *
  */
 
-package crypter
+package aeadcrypter
 
 import (
 	"crypto/cipher"
@@ -27,19 +27,19 @@ import (
 
 // Supported key size in bytes.
 const (
-	chacha20Poly1305KeySize = 32
+	Chacha20Poly1305KeySize = 32
 )
 
-// chachapoly is the struct that holds a CHACHA-POLY cipher for the S2A AEAD crypter.
+// chachapoly is the struct that holds a CHACHA-POLY cipher for the S2A AEAD record.
 type chachapoly struct {
 	aead cipher.AEAD
 }
 
-// newChachaPoly creates a Chacha-Poly crypter instance. Note that the key must be
-// chacha20Poly1305KeySize bytes in length.
-func newChachaPoly(key []byte) (s2aAEADCrypter, error) {
-	if len(key) != chacha20Poly1305KeySize {
-		return nil, fmt.Errorf("%d bytes, given: %d", chacha20Poly1305KeySize, len(key))
+// NewChachaPoly creates a Chacha-Poly record instance. Note that the key must be
+// Chacha20Poly1305KeySize bytes in length.
+func NewChachaPoly(key []byte) (S2AAEADCrypter, error) {
+	if len(key) != Chacha20Poly1305KeySize {
+		return nil, fmt.Errorf("%d bytes, given: %d", Chacha20Poly1305KeySize, len(key))
 	}
 	c, err := chacha20poly1305.New(key)
 	if err != nil {
@@ -48,19 +48,19 @@ func newChachaPoly(key []byte) (s2aAEADCrypter, error) {
 	return &chachapoly{aead: c}, nil
 }
 
-// encrypt is the encryption function. dst can contain bytes at the beginning of
+// Encrypt is the encryption function. dst can contain bytes at the beginning of
 // the ciphertext that will not be encrypted but will be authenticated. If dst
 // has enough capacity to hold these bytes, the ciphertext and the tag, no
 // allocation and copy operations will be performed. dst and plaintext may
 // fully overlap or not at all.
-func (s *chachapoly) encrypt(dst, plaintext, nonce, aad []byte) ([]byte, error) {
+func (s *chachapoly) Encrypt(dst, plaintext, nonce, aad []byte) ([]byte, error) {
 	return encrypt(s.aead, dst, plaintext, nonce, aad)
 }
 
-func (s *chachapoly) decrypt(dst, ciphertext, nonce, aad []byte) ([]byte, error) {
+func (s *chachapoly) Decrypt(dst, ciphertext, nonce, aad []byte) ([]byte, error) {
 	return decrypt(s.aead, dst, ciphertext, nonce, aad)
 }
 
-func (s *chachapoly) tagSize() int {
-	return tagSize
+func (s *chachapoly) TagSize() int {
+	return TagSize
 }

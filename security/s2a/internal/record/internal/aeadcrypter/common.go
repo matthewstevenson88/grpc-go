@@ -1,4 +1,4 @@
-package crypter
+package aeadcrypter
 
 import (
 	"crypto/cipher"
@@ -6,16 +6,16 @@ import (
 )
 
 const (
-	// tagSize is the tag size in bytes for AES-128-GCM-SHA256,
+	// TagSize is the tag size in bytes for AES-128-GCM-SHA256,
 	// AES-256-GCM-SHA384, and CHACHA20-POLY1305-SHA256.
-	tagSize = 16
-	// nonceSize is the size of the nonce in number of bytes for
+	TagSize = 16
+	// NonceSize is the size of the nonce in number of bytes for
 	// AES-128-GCM-SHA256, AES-256-GCM-SHA384, and CHACHA20-POLY1305-SHA256.
-	nonceSize = 12
-	// sha256DigestSize is the digest size of sha256 in bytes.
-	sha256DigestSize = 32
-	// sha384DigestSize is the digest size of sha384 in bytes.
-	sha384DigestSize = 48
+	NonceSize = 12
+	// SHA256DigestSize is the digest size of sha256 in bytes.
+	SHA256DigestSize = 32
+	// SHA384DigestSize is the digest size of sha384 in bytes.
+	SHA384DigestSize = 48
 )
 
 // sliceForAppend takes a slice and a requested number of bytes. It returns a
@@ -33,20 +33,20 @@ func sliceForAppend(in []byte, n int) (head, tail []byte) {
 	return head, tail
 }
 
-// encrypt is the encryption function for an AEAD crypter. aead determines
-// the type of AEAD crypter. dst can contain bytes at the beginning of the
+// encrypt is the encryption function for an AEAD record. aead determines
+// the type of AEAD record. dst can contain bytes at the beginning of the
 // ciphertext that will not be encrypted but will be authenticated. If dst has
 // enough capacity to hold these bytes, the ciphertext and the tag, no
 // allocation and copy operations will be performed. dst and plaintext may
 // fully overlap or not at all.
 func encrypt(aead cipher.AEAD, dst, plaintext, nonce, aad []byte) ([]byte, error) {
-	if len(nonce) != nonceSize {
-		return nil, fmt.Errorf("nonce size must be %d bytes. received: %d", nonceSize, len(nonce))
+	if len(nonce) != NonceSize {
+		return nil, fmt.Errorf("nonce size must be %d bytes. received: %d", NonceSize, len(nonce))
 	}
 	// If we need to allocate an output buffer, we want to include space for
 	// the tag to avoid forcing the caller to reallocate as well.
 	dlen := len(dst)
-	dst, out := sliceForAppend(dst, len(plaintext)+tagSize)
+	dst, out := sliceForAppend(dst, len(plaintext)+TagSize)
 	data := out[:len(plaintext)]
 	copy(data, plaintext) // data may fully overlap plaintext
 
@@ -58,12 +58,12 @@ func encrypt(aead cipher.AEAD, dst, plaintext, nonce, aad []byte) ([]byte, error
 	return dst, nil
 }
 
-// decrypt is the decryption function for an AEAD crypter, where aead determines
-// the type of AEAD crypter, and dst the destination bytes for the decrypted
+// decrypt is the decryption function for an AEAD record, where aead determines
+// the type of AEAD record, and dst the destination bytes for the decrypted
 // ciphertext. The dst buffer may fully overlap with plaintext or not at all.
 func decrypt(aead cipher.AEAD, dst, ciphertext, nonce, aad []byte) ([]byte, error) {
-	if len(nonce) != nonceSize {
-		return nil, fmt.Errorf("nonce size must be %d bytes. received: %d", nonceSize, len(nonce))
+	if len(nonce) != NonceSize {
+		return nil, fmt.Errorf("nonce size must be %d bytes. received: %d", NonceSize, len(nonce))
 	}
 	// If dst is equal to ciphertext[:0], ciphertext storage is reused.
 	plaintext, err := aead.Open(dst, nonce, ciphertext, aad)
