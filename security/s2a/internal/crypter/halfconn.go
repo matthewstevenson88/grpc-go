@@ -100,7 +100,7 @@ func (hc *S2AHalfConnection) UpdateKey() error {
 	return nil
 }
 
-// TagSize returns the tag size of the underlying AEAD crypter.
+// TagSize returns the tag size in bytes of the underlying AEAD crypter.
 func (hc *S2AHalfConnection) TagSize() int {
 	return hc.aeadCrypter.tagSize()
 }
