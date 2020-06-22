@@ -374,7 +374,7 @@ func TestS2AHalfConnectionTagSize(t *testing.T) {
 			}
 			trafficSecret := make([]byte, cs.trafficSecretSize())
 			key := make([]byte, cs.keySize())
-			hc, err := NewHalfConn(ciphersuite, trafficSecret)
+			hc, err := NewHalfConn(ciphersuite, trafficSecret, 0 /* sequence */)
 			if err != nil {
 				t.Fatalf("NewHalfConn(%v, %v) failed: %v", ciphersuite, trafficSecret, err)
 			}
