@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"golang.org/x/crypto/cryptobyte"
 	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
-	"hash"
 	"sync"
 )
 
@@ -18,13 +17,11 @@ const (
 )
 
 type S2AHalfConnection struct {
-	cs ciphersuite
-	// TODO(rnkim): Add hash function to expander constructor.
-	h        func() hash.Hash
+	cs       ciphersuite
 	expander hkdfExpander
 	// mutex guards sequence, aeadCrypter, trafficSecret, and nonce.
 	mutex         sync.Mutex
-	aeadCrypter   s2aAeadCrypter
+	aeadCrypter   s2aAEADCrypter
 	sequence      counter
 	trafficSecret []byte
 	nonce         []byte
@@ -32,7 +29,7 @@ type S2AHalfConnection struct {
 
 // NewHalfConn creates a new instance of S2AHalfConnection given a ciphersuite
 // and a traffic secret.
-func NewHalfConn(ciphersuite s2apb.Ciphersuite, trafficSecret []byte) (*S2AHalfConnection, error) {
+func NewHalfConn(ciphersuite s2apb.Ciphersuite, trafficSecret []byte, sequence uint64) (*S2AHalfConnection, error) {
 	cs, err := newCiphersuite(ciphersuite)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new ciphersuite: %v", ciphersuite)
@@ -41,7 +38,7 @@ func NewHalfConn(ciphersuite s2apb.Ciphersuite, trafficSecret []byte) (*S2AHalfC
 		return nil, fmt.Errorf("supplied traffic secret must be %v bytes, given: %v bytes", cs.trafficSecretSize(), len(trafficSecret))
 	}
 
-	hc := &S2AHalfConnection{cs: cs, h: cs.hashFunction(), expander: &defaultHKDFExpander{}, sequence: newCounter(0), trafficSecret: trafficSecret}
+	hc := &S2AHalfConnection{cs: cs, expander: newDefaultHKDFExpander(cs.hashFunction()), sequence: newCounter(sequence), trafficSecret: trafficSecret}
 	if err = hc.updateCrypterAndNonce(hc.trafficSecret); err != nil {
 		return nil, fmt.Errorf("failed to create half connection using traffic secret: %v", err)
 	}
@@ -163,5 +160,5 @@ func (hc *S2AHalfConnection) deriveSecret(secret, label []byte, length int) ([]b
 	if err != nil {
 		return nil, fmt.Errorf("deriveSecret failed: %v", err)
 	}
-	return hc.expander.expand(hc.h, secret, hkdfLabelBytes, length)
+	return hc.expander.expand(secret, hkdfLabelBytes, length)
 }

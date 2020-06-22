@@ -26,7 +26,7 @@ import (
 )
 
 // getChachaPolyCrypterPair outputs a sender/receiver pair of CHACHA-POLY AEAD crypters.
-func getChachaPolyCrypterPair(key []byte, t *testing.T) (s2aAeadCrypter, s2aAeadCrypter) {
+func getChachaPolyCrypterPair(key []byte, t *testing.T) (s2aAEADCrypter, s2aAEADCrypter) {
 	sender, err := newChachaPoly(key)
 	if err != nil {
 		t.Fatalf("newChachaPoly(ClientSide, key) = %v", err)
@@ -47,7 +47,7 @@ func wycheProofTestVectorFilterChachaPoly(testGroup testutil.TestGroup) bool {
 		testGroup.TagSize != 128
 }
 
-func testChachaPolyEncryptionDecryption(sender s2aAeadCrypter, receiver s2aAeadCrypter, tc *testutil.CryptoTestVector, t *testing.T) {
+func testChachaPolyEncryptionDecryption(sender s2aAEADCrypter, receiver s2aAEADCrypter, tc *testutil.CryptoTestVector, t *testing.T) {
 	// Ciphertext is: encrypted text + tag.
 	ciphertext := append(tc.Ciphertext, tc.Tag...)
 
@@ -70,7 +70,7 @@ func testChachaPolyEncryptionDecryption(sender s2aAeadCrypter, receiver s2aAeadC
 	}
 }
 
-func testChachaPolyEncryptRoundtrip(sender s2aAeadCrypter, receiver s2aAeadCrypter, t *testing.T) {
+func testChachaPolyEncryptRoundtrip(sender s2aAEADCrypter, receiver s2aAEADCrypter, t *testing.T) {
 	// Construct a dummy nonce.
 	nonce := make([]byte, nonceSize)
 
@@ -82,13 +82,13 @@ func testChachaPolyEncryptRoundtrip(sender s2aAeadCrypter, receiver s2aAeadCrypt
 	buf := []byte(plaintext)
 	ciphertext, err := sender.encrypt(buf[:0], buf, nonce, nil)
 	if err != nil {
-		t.Fatalf("Encrypt(%v, %v, %v, nil) failed, err = %v", buf[:0], buf, nonce, err)
+		t.Fatalf("Encrypt(%v, %v, %v, nil) failed: %v", buf[:0], buf, nonce, err)
 	}
 
 	// Decrypt first message.
 	decryptedPlaintext, err := receiver.decrypt(ciphertext[:0], ciphertext, nonce, nil)
 	if err != nil {
-		t.Fatalf("Decrypt(%v, %v, %v, nil) failed, err = %v", ciphertext[:0], ciphertext, nonce, err)
+		t.Fatalf("Decrypt(%v, %v, %v, nil) failed: %v", ciphertext[:0], ciphertext, nonce, err)
 	}
 	if string(decryptedPlaintext) != plaintext {
 		t.Fatalf("Decrypt(%v, %v, %v, nil) = %v, want %v", ciphertext[:0], ciphertext, nonce, decryptedPlaintext, plaintext)
