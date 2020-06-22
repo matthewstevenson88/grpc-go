@@ -21,7 +21,7 @@ package handshaker
 import (
 	"bytes"
 	"context"
-	"encoding/binary"
+	"errors"
 	"io"
 	"net"
 	"testing"
@@ -82,18 +82,54 @@ var (
 			},
 		},
 	}
+
+	testClientSessionResult = &s2apb.SessionResult{
+		ApplicationProtocol: "grpc",
+		State: &s2apb.SessionState{
+			TlsVersion:     s2apb.TLSVersion_TLS1_3,
+			TlsCiphersuite: s2apb.Ciphersuite_AES_128_GCM_SHA256,
+		},
+		PeerIdentity: &s2apb.Identity{
+			IdentityOneof: &s2apb.Identity_SpiffeId{
+				SpiffeId: "client_local_spiffe_id",
+			},
+		},
+		LocalIdentity: &s2apb.Identity{
+			IdentityOneof: &s2apb.Identity_SpiffeId{
+				SpiffeId: "server_local_spiffe_id",
+			},
+		},
+	}
+
+	testServerSessionResult = &s2apb.SessionResult{
+		ApplicationProtocol: "grpc",
+		State: &s2apb.SessionState{
+			TlsVersion:     s2apb.TLSVersion_TLS1_3,
+			TlsCiphersuite: s2apb.Ciphersuite_AES_128_GCM_SHA256,
+		},
+		PeerIdentity: &s2apb.Identity{
+			IdentityOneof: &s2apb.Identity_SpiffeId{
+				SpiffeId: "server_local_spiffe_id",
+			},
+		},
+		LocalIdentity: &s2apb.Identity{
+			IdentityOneof: &s2apb.Identity_SpiffeId{
+				SpiffeId: "client_local_spiffe_id",
+			},
+		},
+	}
 )
 
 // fakeStream is a fake implementation of the grpc.ClientStream interface that
 // is used for testing.
 type fakeStream struct {
 	grpc.ClientStream
-	t            *testing.T
-	// expectedResp is the expected Session Response from the handshaker service.  
+	t *testing.T
+	// expectedResp is the expected Session Response from the handshaker service.
 	expectedResp *s2apb.SessionResp
 	// isFirstAccess determines if it is the first access to the Handshaker Service.
-	isFirstAccess       bool
-	isClient     bool
+	isFirstAccess bool
+	isClient      bool
 }
 
 func (fs *fakeStream) Recv() (*s2apb.SessionResp, error) {
@@ -101,40 +137,45 @@ func (fs *fakeStream) Recv() (*s2apb.SessionResp, error) {
 	fs.expectedResp = nil
 	return resp, nil
 }
-func (fs *fakeStream) Send(*s2apb.SessionReq) error {
+func (fs *fakeStream) Send(req *s2apb.SessionReq) error {
 	var resp *s2apb.SessionResp
 	if !fs.isFirstAccess {
-		// Generate the bytes to be returned by Recv() for the first
-		// handshake message
+		// Generate the bytes to be returned by Recv() for the first handshake message.
 		fs.isFirstAccess = true
 		if fs.isClient {
 			resp = &s2apb.SessionResp{
-				OutFrames: makeFrame("ClientHello"),
-				// Simulate consuming ServerHello.
-				BytesConsumed: 16,
+				OutFrames: []byte("ClientHello"),
+				// Simulate consuming the ServerHello message.
+				BytesConsumed: uint32(len("ServerHello")),
 			}
 		} else {
 			resp = &s2apb.SessionResp{
-				OutFrames: makeFrame("ServerHello"),
-				// Simulate consuming ClientHello.
-				BytesConsumed: 16,
+				OutFrames: []byte("ServerHello"),
+				// Simulate consuming the ClientHello message.
+				BytesConsumed: uint32(len("ClientHello")),
 			}
 		}
 	} else {
-		// Generate the response to be returned by Recv() for the
-		// follow-up handshaking.
-		result := &s2apb.SessionResult{
-			ApplicationProtocol: "grpc",
+		// Construct a SessionResp message that contains the handshake result.
+		if fs.isClient {
+			resp = &s2apb.SessionResp{
+				Result: testClientSessionResult,
+				// Simulate consuming the ClientFinished message.
+				BytesConsumed: uint32(len("ClientFinished")),
+			}
+		} else {
+			resp = &s2apb.SessionResp{
+				Result: testServerSessionResult,
+				// Simulate consuming the ServerFinished message.
+				BytesConsumed: uint32(len("ServerFinished")),
+			}
 		}
-		resp = &s2apb.SessionResp{
-			Result: result,
-			// Simulate consuming ClientFinished or ServerFinished.
-			BytesConsumed: 19,
-		}
+
 	}
 	fs.expectedResp = resp
 	return nil
 }
+
 func (*fakeStream) CloseSend() error { return nil }
 
 // fakeInvalidStream is a fake implementation of an invalid grpc.ClientStream
@@ -169,21 +210,12 @@ func (fc *fakeInvalidConn) Read(b []byte) (n int, err error)  { return 0, io.EOF
 func (fc *fakeInvalidConn) Write(b []byte) (n int, err error) { return 0, nil }
 func (fc *fakeInvalidConn) Close() error                      { return nil }
 
-// makeFrame creates a frame.
-func makeFrame(pl string) []byte {
-	// TODO(gud): replace "5" with variable tlsRecordHeaderSize from record.go
-	f := make([]byte, len(pl)+5)
-	binary.LittleEndian.PutUint32(f, uint32(len(pl)))
-	copy(f[5:], []byte(pl))
-	return f
-}
-
 // TestNewClientHandshaker creates a fake stream, and ensures that
 // newClientHandshaker returns a valid client-side handshaker instance.
 func TestNewClientHandshaker(t *testing.T) {
 	stream := &fakeStream{}
-	in := bytes.NewBuffer(makeFrame("ClientInit"))
-	in.Write(makeFrame("ClientFinished"))
+	in := bytes.NewBuffer([]byte("ClientInit"))
+	in.Write([]byte("ClientFinished"))
 	c := &fakeConn{
 		in:  in,
 		out: new(bytes.Buffer),
@@ -198,8 +230,8 @@ func TestNewClientHandshaker(t *testing.T) {
 // newServerHandshaker  returns a valid server-side handshaker instance.
 func TestNewServerHandshaker(t *testing.T) {
 	stream := &fakeStream{}
-	in := bytes.NewBuffer(makeFrame("ServerInit"))
-	in.Write(makeFrame("ServerFinished"))
+	in := bytes.NewBuffer([]byte("ServerInit"))
+	in.Write([]byte("ServerFinished"))
 	c := &fakeConn{
 		in:  in,
 		out: new(bytes.Buffer),
@@ -218,8 +250,8 @@ func TestClientHandshake(t *testing.T) {
 		t:        t,
 		isClient: true,
 	}
-	in := bytes.NewBuffer(makeFrame("ClientHello"))
-	in.Write(makeFrame("ClientFinished"))
+	in := bytes.NewBuffer([]byte("ClientHello"))
+	in.Write([]byte("ClientFinished"))
 	c := &fakeConn{
 		in:  in,
 		out: new(bytes.Buffer),
@@ -229,11 +261,19 @@ func TestClientHandshake(t *testing.T) {
 		conn:       c,
 		clientOpts: testClientHandshakerOptions,
 	}
+	result := testClientSessionResult
 	go func() {
 		// Returned conn is ignored until record protocol is implemented.
 		// TODO(gud): Add tests for returned conn.
-		_, _, err := chs.ClientHandshake(context.Background())
+		_, auth, err := chs.ClientHandshake(context.Background())
 		errc <- err
+		if auth.ApplicationProtocol() != result.GetApplicationProtocol() ||
+			auth.TLSVersion() != result.GetState().GetTlsVersion() ||
+			auth.Ciphersuite() != result.GetState().GetTlsCiphersuite() ||
+			auth.PeerIdentity() != result.GetPeerIdentity() ||
+			auth.LocalIdentity() != result.GetLocalIdentity() {
+			errc <- errors.New("Authinfo s2a context incorrect")
+		}
 		chs.Close()
 	}()
 
@@ -250,8 +290,8 @@ func TestServerHandshake(t *testing.T) {
 		t:        t,
 		isClient: false,
 	}
-	in := bytes.NewBuffer(makeFrame("ServerHello"))
-	in.Write(makeFrame("ServerFinished"))
+	in := bytes.NewBuffer([]byte("ServerHello"))
+	in.Write([]byte("ServerFinished"))
 	c := &fakeConn{
 		in:  in,
 		out: new(bytes.Buffer),
@@ -261,12 +301,20 @@ func TestServerHandshake(t *testing.T) {
 		conn:       c,
 		serverOpts: testServerHandshakerOptions,
 	}
+	result := testServerSessionResult
 	go func() {
-		// The conn returned by ServerHandshake is ignored until record protocol 
+		// The conn returned by ServerHandshake is ignored until record protocol
 		// is implemented.
 		// TODO(gud): Add tests for returned conn.
-		_, _, err := shs.ServerHandshake(context.Background())
+		_, auth, err := shs.ServerHandshake(context.Background())
 		errc <- err
+		if auth.ApplicationProtocol() != result.GetApplicationProtocol() ||
+			auth.TLSVersion() != result.GetState().GetTlsVersion() ||
+			auth.Ciphersuite() != result.GetState().GetTlsCiphersuite() ||
+			auth.PeerIdentity() != result.GetPeerIdentity() ||
+			auth.LocalIdentity() != result.GetLocalIdentity() {
+			errc <- errors.New("Authinfo s2a context incorrect")
+		}
 		shs.Close()
 	}()
 
