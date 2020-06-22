@@ -80,9 +80,8 @@ func NewConn(o *ConnOptions) (net.Conn, error) {
 		return nil, fmt.Errorf("failed to create outbound half connection: %v", err)
 	}
 
-	// TODO(rnkim): Add TagSize() to Half Connection.
 	// The tag size for the in/out connections should be the same.
-	overheadSize := tlsRecordHeaderSize + tlsRecordTypeSize + inConn.aeadCrypter.tagSize()
+	overheadSize := tlsRecordHeaderSize + tlsRecordTypeSize + inConn.TagSize()
 	var unusedBuf []byte
 	// TODO(gud): Potentially optimize unusedBuf with pre-allocation.
 	if o.unusedBuf != nil {

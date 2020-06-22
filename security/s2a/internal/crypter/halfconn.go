@@ -100,6 +100,11 @@ func (hc *S2AHalfConnection) UpdateKey() error {
 	return nil
 }
 
+// TagSize returns the tag size in bytes of the underlying AEAD crypter.
+func (hc *S2AHalfConnection) TagSize() int {
+	return hc.aeadCrypter.tagSize()
+}
+
 // updateCrypterAndNonce takes a new traffic secret and updates the crypter
 // and nonce. Note that the mutex must be held while calling this function.
 func (hc *S2AHalfConnection) updateCrypterAndNonce(newTrafficSecret []byte) error {
