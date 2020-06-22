@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"golang.org/x/crypto/cryptobyte"
 	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
-	"hash"
 	"sync"
 )
 
@@ -18,9 +17,7 @@ const (
 )
 
 type S2AHalfConnection struct {
-	cs ciphersuite
-	// TODO(rnkim): Add hash function to expander constructor.
-	h        func() hash.Hash
+	cs       ciphersuite
 	expander hkdfExpander
 	// mutex guards sequence, aeadCrypter, trafficSecret, and nonce.
 	mutex         sync.Mutex
@@ -41,7 +38,7 @@ func NewHalfConn(ciphersuite s2apb.Ciphersuite, trafficSecret []byte, sequence u
 		return nil, fmt.Errorf("supplied traffic secret must be %v bytes, given: %v bytes", cs.trafficSecretSize(), len(trafficSecret))
 	}
 
-	hc := &S2AHalfConnection{cs: cs, h: cs.hashFunction(), expander: &defaultHKDFExpander{}, sequence: newCounter(sequence), trafficSecret: trafficSecret}
+	hc := &S2AHalfConnection{cs: cs, expander: newDefaultHKDFExpander(cs.hashFunction()), sequence: newCounter(sequence), trafficSecret: trafficSecret}
 	if err = hc.updateCrypterAndNonce(hc.trafficSecret); err != nil {
 		return nil, fmt.Errorf("failed to create half connection using traffic secret: %v", err)
 	}
@@ -163,5 +160,5 @@ func (hc *S2AHalfConnection) deriveSecret(secret, label []byte, length int) ([]b
 	if err != nil {
 		return nil, fmt.Errorf("deriveSecret failed: %v", err)
 	}
-	return hc.expander.expand(hc.h, secret, hkdfLabelBytes, length)
+	return hc.expander.expand(secret, hkdfLabelBytes, length)
 }
