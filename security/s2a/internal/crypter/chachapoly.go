@@ -33,24 +33,19 @@ const (
 // chachapoly is the struct that holds a CHACHA-POLY cipher for the S2A AEAD crypter.
 type chachapoly struct {
 	aead cipher.AEAD
-	// keySize stores the size of the key which was initially used. This
-	// is necessary to restrict key updates to the same key length as the
-	// initial key.
-	keySize int
 }
 
 // newChachaPoly creates a Chacha-Poly crypter instance. Note that the key must be
 // chacha20Poly1305KeySize bytes in length.
-func newChachaPoly(key []byte) (s2aAeadCrypter, error) {
+func newChachaPoly(key []byte) (s2aAEADCrypter, error) {
 	if len(key) != chacha20Poly1305KeySize {
 		return nil, fmt.Errorf("%d bytes, given: %d", chacha20Poly1305KeySize, len(key))
 	}
-	crypter := chachapoly{keySize: len(key)}
-	err := crypter.updateKey(key)
+	c, err := chacha20poly1305.New(key)
 	if err != nil {
 		return nil, err
 	}
-	return &crypter, err
+	return &chachapoly{aead: c}, nil
 }
 
 // encrypt is the encryption function. dst can contain bytes at the beginning of
@@ -68,16 +63,4 @@ func (s *chachapoly) decrypt(dst, ciphertext, nonce, aad []byte) ([]byte, error)
 
 func (s *chachapoly) tagSize() int {
 	return tagSize
-}
-
-func (s *chachapoly) updateKey(key []byte) error {
-	if s.keySize != len(key) {
-		return fmt.Errorf("supplied key must have same size as initial key: %d bytes", s.keySize)
-	}
-	c, err := chacha20poly1305.New(key)
-	if err != nil {
-		return err
-	}
-	s.aead = c
-	return nil
 }

@@ -4,7 +4,7 @@ import (
 	"crypto/sha256"
 	"crypto/sha512"
 	"fmt"
-	s2a_proto "google.golang.org/grpc/security/s2a/internal/proto"
+	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
 	"hash"
 )
 
@@ -25,16 +25,16 @@ type ciphersuite interface {
 	hashFunction() func() hash.Hash
 	// aeadCrypter takes a key and creates an AEAD crypter for the ciphersuite
 	// using that key.
-	aeadCrypter(key []byte) (s2aAeadCrypter, error)
+	aeadCrypter(key []byte) (s2aAEADCrypter, error)
 }
 
-func newCiphersuite(ciphersuite s2a_proto.Ciphersuite) (ciphersuite, error) {
+func newCiphersuite(ciphersuite s2apb.Ciphersuite) (ciphersuite, error) {
 	switch ciphersuite {
-	case s2a_proto.Ciphersuite_AES_128_GCM_SHA256:
+	case s2apb.Ciphersuite_AES_128_GCM_SHA256:
 		return &aesgcm128sha256{}, nil
-	case s2a_proto.Ciphersuite_AES_256_GCM_SHA384:
+	case s2apb.Ciphersuite_AES_256_GCM_SHA384:
 		return &aesgcm256sha384{}, nil
-	case s2a_proto.Ciphersuite_CHACHA20_POLY1305_SHA256:
+	case s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256:
 		return &chachapolysha256{}, nil
 	default:
 		return nil, fmt.Errorf("unrecognized ciphersuite: %v", ciphersuite)
@@ -49,7 +49,7 @@ func (aesgcm128sha256) keySize() int                                   { return 
 func (aesgcm128sha256) nonceSize() int                                 { return nonceSize }
 func (aesgcm128sha256) trafficSecretSize() int                         { return sha256DigestSize }
 func (aesgcm128sha256) hashFunction() func() hash.Hash                 { return sha256.New }
-func (aesgcm128sha256) aeadCrypter(key []byte) (s2aAeadCrypter, error) { return newAESGCM(key) }
+func (aesgcm128sha256) aeadCrypter(key []byte) (s2aAEADCrypter, error) { return newAESGCM(key) }
 
 // aesgcm256sha384 is the AES-256-GCM-SHA384 implementation of the ciphersuite
 // interface.
@@ -59,7 +59,7 @@ func (aesgcm256sha384) keySize() int                                   { return 
 func (aesgcm256sha384) nonceSize() int                                 { return nonceSize }
 func (aesgcm256sha384) trafficSecretSize() int                         { return sha384DigestSize }
 func (aesgcm256sha384) hashFunction() func() hash.Hash                 { return sha512.New384 }
-func (aesgcm256sha384) aeadCrypter(key []byte) (s2aAeadCrypter, error) { return newAESGCM(key) }
+func (aesgcm256sha384) aeadCrypter(key []byte) (s2aAEADCrypter, error) { return newAESGCM(key) }
 
 // chachapolysha256 is the ChaChaPoly-SHA256 implementation of the ciphersuite
 // interface.
@@ -69,4 +69,4 @@ func (chachapolysha256) keySize() int                                   { return
 func (chachapolysha256) nonceSize() int                                 { return nonceSize }
 func (chachapolysha256) trafficSecretSize() int                         { return sha256DigestSize }
 func (chachapolysha256) hashFunction() func() hash.Hash                 { return sha256.New }
-func (chachapolysha256) aeadCrypter(key []byte) (s2aAeadCrypter, error) { return newChachaPoly(key) }
+func (chachapolysha256) aeadCrypter(key []byte) (s2aAEADCrypter, error) { return newChachaPoly(key) }
