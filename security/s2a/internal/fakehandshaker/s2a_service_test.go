@@ -1,11 +1,12 @@
 package main
 
 import (
+	"testing"
+
 	"github.com/google/go-cmp/cmp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
-	"testing"
 )
 
 type fakeS2ASetupSessionServer struct {
@@ -138,8 +139,8 @@ func TestSetupSession(t *testing.T) {
 						State: &s2apb.SessionState{
 							TlsVersion:     s2apb.TLSVersion_TLS1_3,
 							TlsCiphersuite: s2apb.Ciphersuite_AES_128_GCM_SHA256,
-							InKey:          []byte("kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"),
-							OutKey:         []byte("kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"),
+							InKey:          []byte(inKey),
+							OutKey:         []byte(outKey),
 						},
 						PeerIdentity: &s2apb.Identity{
 							IdentityOneof: &s2apb.Identity_SpiffeId{SpiffeId: "peer spiffe identity"},
@@ -252,8 +253,8 @@ func TestSetupSession(t *testing.T) {
 						State: &s2apb.SessionState{
 							TlsVersion:     s2apb.TLSVersion_TLS1_3,
 							TlsCiphersuite: s2apb.Ciphersuite_AES_128_GCM_SHA256,
-							InKey:          []byte("kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"),
-							OutKey:         []byte("kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"),
+							InKey:          []byte(inKey),
+							OutKey:         []byte(outKey),
 						},
 						LocalIdentity: &s2apb.Identity{
 							IdentityOneof: &s2apb.Identity_Hostname{Hostname: "local hostname"},
