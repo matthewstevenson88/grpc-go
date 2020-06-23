@@ -34,7 +34,7 @@ import (
 var (
 	appProtocols           = "grpc"
 	frameLimit             = 1024 * 64
-	PeerNotRespondingError = errors.New("Peer server is not responding and re-connection should be attempted.")
+	PeerNotRespondingError = errors.New("Peer is not responding and re-connection should be attempted.")
 )
 
 // ClientHandshakerOptions contains the options needed to configure the S2A
@@ -190,7 +190,7 @@ func (h *s2aHandshaker) ServerHandshake(ctx context.Context) (net.Conn, *authinf
 // service.
 func (h *s2aHandshaker) setUpSession(req *s2apb.SessionReq) (net.Conn, *s2apb.SessionResult, error) {
 	if req == nil {
-		return nil, nil, errors.New("req can not be nil.")
+		return nil, nil, errors.New("req cannot be nil.")
 	}
 	resp, err := h.accessHandshakerService(req)
 	if err != nil {

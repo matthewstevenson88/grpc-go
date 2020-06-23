@@ -31,7 +31,7 @@ import (
 )
 
 var (
-	// testClientHandshakerOptions are the client handshaker options used for testing
+	// testClientHandshakerOptions are the client-side handshaker options used for testing.
 	testClientHandshakerOptions = &ClientHandshakerOptions{
 		MinTLSVersion: s2apb.TLSVersion_TLS1_2,
 		MaxTLSVersion: s2apb.TLSVersion_TLS1_3,
@@ -60,7 +60,7 @@ var (
 		TargetName: "target_name",
 	}
 
-	// testServerHandshakerOptions are the server handshaker options used for testing
+	// testServerHandshakerOptions are the server-side handshaker options used for testing.
 	testServerHandshakerOptions = &ServerHandshakerOptions{
 		MinTLSVersion: s2apb.TLSVersion_TLS1_2,
 		MaxTLSVersion: s2apb.TLSVersion_TLS1_3,
@@ -88,6 +88,10 @@ var (
 		State: &s2apb.SessionState{
 			TlsVersion:     s2apb.TLSVersion_TLS1_3,
 			TlsCiphersuite: s2apb.Ciphersuite_AES_128_GCM_SHA256,
+			InSequence: 0,
+			OutSequence: 0,
+			InKey: make([]byte,32),
+			OutKey: make([]byte,32),
 		},
 		PeerIdentity: &s2apb.Identity{
 			IdentityOneof: &s2apb.Identity_SpiffeId{
@@ -99,6 +103,8 @@ var (
 				SpiffeId: "server_local_spiffe_id",
 			},
 		},
+		LocalCertFingerprint: []byte("client_cert_fingerprint"),
+		PeerCertFingerprint: []byte("server_cert_fingerprint"),
 	}
 
 	testServerSessionResult = &s2apb.SessionResult{
@@ -106,6 +112,10 @@ var (
 		State: &s2apb.SessionState{
 			TlsVersion:     s2apb.TLSVersion_TLS1_3,
 			TlsCiphersuite: s2apb.Ciphersuite_AES_128_GCM_SHA256,
+			InSequence: 0,
+			OutSequence: 0,
+			InKey: make([]byte,32),
+			OutKey: make([]byte,32),
 		},
 		PeerIdentity: &s2apb.Identity{
 			IdentityOneof: &s2apb.Identity_SpiffeId{
@@ -117,6 +127,8 @@ var (
 				SpiffeId: "client_local_spiffe_id",
 			},
 		},
+		LocalCertFingerprint: []byte("server_cert_fingerprint"),
+		PeerCertFingerprint: []byte("client_cert_fingerprint"),
 	}
 )
 
@@ -125,9 +137,10 @@ var (
 type fakeStream struct {
 	grpc.ClientStream
 	t *testing.T
-	// expectedResp is the expected Session Response from the handshaker service.
+	// expectedResp is the expected SessionResp message from the handshaker service.
 	expectedResp *s2apb.SessionResp
-	// isFirstAccess determines if it is the first access to the Handshaker Service.
+	// isFirstAccess indicates whether the first call to the handshaker service has 
+	// been made or not.
 	isFirstAccess bool
 	isClient      bool
 }
@@ -145,8 +158,8 @@ func (fs *fakeStream) Send(req *s2apb.SessionReq) error {
 		if fs.isClient {
 			resp = &s2apb.SessionResp{
 				OutFrames: []byte("ClientHello"),
-				// Simulate consuming the ServerHello message.
-				BytesConsumed: uint32(len("ServerHello")),
+				// There are no consumed bytes for a client start message
+				BytesConsumed: 0,
 			}
 		} else {
 			resp = &s2apb.SessionResp{
@@ -227,7 +240,7 @@ func TestNewClientHandshaker(t *testing.T) {
 }
 
 // TestNewServerHandshaker creates a fake stream, and ensures that
-// newServerHandshaker  returns a valid server-side handshaker instance.
+// newServerHandshaker returns a valid server-side handshaker instance.
 func TestNewServerHandshaker(t *testing.T) {
 	stream := &fakeStream{}
 	in := bytes.NewBuffer([]byte("ServerInit"))
@@ -271,7 +284,9 @@ func TestClientHandshake(t *testing.T) {
 			auth.TLSVersion() != result.GetState().GetTlsVersion() ||
 			auth.Ciphersuite() != result.GetState().GetTlsCiphersuite() ||
 			auth.PeerIdentity() != result.GetPeerIdentity() ||
-			auth.LocalIdentity() != result.GetLocalIdentity() {
+			auth.LocalIdentity() != result.GetLocalIdentity() ||
+			!bytes.Equal(auth.LocalCertFingerprint(),result.GetLocalCertFingerprint())||
+			!bytes.Equal(auth.PeerCertFingerprint(),result.GetPeerCertFingerprint()){
 			errc <- errors.New("Authinfo s2a context incorrect")
 		}
 		chs.Close()
@@ -312,7 +327,9 @@ func TestServerHandshake(t *testing.T) {
 			auth.TLSVersion() != result.GetState().GetTlsVersion() ||
 			auth.Ciphersuite() != result.GetState().GetTlsCiphersuite() ||
 			auth.PeerIdentity() != result.GetPeerIdentity() ||
-			auth.LocalIdentity() != result.GetLocalIdentity() {
+			auth.LocalIdentity() != result.GetLocalIdentity() ||
+			!bytes.Equal(auth.LocalCertFingerprint(),result.GetLocalCertFingerprint())||
+			!bytes.Equal(auth.PeerCertFingerprint(),result.GetPeerCertFingerprint()){
 			errc <- errors.New("Authinfo s2a context incorrect")
 		}
 		shs.Close()
