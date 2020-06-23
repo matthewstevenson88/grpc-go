@@ -13,32 +13,40 @@ import (
 )
 
 var (
-	port = flag.String("port", "50051", "port number to use for connection")
+	port = flag.String("port", "50051", "port number where the fake handshaker service will run")
 )
 
 type handshakeState int
 
 const (
-	initial   handshakeState = 0
-	started   handshakeState = 1
-	sent      handshakeState = 2
+	// initial is the initial state of the handshaker before any handshake
+	// message has been received.
+	initial handshakeState = 0
+	// started is the state of the handshaker when the handshake has been
+	// initiated but no bytes have been sent or received.
+	started handshakeState = 1
+	// sent is the state of the handshaker when the handshake has been
+	// initiated and bytes have been sent.
+	sent handshakeState = 2
+	// completed is the state of the handshaker when the handshake has been
+	// completed.
 	completed handshakeState = 3
 )
 
 const (
+	grpcAppProtocol     = "grpc"
 	clientHelloFrame    = "ClientHello"
 	clientFinishedFrame = "ClientFinished"
 	serverFrame         = "ServerHelloAndFinished"
 )
 
-const grpcAppProtocol = "grpc"
-
-// fakeHandshakerService implements the s2apb.S2AServiceServer.
+// fakeHandshakerService implements the s2apb.S2AServiceServer. The fake
+// handshaker service should not be used by more than 1 application at a time.
 type fakeHandshakerService struct {
-	assistingClient       bool
-	state                 handshakeState
-	peerIdentitySpiffeID  string
-	localIdentityHostname string
+	assistingClient bool
+	state           handshakeState
+	peerIdentity    *s2apb.Identity
+	localIdentity   *s2apb.Identity
 }
 
 // SetUpSession sets up the S2A session.
@@ -70,7 +78,7 @@ func (hs *fakeHandshakerService) SetUpSession(stream s2apb.S2AService_SetUpSessi
 	}
 }
 
-// processClientStart processes the client start request.
+// processClientStart processes a ClientSessionStartReq.
 func (hs *fakeHandshakerService) processClientStart(req *s2apb.SessionReq_ClientStart) *s2apb.SessionResp {
 	resp := s2apb.SessionResp{}
 	if hs.state != initial {
@@ -85,19 +93,23 @@ func (hs *fakeHandshakerService) processClientStart(req *s2apb.SessionReq_Client
 		resp.Status = &s2apb.SessionStatus{Code: uint32(codes.InvalidArgument), Details: "application protocol was not grpc"}
 		return &resp
 	}
+	if req.ClientStart.GetMaxTlsVersion() != s2apb.TLSVersion_TLS1_3 {
+		resp.Status = &s2apb.SessionStatus{Code: uint32(codes.InvalidArgument), Details: "max TLS version must be 1.3"}
+		return &resp
+	}
 	resp.OutFrames = []byte(clientHelloFrame)
 	resp.BytesConsumed = 0
 	resp.Status = &s2apb.SessionStatus{Code: uint32(codes.OK)}
-	hs.localIdentityHostname = req.ClientStart.LocalIdentity.GetHostname()
+	hs.localIdentity = req.ClientStart.LocalIdentity
 	if len(req.ClientStart.TargetIdentities) > 0 {
-		hs.peerIdentitySpiffeID = req.ClientStart.TargetIdentities[0].GetSpiffeId()
+		hs.peerIdentity = req.ClientStart.TargetIdentities[0]
 	}
 	hs.assistingClient = true
 	hs.state = sent
 	return &resp
 }
 
-// processServerStart processes the server start request.
+// processServerStart processes a ServerSessionStartReq.
 func (hs *fakeHandshakerService) processServerStart(req *s2apb.SessionReq_ServerStart) *s2apb.SessionResp {
 	resp := s2apb.SessionResp{}
 	if hs.state != initial {
@@ -110,6 +122,10 @@ func (hs *fakeHandshakerService) processServerStart(req *s2apb.SessionReq_Server
 	}
 	if req.ServerStart.GetApplicationProtocols()[0] != grpcAppProtocol {
 		resp.Status = &s2apb.SessionStatus{Code: uint32(codes.InvalidArgument), Details: "application protocol was not grpc"}
+		return &resp
+	}
+	if req.ServerStart.GetMaxTlsVersion() != s2apb.TLSVersion_TLS1_3 {
+		resp.Status = &s2apb.SessionStatus{Code: uint32(codes.InvalidArgument), Details: "max TLS version must be 1.3"}
 		return &resp
 	}
 
@@ -127,13 +143,13 @@ func (hs *fakeHandshakerService) processServerStart(req *s2apb.SessionReq_Server
 
 	resp.Status = &s2apb.SessionStatus{Code: uint32(codes.OK)}
 	if len(req.ServerStart.LocalIdentities) > 0 {
-		hs.localIdentityHostname = req.ServerStart.LocalIdentities[0].GetHostname()
+		hs.localIdentity = req.ServerStart.LocalIdentities[0]
 	}
 	hs.assistingClient = false
 	return &resp
 }
 
-// processNext processes the next request.
+// processNext processes a SessionNext request.
 func (hs *fakeHandshakerService) processNext(req *s2apb.SessionReq_Next) *s2apb.SessionResp {
 	resp := s2apb.SessionResp{}
 	if hs.assistingClient {
@@ -176,20 +192,18 @@ func (hs *fakeHandshakerService) processNext(req *s2apb.SessionReq_Next) *s2apb.
 	return &resp
 }
 
-// getSessionResult returns a dummy session result.
+// getSessionResult returns a dummy SessionResult.
 func (hs *fakeHandshakerService) getSessionResult() *s2apb.SessionResult {
 	res := s2apb.SessionResult{}
 	res.ApplicationProtocol = grpcAppProtocol
 	res.State = &s2apb.SessionState{
 		TlsVersion:     s2apb.TLSVersion_TLS1_3,
 		TlsCiphersuite: s2apb.Ciphersuite_AES_128_GCM_SHA256,
+		InKey:          []byte("kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"),
+		OutKey:         []byte("kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"),
 	}
-	res.PeerIdentity = &s2apb.Identity{
-		IdentityOneof: &s2apb.Identity_SpiffeId{SpiffeId: hs.peerIdentitySpiffeID},
-	}
-	res.LocalIdentity = &s2apb.Identity{
-		IdentityOneof: &s2apb.Identity_Hostname{Hostname: hs.localIdentityHostname},
-	}
+	res.PeerIdentity = hs.peerIdentity
+	res.LocalIdentity = hs.localIdentity
 	return &res
 }
 

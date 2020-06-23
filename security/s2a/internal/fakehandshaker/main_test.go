@@ -138,6 +138,8 @@ func TestSetupSession(t *testing.T) {
 						State: &s2apb.SessionState{
 							TlsVersion:     s2apb.TLSVersion_TLS1_3,
 							TlsCiphersuite: s2apb.Ciphersuite_AES_128_GCM_SHA256,
+							InKey:          []byte("kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"),
+							OutKey:         []byte("kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"),
 						},
 						PeerIdentity: &s2apb.Identity{
 							IdentityOneof: &s2apb.Identity_SpiffeId{SpiffeId: "peer spiffe identity"},
@@ -250,9 +252,8 @@ func TestSetupSession(t *testing.T) {
 						State: &s2apb.SessionState{
 							TlsVersion:     s2apb.TLSVersion_TLS1_3,
 							TlsCiphersuite: s2apb.Ciphersuite_AES_128_GCM_SHA256,
-						},
-						PeerIdentity: &s2apb.Identity{
-							IdentityOneof: &s2apb.Identity_SpiffeId{SpiffeId: ""},
+							InKey:          []byte("kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"),
+							OutKey:         []byte("kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"),
 						},
 						LocalIdentity: &s2apb.Identity{
 							IdentityOneof: &s2apb.Identity_Hostname{Hostname: "local hostname"},
