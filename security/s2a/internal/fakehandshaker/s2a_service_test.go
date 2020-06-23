@@ -1,11 +1,13 @@
 package main
 
 import (
+	"errors"
+	"testing"
+
 	"github.com/google/go-cmp/cmp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
-	"testing"
 )
 
 type fakeS2ASetupSessionServer struct {
@@ -22,7 +24,7 @@ func (f *fakeS2ASetupSessionServer) Send(resp *s2apb.SessionResp) error {
 
 func (f *fakeS2ASetupSessionServer) Recv() (*s2apb.SessionReq, error) {
 	if f.recvCount == len(f.reqs) {
-		return nil, nil
+		return nil, errors.New("request buffer was fully exhausted")
 	}
 	req := f.reqs[f.recvCount]
 	f.recvCount++
@@ -138,8 +140,8 @@ func TestSetupSession(t *testing.T) {
 						State: &s2apb.SessionState{
 							TlsVersion:     s2apb.TLSVersion_TLS1_3,
 							TlsCiphersuite: s2apb.Ciphersuite_AES_128_GCM_SHA256,
-							InKey:          []byte("kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"),
-							OutKey:         []byte("kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"),
+							InKey:          []byte(inKey),
+							OutKey:         []byte(outKey),
 						},
 						PeerIdentity: &s2apb.Identity{
 							IdentityOneof: &s2apb.Identity_SpiffeId{SpiffeId: "peer spiffe identity"},
@@ -252,8 +254,8 @@ func TestSetupSession(t *testing.T) {
 						State: &s2apb.SessionState{
 							TlsVersion:     s2apb.TLSVersion_TLS1_3,
 							TlsCiphersuite: s2apb.Ciphersuite_AES_128_GCM_SHA256,
-							InKey:          []byte("kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"),
-							OutKey:         []byte("kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"),
+							InKey:          []byte(inKey),
+							OutKey:         []byte(outKey),
 						},
 						LocalIdentity: &s2apb.Identity{
 							IdentityOneof: &s2apb.Identity_Hostname{Hostname: "local hostname"},
@@ -269,8 +271,8 @@ func TestSetupSession(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			hs := fakeHandshakerService{}
 			stream := &fakeS2ASetupSessionServer{reqs: tc.reqs}
-			if err := hs.SetUpSession(stream); err != nil {
-				t.Errorf("hs.SetUpSession failed: %v", err)
+			if got, want := hs.SetUpSession(stream) == nil, !tc.hasNonOKStatus; got != want {
+				t.Errorf("hs.SetUpSession(%v) = (err=nil) = %v, want %v", stream, got, want)
 			}
 			hasNonOKStatus := false
 			for i := range tc.reqs {
