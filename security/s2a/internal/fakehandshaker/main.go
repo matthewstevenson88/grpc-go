@@ -19,17 +19,17 @@ var (
 type handshakeState int
 
 const (
-	// initial is the initial state of the handshaker before any handshake
+	// initial is the state of the handshaker service before any handshake
 	// message has been received.
 	initial handshakeState = 0
-	// started is the state of the handshaker when the handshake has been
-	// initiated but no bytes have been sent or received.
+	// started is the state of the handshaker service when the handshake has
+	// been initiated but no bytes have been sent or received.
 	started handshakeState = 1
-	// sent is the state of the handshaker when the handshake has been
+	// sent is the state of the handshaker service when the handshake has been
 	// initiated and bytes have been sent.
 	sent handshakeState = 2
-	// completed is the state of the handshaker when the handshake has been
-	// completed.
+	// completed is the state of the handshaker service when the handshake has
+	// been completed.
 	completed handshakeState = 3
 )
 
