@@ -29,7 +29,6 @@ import (
 
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
-
 	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
 )
 

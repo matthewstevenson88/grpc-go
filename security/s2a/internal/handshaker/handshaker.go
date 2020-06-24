@@ -60,7 +60,7 @@ type ClientHandshakerOptions struct {
 	// TargetName is the allowed server name, which may be used for server
 	// authorization check by the S2A if it is provided.
 	TargetName string
-	// HandshakerServiceAddress stores the address of the S2A handshaker service.
+	// HandshakerServiceAddress is the address of the S2A handshaker service.
 	HandshakerServiceAddress string
 }
 
@@ -225,12 +225,6 @@ func (h *s2aHandshaker) setUpSession(req *s2apb.SessionReq) (net.Conn, *s2apb.Se
 		return nil, nil, err
 	}
 
-	var hsAddr string
-	if h.clientOpts != nil {
-		hsAddr = h.clientOpts.HandshakerServiceAddress
-	} else {
-		hsAddr = h.serverOpts.HandshakerServiceAddress
-	}
 	newConn, err := crypter.NewConn(&crypter.ConnOptions{
 		NetConn:          h.conn,
 		Ciphersuite:      result.GetState().GetTlsCiphersuite(),
@@ -240,10 +234,21 @@ func (h *s2aHandshaker) setUpSession(req *s2apb.SessionReq) (net.Conn, *s2apb.Se
 		UnusedBuf:        extra,
 		InSequence:       result.GetState().GetInSequence(),
 		OutSequence:      result.GetState().GetOutSequence(),
-		HsAddr:           hsAddr,
+		HsAddr:           h.getHandshakerServiceAddress(),
 	})
+	if err != nil {
+		return nil, nil, err
+	}
 
 	return newConn, result, nil
+}
+
+func (h *s2aHandshaker) getHandshakerServiceAddress() {
+	if h.clientOpts != nil {
+		return h.clientOpts.HandshakerServiceAddress
+	} else {
+		return h.serverOpts.HandshakerServiceAddress
+	}
 }
 
 // accessHandshakerService sends the session request to the S2A Handshaker
