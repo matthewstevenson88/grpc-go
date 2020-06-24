@@ -3,9 +3,10 @@ package record
 import (
 	"errors"
 	"fmt"
+	"net"
+
 	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
 	"google.golang.org/grpc/security/s2a/internal/record/internal/halfconn"
-	"net"
 )
 
 const (
@@ -59,9 +60,8 @@ type ConnOptions struct {
 	Ciphersuite                                  s2apb.Ciphersuite
 	TlsVersion                                   s2apb.TLSVersion
 	InTrafficSecret, OutTrafficSecret, UnusedBuf []byte
-	// TODO(rnkim): Add initial sequence number to half conneciton.
-	InSequence, OutSequence uint64
-	HsAddr                  string
+	InSequence, OutSequence                      uint64
+	HsAddr                                       string
 }
 
 func NewConn(o *ConnOptions) (net.Conn, error) {

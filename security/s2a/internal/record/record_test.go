@@ -2,10 +2,11 @@ package record
 
 import (
 	"bytes"
-	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
-	"google.golang.org/grpc/security/s2a/internal/record/internal/aeadcrypter/testutil"
 	"net"
 	"testing"
+
+	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
+	"google.golang.org/grpc/security/s2a/internal/record/internal/aeadcrypter/testutil"
 )
 
 // fakeConn is a fake implementation of the net.Conn interface used for testing.

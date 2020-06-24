@@ -85,7 +85,7 @@ var (
 				},
 			},
 		},
-		HandshakerServiceAddress: "test_server_handshaker_address",
+		HandshakerServiceAddress: "server_handshaker_address",
 	}
 
 	testClientSessionResult = &s2apb.SessionResult{
