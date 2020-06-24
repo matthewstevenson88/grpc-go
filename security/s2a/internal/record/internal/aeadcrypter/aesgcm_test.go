@@ -16,24 +16,24 @@
  *
  */
 
-package crypter
+package aeadcrypter
 
 import (
 	"fmt"
 	"testing"
 
-	"google.golang.org/grpc/security/s2a/internal/crypter/testutil"
+	"google.golang.org/grpc/security/s2a/internal/record/internal/aeadcrypter/testutil"
 )
 
 // getGCMCryptoPair outputs a sender/receiver pair on AES-GCM.
-func getGCMCryptoPair(key []byte, t *testing.T) (s2aAEADCrypter, s2aAEADCrypter) {
-	sender, err := newAESGCM(key)
+func getGCMCryptoPair(key []byte, t *testing.T) (S2AAEADCrypter, S2AAEADCrypter) {
+	sender, err := NewAESGCM(key)
 	if err != nil {
-		t.Fatalf("newAESGCM(ClientSide, key) = %v", err)
+		t.Fatalf("NewAESGCM(ClientSide, key) = %v", err)
 	}
-	receiver, err := newAESGCM(key)
+	receiver, err := NewAESGCM(key)
 	if err != nil {
-		t.Fatalf("newAESGCM(ServerSide, key) = %v", err)
+		t.Fatalf("NewAESGCM(ServerSide, key) = %v", err)
 	}
 	return sender, receiver
 }
@@ -47,32 +47,32 @@ func wycheProofTestVectorFilter(testGroup testutil.TestGroup) bool {
 		testGroup.TagSize != 128
 }
 
-func testGCMEncryptionDecryption(sender s2aAEADCrypter, receiver s2aAEADCrypter, tc *testutil.CryptoTestVector, t *testing.T) {
+func testGCMEncryptionDecryption(sender S2AAEADCrypter, receiver S2AAEADCrypter, tc *testutil.CryptoTestVector, t *testing.T) {
 	// ciphertext is: encrypted text + tag.
 	ciphertext := append(tc.Ciphertext, tc.Tag...)
 
 	// Encrypt.
 	var dst []byte
 	if tc.AllocateDst {
-		dst = make([]byte, len(tc.Plaintext)+sender.tagSize())
+		dst = make([]byte, len(tc.Plaintext)+sender.TagSize())
 	}
-	got, err := sender.encrypt(dst[:0], tc.Plaintext, tc.Nonce, tc.Aad)
+	got, err := sender.Encrypt(dst[:0], tc.Plaintext, tc.Nonce, tc.Aad)
 	if testutil.IsFailure(tc.Result, err, got, ciphertext) {
 		t.Errorf("key=%v\nEncrypt(\n dst = %v\n plaintext = %v\n nonce = %v\n aad = %v\n) = (\n %v\n %v\n), want %v",
 			tc.Key, dst[:0], tc.Plaintext, tc.Nonce, tc.Aad, got, err, ciphertext)
 	}
 
 	// Decrypt.
-	got, err = receiver.decrypt(nil, ciphertext, tc.Nonce, tc.Aad)
+	got, err = receiver.Decrypt(nil, ciphertext, tc.Nonce, tc.Aad)
 	if testutil.IsFailure(tc.Result, err, got, tc.Plaintext) {
 		t.Errorf("key=%v\nDecrypt(\n dst = nil\n ciphertext = %v\n nonce = %v\n aad = %v\n) = (\n %v\n %v\n), want %v",
 			tc.Key, ciphertext, tc.Nonce, tc.Aad, got, err, tc.Plaintext)
 	}
 }
 
-func testGCMEncryptRoundtrip(sender s2aAEADCrypter, receiver s2aAEADCrypter, t *testing.T) {
+func testGCMEncryptRoundtrip(sender S2AAEADCrypter, receiver S2AAEADCrypter, t *testing.T) {
 	// Construct a dummy nonce.
-	nonce := make([]byte, nonceSize)
+	nonce := make([]byte, NonceSize)
 
 	// Encrypt.
 	const plaintext = "This is plaintext."
@@ -80,13 +80,13 @@ func testGCMEncryptRoundtrip(sender s2aAEADCrypter, receiver s2aAEADCrypter, t *
 	// Reuse `buf` as both the input and output buffer. This is required to test
 	// the case where the input and output buffers fully overlap.
 	buf := []byte(plaintext)
-	ciphertext, err := sender.encrypt(buf[:0], buf, nonce, nil)
+	ciphertext, err := sender.Encrypt(buf[:0], buf, nonce, nil)
 	if err != nil {
 		t.Fatalf("Encrypt(%v, %v, %v, nil) failed: %v", buf[:0], buf, nonce, err)
 	}
 
 	// Decrypt first message.
-	decryptedPlaintext, err := receiver.decrypt(ciphertext[:0], ciphertext, nonce, nil)
+	decryptedPlaintext, err := receiver.Decrypt(ciphertext[:0], ciphertext, nonce, nil)
 	if err != nil {
 		t.Fatalf("Decrypt(%v, %v, %v, nil) failed: %v", ciphertext[:0], ciphertext, nonce, err)
 	}
@@ -99,14 +99,14 @@ func testGCMEncryptRoundtrip(sender s2aAEADCrypter, receiver s2aAEADCrypter, t *
 func TestAESGCMInvalidKeySize(t *testing.T) {
 	// Use 17 bytes, which is invalid
 	key := make([]byte, 17)
-	if _, err := newAESGCM(key); err == nil {
+	if _, err := NewAESGCM(key); err == nil {
 		t.Error("expected an error when using invalid key size")
 	}
 }
 
 // Test encrypt and decrypt on roundtrip messages for AES-GCM.
 func TestAESGCMEncryptRoundtrip(t *testing.T) {
-	for _, keySize := range []int{aes128GcmKeySize, aes256GcmKeySize} {
+	for _, keySize := range []int{AES128GCMKeySize, AES256GCMKeySize} {
 		t.Run(fmt.Sprintf("keySize=%d", keySize), func(t *testing.T) {
 			key := make([]byte, keySize)
 			sender, receiver := getGCMCryptoPair(key, t)
