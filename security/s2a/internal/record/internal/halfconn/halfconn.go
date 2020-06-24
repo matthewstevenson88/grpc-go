@@ -28,9 +28,9 @@ type S2AHalfConnection struct {
 	nonce         []byte
 }
 
-// NewHalfConn creates a new instance of S2AHalfConnection given a ciphersuite
-// and a traffic secret.
-func NewHalfConn(ciphersuite s2apb.Ciphersuite, trafficSecret []byte, sequence uint64) (*S2AHalfConnection, error) {
+// New creates a new instance of S2AHalfConnection given a ciphersuite and a
+// traffic secret.
+func New(ciphersuite s2apb.Ciphersuite, trafficSecret []byte, sequence uint64) (*S2AHalfConnection, error) {
 	cs, err := newCiphersuite(ciphersuite)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new ciphersuite: %v", ciphersuite)
