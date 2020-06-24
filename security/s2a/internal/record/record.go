@@ -56,12 +56,27 @@ type conn struct {
 
 // ConnOptions holds the options used for creating a new conn object.
 type ConnOptions struct {
-	NetConn                                      net.Conn
-	Ciphersuite                                  s2apb.Ciphersuite
-	TlsVersion                                   s2apb.TLSVersion
-	InTrafficSecret, OutTrafficSecret, UnusedBuf []byte
-	InSequence, OutSequence                      uint64
-	HsAddr                                       string
+	// NetConn is the current TLS record.
+	NetConn net.Conn
+	// Ciphersuite is the TLS ciphersuite negotiated by the S2A's handshaker
+	// module.
+	Ciphersuite s2apb.Ciphersuite
+	// TlsVersion is the TLS version number that the S2A's handshaker module
+	// used to set up the session.
+	TlsVersion s2apb.TLSVersion
+	// InTrafficSecret is the key for the in bound direction.
+	InTrafficSecret []byte
+	// OutTrafficSecret is the key for the out bound direction.
+	OutTrafficSecret []byte
+	// UnusedBuf is the data read from the network that has not yet been
+	// decrypted.
+	UnusedBuf []byte
+	// InSequence is the sequence number of the next, incoming, TLS record.
+	InSequence uint64
+	// OutSequence is the sequence number of the next, outgoing, TLS record.
+	OutSequence uint64
+	// hsAddr stores the address of the S2A handshaker service.
+	HsAddr string
 }
 
 func NewConn(o *ConnOptions) (net.Conn, error) {
