@@ -28,7 +28,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/security/s2a/internal/authinfo"
-	"google.golang.org/grpc/security/s2a/internal/crypter"
+	"google.golang.org/grpc/security/s2a/internal/record"
 	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
 )
 
@@ -224,8 +224,8 @@ func (h *s2aHandshaker) setUpSession(req *s2apb.SessionReq) (net.Conn, *s2apb.Se
 	if err != nil {
 		return nil, nil, err
 	}
-
-	newConn, err := crypter.NewConn(&crypter.ConnOptions{
+	// create a new net.Conn with updated information
+	newConn, err := record.NewConn(&record.ConnOptions{
 		NetConn:          h.conn,
 		Ciphersuite:      result.GetState().GetTlsCiphersuite(),
 		TlsVersion:       result.GetState().GetTlsVersion(),
@@ -241,14 +241,6 @@ func (h *s2aHandshaker) setUpSession(req *s2apb.SessionReq) (net.Conn, *s2apb.Se
 	}
 
 	return newConn, result, nil
-}
-
-func (h *s2aHandshaker) getHandshakerServiceAddress() {
-	if h.clientOpts != nil {
-		return h.clientOpts.HandshakerServiceAddress
-	} else {
-		return h.serverOpts.HandshakerServiceAddress
-	}
 }
 
 // accessHandshakerService sends the session request to the S2A Handshaker
@@ -317,4 +309,12 @@ func (h *s2aHandshaker) processUntilDone(resp *s2apb.SessionResp, unusedBytes []
 // the secure connection at the end of the handshake; otherwise it is a no-op.
 func (h *s2aHandshaker) Close() {
 	h.stream.CloseSend()
+}
+
+func (h *s2aHandshaker) getHandshakerServiceAddress() string {
+	if h.clientOpts != nil {
+		return h.clientOpts.HandshakerServiceAddress
+	} else {
+		return h.serverOpts.HandshakerServiceAddress
+	}
 }

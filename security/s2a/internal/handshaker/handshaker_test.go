@@ -24,7 +24,6 @@ import (
 	"errors"
 	"io"
 	"net"
-	"reflect"
 	"testing"
 
 	"golang.org/x/sync/errgroup"
@@ -299,8 +298,8 @@ func TestClientHandshake(t *testing.T) {
 			!bytes.Equal(auth.PeerCertFingerprint(), result.GetPeerCertFingerprint()) {
 			return errors.New("Authinfo s2a context incorrect")
 		}
-		if reflect.ValueOf(newConn).Elem().Field(0).Interface() != chs.conn {
-			return errors.New("Handshaker netConn incorrect")
+		if newConn == nil{
+			return errors.New("Expected non-nil net.Conn")
 		}
 		chs.Close()
 		return nil
@@ -348,8 +347,8 @@ func TestServerHandshake(t *testing.T) {
 			!bytes.Equal(auth.PeerCertFingerprint(), result.GetPeerCertFingerprint()) {
 			return errors.New("Authinfo s2a context incorrect")
 		}
-		if reflect.ValueOf(newConn).Elem().Field(0).Interface() != shs.conn {
-			return errors.New("Handshaker netConn incorrect")
+		if newConn == nil{
+			return errors.New("Expected non-nil net.Conn")
 		}
 		shs.Close()
 		return nil
