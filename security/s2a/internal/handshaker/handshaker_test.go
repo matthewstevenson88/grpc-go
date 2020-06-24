@@ -32,6 +32,9 @@ import (
 )
 
 var (
+	// testHSAddr is the handshaker service address used for testing
+	testHSAddr = "handshaker_address"
+
 	// testClientHandshakerOptions are the client-side handshaker options used for
 	// testing.
 	testClientHandshakerOptions = &ClientHandshakerOptions{
@@ -59,8 +62,7 @@ var (
 				SpiffeId: "client_local_spiffe_id",
 			},
 		},
-		TargetName:               "target_name",
-		HandshakerServiceAddress: "client_handshaker_address",
+		TargetName: "target_name",
 	}
 
 	// testServerHandshakerOptions are the server-side handshaker options used for
@@ -85,7 +87,6 @@ var (
 				},
 			},
 		},
-		HandshakerServiceAddress: "server_handshaker_address",
 	}
 
 	testClientSessionResult = &s2apb.SessionResult{
@@ -240,7 +241,7 @@ func TestNewClientHandshaker(t *testing.T) {
 		in:  in,
 		out: new(bytes.Buffer),
 	}
-	chs := newClientHandshaker(stream, c, testClientHandshakerOptions)
+	chs := newClientHandshaker(stream, c, testHSAddr, testClientHandshakerOptions)
 	if chs.clientOpts != testClientHandshakerOptions || chs.conn != c {
 		t.Errorf("handshaker parameters incorrect")
 	}
@@ -256,7 +257,7 @@ func TestNewServerHandshaker(t *testing.T) {
 		in:  in,
 		out: new(bytes.Buffer),
 	}
-	shs := newServerHandshaker(stream, c, testServerHandshakerOptions)
+	shs := newServerHandshaker(stream, c, testHSAddr, testServerHandshakerOptions)
 	if shs.serverOpts != testServerHandshakerOptions || shs.conn != c {
 		t.Errorf("handshaker parameters incorrect")
 	}
@@ -277,10 +278,11 @@ func TestClientHandshake(t *testing.T) {
 		out: new(bytes.Buffer),
 	}
 	chs := &s2aHandshaker{
-		stream:     stream,
-		conn:       c,
-		clientOpts: testClientHandshakerOptions,
-		isClient:   true,
+		stream:                   stream,
+		conn:                     c,
+		clientOpts:               testClientHandshakerOptions,
+		isClient:                 true,
+		handshakerServiceAddress: testHSAddr,
 	}
 	result := testClientSessionResult
 	errg.Go(func() error {
@@ -325,10 +327,11 @@ func TestServerHandshake(t *testing.T) {
 		out: new(bytes.Buffer),
 	}
 	shs := &s2aHandshaker{
-		stream:     stream,
-		conn:       c,
-		serverOpts: testServerHandshakerOptions,
-		isClient:   false,
+		stream:                   stream,
+		conn:                     c,
+		serverOpts:               testServerHandshakerOptions,
+		isClient:                 false,
+		handshakerServiceAddress: testHSAddr,
 	}
 	result := testServerSessionResult
 	errg.Go(func() error {
@@ -382,10 +385,11 @@ func TestPeerNotResponding(t *testing.T) {
 	stream := &fakeInvalidStream{}
 	c := &fakeInvalidConn{}
 	chs := &s2aHandshaker{
-		stream:     stream,
-		conn:       c,
-		clientOpts: testClientHandshakerOptions,
-		isClient:   true,
+		stream:                   stream,
+		conn:                     c,
+		clientOpts:               testClientHandshakerOptions,
+		isClient:                 true,
+		handshakerServiceAddress: testHSAddr,
 	}
 	_, context, err := chs.ClientHandshake(context.Background())
 	chs.Close()

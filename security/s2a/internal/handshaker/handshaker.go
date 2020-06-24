@@ -60,8 +60,6 @@ type ClientHandshakerOptions struct {
 	// TargetName is the allowed server name, which may be used for server
 	// authorization check by the S2A if it is provided.
 	TargetName string
-	// HandshakerServiceAddress is the address of the S2A handshaker service.
-	HandshakerServiceAddress string
 }
 
 // ServerHandshakerOptions contains the options needed to configure the S2A
@@ -76,8 +74,6 @@ type ServerHandshakerOptions struct {
 	// The local identities that may be assumed by the server. If no local
 	// identity is specified, then the S2A chooses a default local identity.
 	LocalIdentities []*s2apb.Identity
-	// HandshakerServiceAddress stores the address of the S2A handshaker service.
-	HandshakerServiceAddress string
 }
 
 // s2aHandshaker performs a TLS handshake using the S2A handshaker service.
@@ -92,43 +88,47 @@ type s2aHandshaker struct {
 	serverOpts *ServerHandshakerOptions
 	// isClient determines if the handshaker is client or server side
 	isClient bool
+	// HandshakerServiceAddress stores the address of the S2A handshaker service.
+	handshakerServiceAddress string
 }
 
 // NewClientHandshaker creates an s2aHandshaker instance that performs a
 // client-side TLS handshake using the S2A handshaker service.
-func NewClientHandshaker(ctx context.Context, conn *grpc.ClientConn, c net.Conn, opts *ClientHandshakerOptions) (*s2aHandshaker, error) {
+func NewClientHandshaker(ctx context.Context, conn *grpc.ClientConn, c net.Conn, hsAddr string, opts *ClientHandshakerOptions) (*s2aHandshaker, error) {
 	stream, err := s2apb.NewS2AServiceClient(conn).SetUpSession(ctx, grpc.WaitForReady(true))
 	if err != nil {
 		return nil, err
 	}
-	return newClientHandshaker(stream, c, opts), err
+	return newClientHandshaker(stream, c, hsAddr, opts), err
 }
 
-func newClientHandshaker(stream s2apb.S2AService_SetUpSessionClient, c net.Conn, opts *ClientHandshakerOptions) *s2aHandshaker {
+func newClientHandshaker(stream s2apb.S2AService_SetUpSessionClient, c net.Conn, hsAddr string, opts *ClientHandshakerOptions) *s2aHandshaker {
 	return &s2aHandshaker{
-		stream:     stream,
-		conn:       c,
-		clientOpts: opts,
-		isClient:   true,
+		stream:                   stream,
+		conn:                     c,
+		clientOpts:               opts,
+		isClient:                 true,
+		handshakerServiceAddress: hsAddr,
 	}
 }
 
 // NewServerHandshaker creates an s2aHandshaker instance that performs a
 // server-side TLS handshake using the S2A handshaker service.
-func NewServerHandshaker(ctx context.Context, conn *grpc.ClientConn, c net.Conn, opts *ServerHandshakerOptions) (*s2aHandshaker, error) {
+func NewServerHandshaker(ctx context.Context, conn *grpc.ClientConn, c net.Conn, hsAddr string, opts *ServerHandshakerOptions) (*s2aHandshaker, error) {
 	stream, err := s2apb.NewS2AServiceClient(conn).SetUpSession(ctx, grpc.WaitForReady(true))
 	if err != nil {
 		return nil, err
 	}
-	return newServerHandshaker(stream, c, opts), err
+	return newServerHandshaker(stream, c, hsAddr, opts), err
 }
 
-func newServerHandshaker(stream s2apb.S2AService_SetUpSessionClient, c net.Conn, opts *ServerHandshakerOptions) *s2aHandshaker {
+func newServerHandshaker(stream s2apb.S2AService_SetUpSessionClient, c net.Conn, hsAddr string, opts *ServerHandshakerOptions) *s2aHandshaker {
 	return &s2aHandshaker{
-		stream:     stream,
-		conn:       c,
-		serverOpts: opts,
-		isClient:   false,
+		stream:                   stream,
+		conn:                     c,
+		serverOpts:               opts,
+		isClient:                 false,
+		handshakerServiceAddress: hsAddr,
 	}
 }
 
@@ -234,7 +234,7 @@ func (h *s2aHandshaker) setUpSession(req *s2apb.SessionReq) (net.Conn, *s2apb.Se
 		UnusedBuf:        extra,
 		InSequence:       result.GetState().GetInSequence(),
 		OutSequence:      result.GetState().GetOutSequence(),
-		HsAddr:           h.getHandshakerServiceAddress(),
+		HsAddr:           h.handshakerServiceAddress,
 	})
 	if err != nil {
 		return nil, nil, err
@@ -308,12 +308,4 @@ func (h *s2aHandshaker) processUntilDone(resp *s2apb.SessionResp, unusedBytes []
 // the secure connection at the end of the handshake; otherwise it is a no-op.
 func (h *s2aHandshaker) Close() {
 	h.stream.CloseSend()
-}
-
-func (h *s2aHandshaker) getHandshakerServiceAddress() string {
-	if h.clientOpts != nil {
-		return h.clientOpts.HandshakerServiceAddress
-	} else {
-		return h.serverOpts.HandshakerServiceAddress
-	}
 }
