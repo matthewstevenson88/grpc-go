@@ -1,9 +1,10 @@
-package crypter
+package record
 
 import (
 	"errors"
 	"fmt"
 	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
+	"google.golang.org/grpc/security/s2a/internal/record/internal/halfconn"
 	"net"
 )
 
@@ -29,9 +30,9 @@ const (
 type conn struct {
 	net.Conn
 	// inConn is the half connection responsible for decrypting incoming bytes.
-	inConn *S2AHalfConnection
+	inConn *halfconn.S2AHalfConnection
 	// outConn is the half connection responsible for encrypting outgoing bytes.
-	outConn *S2AHalfConnection
+	outConn *halfconn.S2AHalfConnection
 	// pendingApplicationData holds data that has been read from the connection
 	// and decrypted, but has not yet been returned by Read.
 	pendingApplicationData []byte
@@ -58,9 +59,8 @@ type ConnOptions struct {
 	ciphersuite                                  s2apb.Ciphersuite
 	tlsVersion                                   s2apb.TLSVersion
 	inTrafficSecret, outTrafficSecret, unusedBuf []byte
-	// TODO(rnkim): Add initial sequence number to half conneciton.
-	inSequence, outSequence uint64
-	hsAddr                  string
+	inSequence, outSequence                      uint64
+	hsAddr                                       string
 }
 
 func NewConn(o *ConnOptions) (net.Conn, error) {
@@ -71,11 +71,11 @@ func NewConn(o *ConnOptions) (net.Conn, error) {
 		return nil, errors.New("TLS version must be TLS 1.3")
 	}
 
-	inConn, err := NewHalfConn(o.ciphersuite, o.inTrafficSecret, o.inSequence)
+	inConn, err := halfconn.New(o.ciphersuite, o.inTrafficSecret, o.inSequence)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create inbound half connection: %v", err)
 	}
-	outConn, err := NewHalfConn(o.ciphersuite, o.outTrafficSecret, o.outSequence)
+	outConn, err := halfconn.New(o.ciphersuite, o.outTrafficSecret, o.outSequence)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create outbound half connection: %v", err)
 	}
