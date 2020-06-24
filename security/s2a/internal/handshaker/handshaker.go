@@ -25,9 +25,10 @@ import (
 	"io"
 	"net"
 
-	grpc "google.golang.org/grpc"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/security/s2a/internal/authinfo"
+	"google.golang.org/grpc/security/s2a/internal/crypter"
 	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
 )
 
@@ -56,6 +57,8 @@ type ClientHandshakerOptions struct {
 	// TargetName is the allowed server name, which may be used for server
 	// authorization check by the S2A if it is provided.
 	TargetName string
+	// HandshakerServiceAddress stores the address of the S2A handshaker service.
+	HandshakerServiceAddress string
 }
 
 // ServerHandshakerOptions contains the options needed to configure the S2A
@@ -70,6 +73,8 @@ type ServerHandshakerOptions struct {
 	// The local identities that may be assumed by the server. If no local
 	// identity is specified, then the S2A chooses a default local identity.
 	LocalIdentities []*s2apb.Identity
+	// HandshakerServiceAddress stores the address of the S2A handshaker service.
+	HandshakerServiceAddress string
 }
 
 // s2aHandshaker performs a TLS handshake using the S2A handshaker service.
@@ -215,9 +220,26 @@ func (h *s2aHandshaker) setUpSession(req *s2apb.SessionReq) (net.Conn, *s2apb.Se
 	if err != nil {
 		return nil, nil, err
 	}
-	// TODO(gud): use the NewConn API to construct the record protocol when PR#29
-	// is merged.
-	return h.conn, result, nil
+
+	var hsAddr string
+	if h.clientOpts != nil {
+		hsAddr = h.clientOpts.HandshakerServiceAddress
+	} else {
+		hsAddr = h.serverOpts.HandshakerServiceAddress
+	}
+	newConn, err := crypter.NewConn(&crypter.ConnOptions{
+		NetConn:          h.conn,
+		Ciphersuite:      result.GetState().GetTlsCiphersuite(),
+		TlsVersion:       result.GetState().GetTlsVersion(),
+		InTrafficSecret:  result.GetState().GetInKey(),
+		OutTrafficSecret: result.GetState().GetOutKey(),
+		UnusedBuf:        extra,
+		InSequence:       result.GetState().GetInSequence(),
+		OutSequence:      result.GetState().GetOutSequence(),
+		HsAddr:           hsAddr,
+	})
+
+	return newConn, result, nil
 }
 
 // accessHandshakerService sends the session request to the S2A Handshaker service

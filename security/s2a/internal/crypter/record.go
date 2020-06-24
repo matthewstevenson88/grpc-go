@@ -54,28 +54,28 @@ type conn struct {
 
 // ConnOptions holds the options used for creating a new conn object.
 type ConnOptions struct {
-	netConn                                      net.Conn
-	ciphersuite                                  s2apb.Ciphersuite
-	tlsVersion                                   s2apb.TLSVersion
-	inTrafficSecret, outTrafficSecret, unusedBuf []byte
+	NetConn                                      net.Conn
+	Ciphersuite                                  s2apb.Ciphersuite
+	TlsVersion                                   s2apb.TLSVersion
+	InTrafficSecret, OutTrafficSecret, UnusedBuf []byte
 	// TODO(rnkim): Add initial sequence number to half conneciton.
-	inSequence, outSequence uint64
-	hsAddr                  string
+	InSequence, OutSequence uint64
+	HsAddr                  string
 }
 
 func NewConn(o *ConnOptions) (net.Conn, error) {
 	if o == nil {
 		return nil, errors.New("conn options must not be nil")
 	}
-	if o.tlsVersion != s2apb.TLSVersion_TLS1_3 {
+	if o.TlsVersion != s2apb.TLSVersion_TLS1_3 {
 		return nil, errors.New("TLS version must be TLS 1.3")
 	}
 
-	inConn, err := NewHalfConn(o.ciphersuite, o.inTrafficSecret, o.inSequence)
+	inConn, err := NewHalfConn(o.Ciphersuite, o.InTrafficSecret, o.InSequence)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create inbound half connection: %v", err)
 	}
-	outConn, err := NewHalfConn(o.ciphersuite, o.outTrafficSecret, o.outSequence)
+	outConn, err := NewHalfConn(o.Ciphersuite, o.OutTrafficSecret, o.OutSequence)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create outbound half connection: %v", err)
 	}
@@ -84,20 +84,20 @@ func NewConn(o *ConnOptions) (net.Conn, error) {
 	overheadSize := tlsRecordHeaderSize + tlsRecordTypeSize + inConn.TagSize()
 	var unusedBuf []byte
 	// TODO(gud): Potentially optimize unusedBuf with pre-allocation.
-	if o.unusedBuf != nil {
-		unusedBuf = make([]byte, len(o.unusedBuf))
-		copy(unusedBuf, o.unusedBuf)
+	if o.UnusedBuf != nil {
+		unusedBuf = make([]byte, len(o.UnusedBuf))
+		copy(unusedBuf, o.UnusedBuf)
 	}
 
 	s2aConn := &conn{
-		Conn:          o.netConn,
+		Conn:          o.NetConn,
 		inConn:        inConn,
 		outConn:       outConn,
 		unusedBuf:     unusedBuf,
 		outRecordsBuf: make([]byte, outBufSize),
 		nextRecord:    unusedBuf,
 		overheadSize:  overheadSize,
-		hsAddr:        o.hsAddr,
+		hsAddr:        o.HsAddr,
 	}
 	return s2aConn, nil
 }
