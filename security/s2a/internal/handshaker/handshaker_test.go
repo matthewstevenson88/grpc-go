@@ -19,16 +19,22 @@
 package handshaker
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"io"
 	"net"
 	"testing"
 
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
+
 	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
 )
 
 var (
-	// testClientHandshakerOptions are the client handshaker options used for testing
+	// testClientHandshakerOptions are the client-side handshaker options used for
+	// testing.
 	testClientHandshakerOptions = &ClientHandshakerOptions{
 		MinTLSVersion: s2apb.TLSVersion_TLS1_2,
 		MaxTLSVersion: s2apb.TLSVersion_TLS1_3,
@@ -57,7 +63,8 @@ var (
 		TargetName: "target_name",
 	}
 
-	// testServerHandshakerOptions are the server handshaker options used for testing
+	// testServerHandshakerOptions are the server-side handshaker options used for
+	// testing.
 	testServerHandshakerOptions = &ServerHandshakerOptions{
 		MinTLSVersion: s2apb.TLSVersion_TLS1_2,
 		MaxTLSVersion: s2apb.TLSVersion_TLS1_3,
@@ -74,86 +81,314 @@ var (
 			},
 			&s2apb.Identity{
 				IdentityOneof: &s2apb.Identity_Hostname{
-					Hostname: "server_local__hostname",
+					Hostname: "server_local_hostname",
 				},
 			},
 		},
+	}
+
+	testClientSessionResult = &s2apb.SessionResult{
+		ApplicationProtocol: "grpc",
+		State: &s2apb.SessionState{
+			TlsVersion:     s2apb.TLSVersion_TLS1_3,
+			TlsCiphersuite: s2apb.Ciphersuite_AES_128_GCM_SHA256,
+			InSequence:     0,
+			OutSequence:    0,
+			InKey:          make([]byte, 32),
+			OutKey:         make([]byte, 32),
+		},
+		PeerIdentity: &s2apb.Identity{
+			IdentityOneof: &s2apb.Identity_SpiffeId{
+				SpiffeId: "client_local_spiffe_id",
+			},
+		},
+		LocalIdentity: &s2apb.Identity{
+			IdentityOneof: &s2apb.Identity_SpiffeId{
+				SpiffeId: "server_local_spiffe_id",
+			},
+		},
+		LocalCertFingerprint: []byte("client_cert_fingerprint"),
+		PeerCertFingerprint:  []byte("server_cert_fingerprint"),
+	}
+
+	testServerSessionResult = &s2apb.SessionResult{
+		ApplicationProtocol: "grpc",
+		State: &s2apb.SessionState{
+			TlsVersion:     s2apb.TLSVersion_TLS1_3,
+			TlsCiphersuite: s2apb.Ciphersuite_AES_128_GCM_SHA256,
+			InSequence:     0,
+			OutSequence:    0,
+			InKey:          make([]byte, 32),
+			OutKey:         make([]byte, 32),
+		},
+		PeerIdentity: &s2apb.Identity{
+			IdentityOneof: &s2apb.Identity_SpiffeId{
+				SpiffeId: "server_local_spiffe_id",
+			},
+		},
+		LocalIdentity: &s2apb.Identity{
+			IdentityOneof: &s2apb.Identity_SpiffeId{
+				SpiffeId: "client_local_spiffe_id",
+			},
+		},
+		LocalCertFingerprint: []byte("server_cert_fingerprint"),
+		PeerCertFingerprint:  []byte("client_cert_fingerprint"),
 	}
 )
 
 // fakeStream is a fake implementation of the grpc.ClientStream interface that
 // is used for testing.
-type fakeStream struct{ grpc.ClientStream }
+type fakeStream struct {
+	grpc.ClientStream
+	t *testing.T
+	// expectedResp is the expected SessionResp message from the handshaker
+	//  service.
+	expectedResp *s2apb.SessionResp
+	// isFirstAccess indicates whether the first call to the handshaker service
+	// has been made or not.
+	isFirstAccess bool
+	isClient      bool
+}
 
-func (*fakeStream) Recv() (*s2apb.SessionResp, error) { return new(s2apb.SessionResp), nil }
-func (*fakeStream) Send(*s2apb.SessionReq) error      { return nil }
+func (fs *fakeStream) Recv() (*s2apb.SessionResp, error) {
+	resp := fs.expectedResp
+	fs.expectedResp = nil
+	return resp, nil
+}
+func (fs *fakeStream) Send(req *s2apb.SessionReq) error {
+	var resp *s2apb.SessionResp
+	if !fs.isFirstAccess {
+		// Generate the bytes to be returned by Recv() for the first handshake
+		// message.
+		fs.isFirstAccess = true
+		if fs.isClient {
+			resp = &s2apb.SessionResp{
+				OutFrames: []byte("ClientHello"),
+				// There are no consumed bytes for a client start message
+				BytesConsumed: 0,
+			}
+		} else {
+			resp = &s2apb.SessionResp{
+				OutFrames: []byte("ServerHello"),
+				// Simulate consuming the ClientHello message.
+				BytesConsumed: uint32(len("ClientHello")),
+			}
+		}
+	} else {
+		// Construct a SessionResp message that contains the handshake result.
+		if fs.isClient {
+			resp = &s2apb.SessionResp{
+				Result: testClientSessionResult,
+				// Simulate consuming the ClientFinished message.
+				BytesConsumed: uint32(len("ClientFinished")),
+			}
+		} else {
+			resp = &s2apb.SessionResp{
+				Result: testServerSessionResult,
+				// Simulate consuming the ServerFinished message.
+				BytesConsumed: uint32(len("ServerFinished")),
+			}
+		}
+
+	}
+	fs.expectedResp = resp
+	return nil
+}
+
+func (*fakeStream) CloseSend() error { return nil }
+
+// fakeInvalidStream is a fake implementation of an invalid grpc.ClientStream
+// interface that is used for testing.
+type fakeInvalidStream struct {
+	grpc.ClientStream
+}
+
+func (*fakeInvalidStream) Recv() (*s2apb.SessionResp, error) { return &s2apb.SessionResp{}, nil }
+func (*fakeInvalidStream) Send(*s2apb.SessionReq) error      { return nil }
+func (*fakeInvalidStream) CloseSend() error                  { return nil }
 
 // fakeConn is a fake implementation of the net.Conn interface that is used for
 // testing.
-type fakeConn struct{ net.Conn }
+type fakeConn struct {
+	net.Conn
+	in  *bytes.Buffer
+	out *bytes.Buffer
+}
+
+func (fc *fakeConn) Read(b []byte) (n int, err error)  { return fc.in.Read(b) }
+func (fc *fakeConn) Write(b []byte) (n int, err error) { return fc.out.Write(b) }
+func (fc *fakeConn) Close() error                      { return nil }
+
+// fakeInvalidConn is a fake implementation of a invalid net.Conn interface//
+// that is used for testing.
+type fakeInvalidConn struct {
+	net.Conn
+}
+
+func (fc *fakeInvalidConn) Read(b []byte) (n int, err error)  { return 0, io.EOF }
+func (fc *fakeInvalidConn) Write(b []byte) (n int, err error) { return 0, nil }
+func (fc *fakeInvalidConn) Close() error                      { return nil }
 
 // TestNewClientHandshaker creates a fake stream, and ensures that
-// newClientHandshakerInternal returns a valid client-side handshaker instance.
+// newClientHandshaker returns a valid client-side handshaker instance.
 func TestNewClientHandshaker(t *testing.T) {
 	stream := &fakeStream{}
-	c := &fakeConn{}
-	shs := newClientHandshaker(stream, c, testClientHandshakerOptions)
-	if shs.clientOpts != testClientHandshakerOptions || shs.conn != c {
+	in := bytes.NewBuffer([]byte("ClientInit"))
+	in.Write([]byte("ClientFinished"))
+	c := &fakeConn{
+		in:  in,
+		out: new(bytes.Buffer),
+	}
+	chs := newClientHandshaker(stream, c, testClientHandshakerOptions)
+	if chs.clientOpts != testClientHandshakerOptions || chs.conn != c {
 		t.Errorf("handshaker parameters incorrect")
 	}
 }
 
 // TestNewServerHandshaker creates a fake stream, and ensures that
-// newServerHandshakerInternal returns a valid server-side handshaker instance.
+// newServerHandshaker returns a valid server-side handshaker instance.
 func TestNewServerHandshaker(t *testing.T) {
 	stream := &fakeStream{}
-	c := &fakeConn{}
+	in := bytes.NewBuffer([]byte("ServerInit"))
+	in.Write([]byte("ServerFinished"))
+	c := &fakeConn{
+		in:  in,
+		out: new(bytes.Buffer),
+	}
 	shs := newServerHandshaker(stream, c, testServerHandshakerOptions)
 	if shs.serverOpts != testServerHandshakerOptions || shs.conn != c {
 		t.Errorf("handshaker parameters incorrect")
 	}
 }
 
-// Test unimplemented methods
-func TestProcessUntilDone(t *testing.T) {
-	shs := &s2aHandshaker{}
-	resp := &s2apb.SessionResp{}
-	result, extra, err := shs.processUntilDone(resp, make([]byte, 4))
-	if err == nil || result != nil || extra != nil {
-		t.Errorf("Method should be unimplemented")
-	}
-}
-
-func TestAccessHandshakerService(t *testing.T) {
-	shs := &s2aHandshaker{}
-	req := &s2apb.SessionReq{}
-	resp, err := shs.accessHandshakerService(req)
-	if err == nil || resp != nil {
-		t.Errorf("Method should be unimplemented")
-	}
-}
-
-func TestSetUpSession(t *testing.T) {
-	shs := &s2aHandshaker{}
-	req := &s2apb.SessionReq{}
-	context, result, err := shs.setUpSession(req)
-	if err == nil || context != nil || result != nil {
-		t.Errorf("Method should be unimplemented")
-	}
-}
-
+// TestClienthandshake creates a fake S2A handshaker and performs a client-side
+// handshake.
 func TestClientHandshake(t *testing.T) {
-	shs := &s2aHandshaker{}
-	context, err := shs.ClientHandshake(context.Background())
-	if err == nil || context != nil {
-		t.Errorf("Method should be unimplemented")
+	var errg errgroup.Group
+	stream := &fakeStream{
+		t:        t,
+		isClient: true,
+	}
+	in := bytes.NewBuffer([]byte("ClientHello"))
+	in.Write([]byte("ClientFinished"))
+	c := &fakeConn{
+		in:  in,
+		out: new(bytes.Buffer),
+	}
+	chs := &s2aHandshaker{
+		stream:     stream,
+		conn:       c,
+		clientOpts: testClientHandshakerOptions,
+		isClient:   true,
+	}
+	result := testClientSessionResult
+	errg.Go(func() error {
+		// Returned conn is ignored until record protocol is implemented.
+		// TODO(gud): Add tests for returned conn.
+		_, auth, err := chs.ClientHandshake(context.Background())
+		if err != nil {
+			return err
+		}
+		if auth.ApplicationProtocol() != result.GetApplicationProtocol() ||
+			auth.TLSVersion() != result.GetState().GetTlsVersion() ||
+			auth.Ciphersuite() != result.GetState().GetTlsCiphersuite() ||
+			auth.PeerIdentity() != result.GetPeerIdentity() ||
+			auth.LocalIdentity() != result.GetLocalIdentity() ||
+			!bytes.Equal(auth.LocalCertFingerprint(), result.GetLocalCertFingerprint()) ||
+			!bytes.Equal(auth.PeerCertFingerprint(), result.GetPeerCertFingerprint()) {
+			return errors.New("Authinfo s2a context incorrect")
+		}
+		chs.Close()
+		return nil
+	})
+
+	if err := errg.Wait(); err != nil {
+		t.Errorf("Client handshake failed: %v", err)
 	}
 }
 
+// TestServerHandshake creates a fake S2A handshaker and performs a server-side
+// handshake.
 func TestServerHandshake(t *testing.T) {
-	shs := &s2aHandshaker{}
-	context, err := shs.ServerHandshake(context.Background())
-	if err == nil || context != nil {
-		t.Errorf("Method should be unimplemented")
+	var errg errgroup.Group
+	stream := &fakeStream{
+		t:        t,
+		isClient: false,
 	}
+	in := bytes.NewBuffer([]byte("ServerHello"))
+	in.Write([]byte("ServerFinished"))
+	c := &fakeConn{
+		in:  in,
+		out: new(bytes.Buffer),
+	}
+	shs := &s2aHandshaker{
+		stream:     stream,
+		conn:       c,
+		serverOpts: testServerHandshakerOptions,
+		isClient:   false,
+	}
+	result := testServerSessionResult
+	errg.Go(func() error {
+		// The conn returned by ServerHandshake is ignored until record protocol
+		// is implemented.
+		// TODO(gud): Add tests for returned conn.
+		_, auth, err := shs.ServerHandshake(context.Background())
+		if err != nil {
+			return err
+		}
+		if auth.ApplicationProtocol() != result.GetApplicationProtocol() ||
+			auth.TLSVersion() != result.GetState().GetTlsVersion() ||
+			auth.Ciphersuite() != result.GetState().GetTlsCiphersuite() ||
+			auth.PeerIdentity() != result.GetPeerIdentity() ||
+			auth.LocalIdentity() != result.GetLocalIdentity() ||
+			!bytes.Equal(auth.LocalCertFingerprint(), result.GetLocalCertFingerprint()) ||
+			!bytes.Equal(auth.PeerCertFingerprint(), result.GetPeerCertFingerprint()) {
+			return errors.New("Authinfo s2a context incorrect")
+		}
+		shs.Close()
+		return nil
+	})
+
+	if err := errg.Wait(); err != nil {
+		t.Errorf("Client handshake failed: %v", err)
+	}
+}
+
+func TestInvalidHandshaker(t *testing.T) {
+	emptyCHS := &s2aHandshaker{
+		isClient: false,
+	}
+	_, _, err := emptyCHS.ClientHandshake(context.Background())
+	if err == nil {
+		t.Error("ClientHandshake() should fail with server-side handshaker service")
+	}
+	emptySHS := &s2aHandshaker{
+		isClient: true,
+	}
+	_, _, err = emptySHS.ServerHandshake(context.Background())
+	if err == nil {
+		t.Error("ServerHandshake() shouldn fail with client-side handshaker service")
+	}
+}
+
+// TestPeerNotResponding uses an invalid net.Conn instance and performs a
+// client-side handshake to test the case when the peer is not responding.
+func TestPeerNotResponding(t *testing.T) {
+	stream := &fakeInvalidStream{}
+	c := &fakeInvalidConn{}
+	chs := &s2aHandshaker{
+		stream:     stream,
+		conn:       c,
+		clientOpts: testClientHandshakerOptions,
+		isClient:   true,
+	}
+	_, context, err := chs.ClientHandshake(context.Background())
+	chs.Close()
+	if context != nil {
+		t.Error("expected non-nil S2A context")
+	}
+	if got, want := err, peerNotRespondingError; got != want {
+		t.Errorf("ClientHandshake() = %v, want %v", got, want)
+	}
+
 }
