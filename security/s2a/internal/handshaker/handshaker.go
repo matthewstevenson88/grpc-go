@@ -25,7 +25,7 @@ import (
 	"io"
 	"net"
 
-	grpc "google.golang.org/grpc"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/security/s2a/internal/authinfo"
 	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
