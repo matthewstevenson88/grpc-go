@@ -12,9 +12,9 @@ const (
 	// nonceSize is the size of the nonce in number of bytes for
 	// AES-128-GCM-SHA256, AES-256-GCM-SHA384, and CHACHA20-POLY1305-SHA256.
 	nonceSize = 12
-	// sha256DigestSize is the digest length of sha256 in bytes.
+	// sha256DigestSize is the digest size of sha256 in bytes.
 	sha256DigestSize = 32
-	// sha384DigestSize is the digest length of sha384 in bytes.
+	// sha384DigestSize is the digest size of sha384 in bytes.
 	sha384DigestSize = 48
 )
 

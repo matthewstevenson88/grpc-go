@@ -4,7 +4,7 @@ import (
 	"crypto/sha256"
 	"crypto/sha512"
 	"google.golang.org/grpc/security/s2a/internal/crypter/testutil"
-	s2a_proto "google.golang.org/grpc/security/s2a/internal/proto"
+	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
 	"hash"
 	"reflect"
 	"testing"
@@ -12,15 +12,15 @@ import (
 
 func TestCiphersuites(t *testing.T) {
 	for _, tc := range []struct {
-		s2aProtoCiphersuite                   s2a_proto.Ciphersuite
+		s2aProtoCiphersuite                   s2apb.Ciphersuite
 		expectedCiphersuite                   ciphersuite
 		key                                   []byte
 		keySize, nonceSize, trafficSecretSize int
 		hashFunction                          func() hash.Hash
-		aeadCrypter                           s2aAeadCrypter
+		aeadCrypter                           s2aAEADCrypter
 	}{
 		{
-			s2aProtoCiphersuite: s2a_proto.Ciphersuite_AES_128_GCM_SHA256,
+			s2aProtoCiphersuite: s2apb.Ciphersuite_AES_128_GCM_SHA256,
 			expectedCiphersuite: &aesgcm128sha256{},
 			key:                 testutil.Dehex("88ee087fd95da9fbf6725aa9d757b0cd"),
 			keySize:             aes128GcmKeySize,
@@ -30,7 +30,7 @@ func TestCiphersuites(t *testing.T) {
 			aeadCrypter:         &aesgcm{},
 		},
 		{
-			s2aProtoCiphersuite: s2a_proto.Ciphersuite_AES_256_GCM_SHA384,
+			s2aProtoCiphersuite: s2apb.Ciphersuite_AES_256_GCM_SHA384,
 			expectedCiphersuite: &aesgcm256sha384{},
 			key:                 testutil.Dehex("83c093b58de7ffe1c0da926ac43fb3609ac1c80fee1b624497ef942e2f79a823"),
 			keySize:             aes256GcmKeySize,
@@ -40,7 +40,7 @@ func TestCiphersuites(t *testing.T) {
 			aeadCrypter:         &aesgcm{},
 		},
 		{
-			s2aProtoCiphersuite: s2a_proto.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			s2aProtoCiphersuite: s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
 			expectedCiphersuite: &chachapolysha256{},
 			key:                 testutil.Dehex("83c093b58de7ffe1c0da926ac43fb3609ac1c80fee1b624497ef942e2f79a823"),
 			keySize:             chacha20Poly1305KeySize,

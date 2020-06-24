@@ -38,8 +38,8 @@ func TestExpand(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			expander := newDefaultHKDFExpander()
-			got, err := expander.expand(sha256.New, tc.secret, tc.info, tc.length)
+			expander := newDefaultHKDFExpander(sha256.New)
+			got, err := expander.expand(tc.secret, tc.info, tc.length)
 			if err != nil {
 				t.Errorf("expand failed with error: %v", err)
 			}

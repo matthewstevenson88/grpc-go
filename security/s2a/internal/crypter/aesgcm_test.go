@@ -26,7 +26,7 @@ import (
 )
 
 // getGCMCryptoPair outputs a sender/receiver pair on AES-GCM.
-func getGCMCryptoPair(key []byte, t *testing.T) (s2aAeadCrypter, s2aAeadCrypter) {
+func getGCMCryptoPair(key []byte, t *testing.T) (s2aAEADCrypter, s2aAEADCrypter) {
 	sender, err := newAESGCM(key)
 	if err != nil {
 		t.Fatalf("newAESGCM(ClientSide, key) = %v", err)
@@ -47,7 +47,7 @@ func wycheProofTestVectorFilter(testGroup testutil.TestGroup) bool {
 		testGroup.TagSize != 128
 }
 
-func testGCMEncryptionDecryption(sender s2aAeadCrypter, receiver s2aAeadCrypter, tc *testutil.CryptoTestVector, t *testing.T) {
+func testGCMEncryptionDecryption(sender s2aAEADCrypter, receiver s2aAEADCrypter, tc *testutil.CryptoTestVector, t *testing.T) {
 	// ciphertext is: encrypted text + tag.
 	ciphertext := append(tc.Ciphertext, tc.Tag...)
 
@@ -70,7 +70,7 @@ func testGCMEncryptionDecryption(sender s2aAeadCrypter, receiver s2aAeadCrypter,
 	}
 }
 
-func testGCMEncryptRoundtrip(sender s2aAeadCrypter, receiver s2aAeadCrypter, t *testing.T) {
+func testGCMEncryptRoundtrip(sender s2aAEADCrypter, receiver s2aAEADCrypter, t *testing.T) {
 	// Construct a dummy nonce.
 	nonce := make([]byte, nonceSize)
 
@@ -82,13 +82,13 @@ func testGCMEncryptRoundtrip(sender s2aAeadCrypter, receiver s2aAeadCrypter, t *
 	buf := []byte(plaintext)
 	ciphertext, err := sender.encrypt(buf[:0], buf, nonce, nil)
 	if err != nil {
-		t.Fatalf("Encrypt(%v, %v, %v, nil) failed, err = %v", buf[:0], buf, nonce, err)
+		t.Fatalf("Encrypt(%v, %v, %v, nil) failed: %v", buf[:0], buf, nonce, err)
 	}
 
 	// Decrypt first message.
 	decryptedPlaintext, err := receiver.decrypt(ciphertext[:0], ciphertext, nonce, nil)
 	if err != nil {
-		t.Fatalf("Decrypt(%v, %v, %v, nil) failed, err = %v", ciphertext[:0], ciphertext, nonce, err)
+		t.Fatalf("Decrypt(%v, %v, %v, nil) failed: %v", ciphertext[:0], ciphertext, nonce, err)
 	}
 	if string(decryptedPlaintext) != plaintext {
 		t.Fatalf("Decrypt(%v, %v, %v, nil) = %v, want %v", ciphertext[:0], ciphertext, nonce, decryptedPlaintext, plaintext)
@@ -104,55 +104,12 @@ func TestAESGCMInvalidKeySize(t *testing.T) {
 	}
 }
 
-// Test update key for AES-GCM using a key with different size from the initial
-// key.
-func TestAESGCMKeySizeUpdate(t *testing.T) {
-	for _, tc := range []struct {
-		desc          string
-		updateKeySize int
-	}{
-		{"mismatch key size update", aes256GcmKeySize},
-		{"invalid key size update", 17},
-	} {
-		t.Run(tc.desc, func(t *testing.T) {
-			key := make([]byte, aes128GcmKeySize)
-			crypter, err := newAESGCM(key)
-			if err != nil {
-				t.Fatalf("newAESGCM(keySize=%v) failed, err: %v", aes128GcmKeySize, err)
-			}
-
-			// Update the key with a new one which is a different from the original.
-			newKey := make([]byte, tc.updateKeySize)
-			if err = crypter.updateKey(newKey); err == nil {
-				t.Fatal("updateKey should fail with invalid key size error")
-			}
-		})
-	}
-}
-
-// Test encrypt and decrypt on roundtrip messages for AES-GCM with and without
-// updating the keys.
+// Test encrypt and decrypt on roundtrip messages for AES-GCM.
 func TestAESGCMEncryptRoundtrip(t *testing.T) {
 	for _, keySize := range []int{aes128GcmKeySize, aes256GcmKeySize} {
 		t.Run(fmt.Sprintf("keySize=%d", keySize), func(t *testing.T) {
 			key := make([]byte, keySize)
 			sender, receiver := getGCMCryptoPair(key, t)
-
-			// Test encrypt/decrypt before updating the key.
-			testGCMEncryptRoundtrip(sender, receiver, t)
-
-			// Update the key with a new one which is different from the
-			// original.
-			newKey := make([]byte, keySize)
-			newKey[0] = '\xbd'
-			if err := sender.updateKey(newKey); err != nil {
-				t.Fatalf("sender updateKey failed with: %v", err)
-			}
-			if err := receiver.updateKey(newKey); err != nil {
-				t.Fatalf("receiver updateKey failed with: %v", err)
-			}
-
-			// Test encrypt/decrypt after updating the key.
 			testGCMEncryptRoundtrip(sender, receiver, t)
 		})
 	}

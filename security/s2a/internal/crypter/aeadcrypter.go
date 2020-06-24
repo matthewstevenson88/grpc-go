@@ -1,8 +1,8 @@
 package crypter
 
-// s2aAeadCrypter is the interface for an AEAD cipher used by the S2A record
+// s2aAEADCrypter is the interface for an AEAD cipher used by the S2A record
 // protocol.
-type s2aAeadCrypter interface {
+type s2aAEADCrypter interface {
 	// encrypt encrypts the plaintext and computes the tag of dst and plaintext.
 	// dst and plaintext may fully overlap or not at all.
 	encrypt(dst, plaintext, nonce, aad []byte) ([]byte, error)
@@ -11,6 +11,4 @@ type s2aAeadCrypter interface {
 	decrypt(dst, ciphertext, nonce, aad []byte) ([]byte, error)
 	// tagSize returns the tag size in bytes.
 	tagSize() int
-	// updateKey updates the key used for encryption and decryption.
-	updateKey(key []byte) error
 }
