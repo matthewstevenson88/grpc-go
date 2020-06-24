@@ -32,9 +32,12 @@ import (
 )
 
 var (
-	appProtocols           = "grpc"
-	frameLimit             = 1024 * 64
-	PeerNotRespondingError = errors.New("Peer is not responding and re-connection should be attempted.")
+	// appProtocol contains the application protocol accepted by the handshaker.
+	appProtocol = "grpc"
+	// frameLimit is the maximum size of a frame.
+	frameLimit = 1024 * 64
+	// peerNotRespondingError is the error thrown when the peer doesnt respond.
+	peerNotRespondingError = errors.New("Peer is not responding and re-connection should be attempted.")
 )
 
 // ClientHandshakerOptions contains the options needed to configure the S2A
@@ -82,6 +85,8 @@ type s2aHandshaker struct {
 	clientOpts *ClientHandshakerOptions
 	// serverOpts should be non-nil iff the handshaker is server-side.
 	serverOpts *ServerHandshakerOptions
+	// isClient determines if the handshaker is client or server side
+	isClient bool
 }
 
 // NewClientHandshaker creates an s2aHandshaker instance that performs a
@@ -99,6 +104,7 @@ func newClientHandshaker(stream s2apb.S2AService_SetUpSessionClient, c net.Conn,
 		stream:     stream,
 		conn:       c,
 		clientOpts: opts,
+		isClient:   true,
 	}
 }
 
@@ -117,20 +123,21 @@ func newServerHandshaker(stream s2apb.S2AService_SetUpSessionClient, c net.Conn,
 		stream:     stream,
 		conn:       c,
 		serverOpts: opts,
+		isClient:   false,
 	}
 }
 
 // ClientHandshake performs a client-side TLS handshake using the S2A handshaker
-// service. When complete, returns a secure TLS connection.
+// service. When complete, returns a TLS connection.
 func (h *s2aHandshaker) ClientHandshake(ctx context.Context) (net.Conn, *authinfo.S2AAuthInfo, error) {
-	if h.clientOpts == nil {
+	if !h.isClient {
 		return nil, nil, errors.New("Only handshakers created using NewClientHandshaker can perform a client-side handshake.")
 	}
 	// Prepare a client start message to send to the S2A handshaker service.
 	req := &s2apb.SessionReq{
 		ReqOneof: &s2apb.SessionReq_ClientStart{
 			ClientStart: &s2apb.ClientSessionStartReq{
-				ApplicationProtocols: []string{appProtocols},
+				ApplicationProtocols: []string{appProtocol},
 				MinTlsVersion:        h.clientOpts.MinTLSVersion,
 				MaxTlsVersion:        h.clientOpts.MaxTLSVersion,
 				TlsCiphersuites:      h.clientOpts.TLSCiphersuites,
@@ -152,9 +159,9 @@ func (h *s2aHandshaker) ClientHandshake(ctx context.Context) (net.Conn, *authinf
 }
 
 // ServerHandshake performs a server-side TLS handshake using the S2A handshaker
-// service. When complete, returns a secure TLS connection.
+// service. When complete, returns a TLS connection.
 func (h *s2aHandshaker) ServerHandshake(ctx context.Context) (net.Conn, *authinfo.S2AAuthInfo, error) {
-	if h.serverOpts == nil {
+	if h.isClient {
 		return nil, nil, errors.New("Only handshakers created using NewServerHandshaker can perform a server-side handshake.")
 	}
 	p := make([]byte, frameLimit)
@@ -166,7 +173,7 @@ func (h *s2aHandshaker) ServerHandshake(ctx context.Context) (net.Conn, *authinf
 	req := &s2apb.SessionReq{
 		ReqOneof: &s2apb.SessionReq_ServerStart{
 			ServerStart: &s2apb.ServerSessionStartReq{
-				ApplicationProtocols: []string{appProtocols},
+				ApplicationProtocols: []string{appProtocol},
 				MinTlsVersion:        h.serverOpts.MinTLSVersion,
 				MaxTlsVersion:        h.serverOpts.MaxTLSVersion,
 				TlsCiphersuites:      h.serverOpts.TLSCiphersuites,
@@ -189,9 +196,6 @@ func (h *s2aHandshaker) ServerHandshake(ctx context.Context) (net.Conn, *authinf
 // setUpSession proxies messages between the peer and the S2A handshaker
 // service.
 func (h *s2aHandshaker) setUpSession(req *s2apb.SessionReq) (net.Conn, *s2apb.SessionResult, error) {
-	if req == nil {
-		return nil, nil, errors.New("req cannot be nil.")
-	}
 	resp, err := h.accessHandshakerService(req)
 	if err != nil {
 		return nil, nil, err
@@ -220,8 +224,8 @@ func (h *s2aHandshaker) setUpSession(req *s2apb.SessionReq) (net.Conn, *s2apb.Se
 	return h.conn, result, nil
 }
 
-// accessHandshakerService sends the session request to the S2A Handshaker service
-// and returns the session response.
+// accessHandshakerService sends the session request to the S2A Handshaker
+// service and returns the session response.
 func (h *s2aHandshaker) accessHandshakerService(req *s2apb.SessionReq) (*s2apb.SessionResp, error) {
 	if err := h.stream.Send(req); err != nil {
 		return nil, err
@@ -234,8 +238,8 @@ func (h *s2aHandshaker) accessHandshakerService(req *s2apb.SessionReq) (*s2apb.S
 }
 
 // processUntilDone continues proxying messages between the peer and the S2A
-// handshaker service until the handshaker service returns the SessionResult
-// at the end of the handshake or an error occurs.
+// handshaker service until the handshaker service returns the SessionResult at
+// the end of the handshake or an error occurs.
 func (h *s2aHandshaker) processUntilDone(resp *s2apb.SessionResp, unusedBytes []byte) (*s2apb.SessionResult, []byte, error) {
 	for {
 		if len(resp.OutFrames) > 0 {
@@ -257,7 +261,7 @@ func (h *s2aHandshaker) processUntilDone(resp *s2apb.SessionResp, unusedBytes []
 		// that handshaker service connection issues are caught in
 		// accessHandshakerService before we even get here.
 		if len(resp.OutFrames) == 0 && n == 0 {
-			return nil, nil, PeerNotRespondingError
+			return nil, nil, peerNotRespondingError
 		}
 		// Append extra bytes from the previous interaction with the
 		// handshaker service with the current buffer read from conn.
