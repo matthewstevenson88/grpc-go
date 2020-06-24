@@ -143,7 +143,7 @@ type fakeStream struct {
 	grpc.ClientStream
 	t *testing.T
 	// expectedResp is the expected SessionResp message from the handshaker
-	//  service.
+	// service.
 	expectedResp *s2apb.SessionResp
 	// isFirstAccess indicates whether the first call to the handshaker service
 	// has been made or not.
@@ -220,7 +220,7 @@ func (fc *fakeConn) Read(b []byte) (n int, err error)  { return fc.in.Read(b) }
 func (fc *fakeConn) Write(b []byte) (n int, err error) { return fc.out.Write(b) }
 func (fc *fakeConn) Close() error                      { return nil }
 
-// fakeInvalidConn is a fake implementation of a invalid net.Conn interface//
+// fakeInvalidConn is a fake implementation of a invalid net.Conn interface
 // that is used for testing.
 type fakeInvalidConn struct {
 	net.Conn

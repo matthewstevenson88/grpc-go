@@ -211,8 +211,8 @@ func (h *s2aHandshaker) setUpSession(req *s2apb.SessionReq) (net.Conn, *s2apb.Se
 			return nil, nil, fmt.Errorf("%v", resp.GetStatus().Details)
 		}
 	}
-	// Calculate the extra unread bytes from the Session. Attempting to consume more
-	// than the bytes sent will throw an error.
+	// Calculate the extra unread bytes from the Session. Attempting to consume
+	// more than the bytes sent will throw an error.
 	var extra []byte
 	if req.GetServerStart() != nil {
 		if resp.GetBytesConsumed() > uint32(len(req.GetServerStart().GetInBytes())) {
@@ -224,7 +224,7 @@ func (h *s2aHandshaker) setUpSession(req *s2apb.SessionReq) (net.Conn, *s2apb.Se
 	if err != nil {
 		return nil, nil, err
 	}
-	// Create a new net.Conn with updated information.
+	// Create a new TLS record protocol using the Session Result.
 	newConn, err := record.NewConn(&record.ConnOptions{
 		NetConn:          h.conn,
 		Ciphersuite:      result.GetState().GetTlsCiphersuite(),
@@ -273,16 +273,16 @@ func (h *s2aHandshaker) processUntilDone(resp *s2apb.SessionResp, unusedBytes []
 		if err != nil && err != io.EOF {
 			return nil, nil, err
 		}
-		// If there is nothing to send to the handshaker service and
-		// nothing is received from the peer, then we are stuck.
-		// This covers the case when the peer is not responding. Note
-		// that handshaker service connection issues are caught in
-		// accessHandshakerService before we even get here.
+		// If there is nothing to send to the handshaker service and nothing is
+		// received from the peer, then we are stuck. This covers the case when
+		// the peer is not responding. Note that handshaker service connection
+		// issues are caught in accessHandshakerService before we even get
+		// here.
 		if len(resp.OutFrames) == 0 && n == 0 {
 			return nil, nil, peerNotRespondingError
 		}
-		// Append extra bytes from the previous interaction with the
-		// handshaker service with the current buffer read from conn.
+		// Append extra bytes from the previous interaction with the handshaker
+		// service with the current buffer read from conn.
 		p := append(unusedBytes, buf[:n]...)
 		// From here on, p and unusedBytes point to the same slice.
 		resp, err = h.accessHandshakerService(&s2apb.SessionReq{
