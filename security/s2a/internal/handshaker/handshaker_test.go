@@ -303,7 +303,7 @@ func TestClientHandshake(t *testing.T) {
 	})
 
 	if err := errg.Wait(); err != nil {
-		t.Errorf("Handshake returned error: %v", err)
+		t.Errorf("Client handshake failed: %v", err)
 	}
 }
 
@@ -350,7 +350,7 @@ func TestServerHandshake(t *testing.T) {
 	})
 
 	if err := errg.Wait(); err != nil {
-		t.Errorf("Handshake returned error: %v", err)
+		t.Errorf("Client handshake failed: %v", err)
 	}
 }
 
