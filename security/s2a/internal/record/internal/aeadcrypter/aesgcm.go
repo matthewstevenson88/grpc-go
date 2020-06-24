@@ -16,7 +16,7 @@
  *
  */
 
-package crypter
+package aeadcrypter
 
 import (
 	"crypto/aes"
@@ -26,8 +26,8 @@ import (
 
 // Supported key sizes in bytes.
 const (
-	aes128GcmKeySize = 16
-	aes256GcmKeySize = 32
+	AES128GCMKeySize = 16
+	AES256GCMKeySize = 32
 )
 
 // aesgcm is the struct that holds an AES-GCM cipher for the S2A AEAD crypter.
@@ -35,11 +35,11 @@ type aesgcm struct {
 	aead cipher.AEAD
 }
 
-// newAESGCM creates an AES-GCM crypter instance. Note that the key must be
+// NewAESGCM creates an AES-GCM crypter instance. Note that the key must be
 // either 128 bits or 256 bits.
-func newAESGCM(key []byte) (s2aAEADCrypter, error) {
-	if len(key) != aes128GcmKeySize && len(key) != aes256GcmKeySize {
-		return nil, fmt.Errorf("%d or %d bytes, given: %d", aes128GcmKeySize, aes256GcmKeySize, len(key))
+func NewAESGCM(key []byte) (S2AAEADCrypter, error) {
+	if len(key) != AES128GCMKeySize && len(key) != AES256GCMKeySize {
+		return nil, fmt.Errorf("%d or %d bytes, given: %d", AES128GCMKeySize, AES256GCMKeySize, len(key))
 	}
 	c, err := aes.NewCipher(key)
 	if err != nil {
@@ -52,19 +52,19 @@ func newAESGCM(key []byte) (s2aAEADCrypter, error) {
 	return &aesgcm{aead: a}, nil
 }
 
-// encrypt is the encryption function. dst can contain bytes at the beginning of
+// Encrypt is the encryption function. dst can contain bytes at the beginning of
 // the ciphertext that will not be encrypted but will be authenticated. If dst
 // has enough capacity to hold these bytes, the ciphertext and the tag, no
 // allocation and copy operations will be performed. dst and plaintext may
 // fully overlap or not at all.
-func (s *aesgcm) encrypt(dst, plaintext, nonce, aad []byte) ([]byte, error) {
+func (s *aesgcm) Encrypt(dst, plaintext, nonce, aad []byte) ([]byte, error) {
 	return encrypt(s.aead, dst, plaintext, nonce, aad)
 }
 
-func (s *aesgcm) decrypt(dst, ciphertext, nonce, aad []byte) ([]byte, error) {
+func (s *aesgcm) Decrypt(dst, ciphertext, nonce, aad []byte) ([]byte, error) {
 	return decrypt(s.aead, dst, ciphertext, nonce, aad)
 }
 
-func (s *aesgcm) tagSize() int {
-	return tagSize
+func (s *aesgcm) TagSize() int {
+	return TagSize
 }

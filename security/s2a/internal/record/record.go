@@ -1,9 +1,10 @@
-package crypter
+package record
 
 import (
 	"errors"
 	"fmt"
 	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
+	"google.golang.org/grpc/security/s2a/internal/record/internal/halfconn"
 	"net"
 )
 
@@ -29,9 +30,9 @@ const (
 type conn struct {
 	net.Conn
 	// inConn is the half connection responsible for decrypting incoming bytes.
-	inConn *S2AHalfConnection
+	inConn *halfconn.S2AHalfConnection
 	// outConn is the half connection responsible for encrypting outgoing bytes.
-	outConn *S2AHalfConnection
+	outConn *halfconn.S2AHalfConnection
 	// pendingApplicationData holds data that has been read from the connection
 	// and decrypted, but has not yet been returned by Read.
 	pendingApplicationData []byte

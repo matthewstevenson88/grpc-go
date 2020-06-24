@@ -1,9 +1,10 @@
-package crypter
+package halfconn
 
 import (
 	"fmt"
 	"golang.org/x/crypto/cryptobyte"
 	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
+	"google.golang.org/grpc/security/s2a/internal/record/internal/aeadcrypter"
 	"sync"
 )
 
@@ -21,15 +22,15 @@ type S2AHalfConnection struct {
 	expander hkdfExpander
 	// mutex guards sequence, aeadCrypter, trafficSecret, and nonce.
 	mutex         sync.Mutex
-	aeadCrypter   s2aAEADCrypter
+	aeadCrypter   aeadcrypter.S2AAEADCrypter
 	sequence      counter
 	trafficSecret []byte
 	nonce         []byte
 }
 
-// NewHalfConn creates a new instance of S2AHalfConnection given a ciphersuite
-// and a traffic secret.
-func NewHalfConn(ciphersuite s2apb.Ciphersuite, trafficSecret []byte, sequence uint64) (*S2AHalfConnection, error) {
+// New creates a new instance of S2AHalfConnection given a ciphersuite and a
+// traffic secret.
+func New(ciphersuite s2apb.Ciphersuite, trafficSecret []byte, sequence uint64) (*S2AHalfConnection, error) {
 	cs, err := newCiphersuite(ciphersuite)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new ciphersuite: %v", ciphersuite)
@@ -60,7 +61,7 @@ func (hc *S2AHalfConnection) Encrypt(dst, plaintext, aad []byte) ([]byte, error)
 	nonce := hc.maskedNonce(sequence)
 	crypter := hc.aeadCrypter
 	hc.mutex.Unlock()
-	return crypter.encrypt(dst, plaintext, nonce, aad)
+	return crypter.Encrypt(dst, plaintext, nonce, aad)
 }
 
 // Decrypt decrypts ciphertext and verifies the tag. dst and ciphertext may
@@ -76,7 +77,7 @@ func (hc *S2AHalfConnection) Decrypt(dst, ciphertext, aad []byte) ([]byte, error
 	nonce := hc.maskedNonce(sequence)
 	crypter := hc.aeadCrypter
 	hc.mutex.Unlock()
-	return crypter.decrypt(dst, ciphertext, nonce, aad)
+	return crypter.Decrypt(dst, ciphertext, nonce, aad)
 }
 
 // UpdateKey advances the traffic secret key, as specified in
@@ -102,7 +103,7 @@ func (hc *S2AHalfConnection) UpdateKey() error {
 
 // TagSize returns the tag size in bytes of the underlying AEAD crypter.
 func (hc *S2AHalfConnection) TagSize() int {
-	return hc.aeadCrypter.tagSize()
+	return hc.aeadCrypter.TagSize()
 }
 
 // updateCrypterAndNonce takes a new traffic secret and updates the crypter
@@ -143,7 +144,7 @@ func (hc *S2AHalfConnection) maskedNonce(sequence uint64) []byte {
 	nonce := make([]byte, len(hc.nonce))
 	copy(nonce, hc.nonce)
 	for i := 0; i < uint64Size; i++ {
-		nonce[nonceSize-uint64Size+i] ^= byte(sequence >> uint64(56-uint64Size*i))
+		nonce[aeadcrypter.NonceSize-uint64Size+i] ^= byte(sequence >> uint64(56-uint64Size*i))
 	}
 	return nonce
 }

@@ -1,9 +1,9 @@
-package crypter
+package halfconn
 
 import (
 	"bytes"
 	"crypto/sha256"
-	"google.golang.org/grpc/security/s2a/internal/crypter/testutil"
+	"google.golang.org/grpc/security/s2a/internal/record/internal/aeadcrypter/testutil"
 	"testing"
 )
 

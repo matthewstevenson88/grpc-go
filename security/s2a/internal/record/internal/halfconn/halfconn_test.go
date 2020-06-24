@@ -1,38 +1,39 @@
-package crypter
+package halfconn
 
 import (
 	"bytes"
-	"google.golang.org/grpc/security/s2a/internal/crypter/testutil"
 	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
+	"google.golang.org/grpc/security/s2a/internal/record/internal/aeadcrypter"
+	"google.golang.org/grpc/security/s2a/internal/record/internal/aeadcrypter/testutil"
 	"math"
 	"testing"
 )
 
 // getHalfConnPair returns a sender/receiver pair of S2A Half Connections.
 func getHalfConnPair(ciphersuite s2apb.Ciphersuite, trafficSecret []byte, t *testing.T) (*S2AHalfConnection, *S2AHalfConnection) {
-	sender, err := NewHalfConn(ciphersuite, trafficSecret, 0 /* sequence */)
+	sender, err := New(ciphersuite, trafficSecret, 0 /* sequence */)
 	if err != nil {
-		t.Fatalf("sender side NewHalfConn(%v, %v) failed: %v", ciphersuite, trafficSecret, err)
+		t.Fatalf("sender side New(%v, %v) failed: %v", ciphersuite, trafficSecret, err)
 	}
-	receiver, err := NewHalfConn(ciphersuite, trafficSecret, 0 /* sequence */)
+	receiver, err := New(ciphersuite, trafficSecret, 0 /* sequence */)
 	if err != nil {
-		t.Fatalf("receiver side NewHalfConn(%v, %v) failed: %v", ciphersuite, trafficSecret, err)
+		t.Fatalf("receiver side New(%v, %v) failed: %v", ciphersuite, trafficSecret, err)
 	}
 	return sender, receiver
 }
 
-// aeadCrypterEqual checks whether the given s2aAEADCrypters encrypt a simple
+// aeadCrypterEqual checks whether the given S2AAEADCrypters encrypt a simple
 // string identically.
-func aeadCrypterEqual(a s2aAEADCrypter, b s2aAEADCrypter, t *testing.T) bool {
-	nonce := make([]byte, nonceSize)
+func aeadCrypterEqual(a aeadcrypter.S2AAEADCrypter, b aeadcrypter.S2AAEADCrypter, t *testing.T) bool {
+	nonce := make([]byte, aeadcrypter.NonceSize)
 	const plaintext = "This is plaintext"
-	ciphertextA, err := a.encrypt(nil, []byte(plaintext), nonce, nil)
+	ciphertextA, err := a.Encrypt(nil, []byte(plaintext), nonce, nil)
 	if err != nil {
-		t.Errorf("a.encrypt(nil, %v, %v, nil) failed: %v", []byte(plaintext), nonce, err)
+		t.Errorf("a.Encrypt(nil, %v, %v, nil) failed: %v", []byte(plaintext), nonce, err)
 	}
-	ciphertextB, err := b.encrypt(nil, []byte(plaintext), nonce, nil)
+	ciphertextB, err := b.Encrypt(nil, []byte(plaintext), nonce, nil)
 	if err != nil {
-		t.Errorf("b.encrypt(nil, %v, %v, nil) failed: %v", []byte(plaintext), nonce, err)
+		t.Errorf("b.Encrypt(nil, %v, %v, nil) failed: %v", []byte(plaintext), nonce, err)
 	}
 	return bytes.Equal(ciphertextA, ciphertextB)
 }
@@ -197,7 +198,7 @@ func TestMaskedNonce(t *testing.T) {
 	}
 }
 
-func TestNewHalfConn(t *testing.T) {
+func TestNew(t *testing.T) {
 	for _, tc := range []struct {
 		desc                      string
 		ciphersuite               s2apb.Ciphersuite
@@ -248,19 +249,19 @@ func TestNewHalfConn(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			hc, err := NewHalfConn(tc.ciphersuite, tc.trafficSecret, 0 /* sequence */)
+			hc, err := New(tc.ciphersuite, tc.trafficSecret, 0 /* sequence */)
 			if got, want := err == nil, !tc.shouldFail; got != want {
-				t.Errorf("NewHalfConn(%v, %v)=(err=nil)=%v, want %v", tc.ciphersuite, tc.trafficSecret, got, want)
+				t.Errorf("New(%v, %v)=(err=nil)=%v, want %v", tc.ciphersuite, tc.trafficSecret, got, want)
 			}
 			if err != nil {
 				return
 			}
 			// Check that the traffic secret wasn't changed.
 			if got, want := hc.trafficSecret, tc.trafficSecret; !bytes.Equal(got, want) {
-				t.Errorf("NewHalfConn(%v, %v).trafficSecret=%v, want %v", tc.ciphersuite, tc.trafficSecret, got, want)
+				t.Errorf("New(%v, %v).trafficSecret=%v, want %v", tc.ciphersuite, tc.trafficSecret, got, want)
 			}
 			if got, want := hc.nonce, tc.nonce; !bytes.Equal(got, want) {
-				t.Errorf("NewHalfConn(%v, %v).nonce=%v, want %v", tc.ciphersuite, tc.trafficSecret, got, want)
+				t.Errorf("New(%v, %v).nonce=%v, want %v", tc.ciphersuite, tc.trafficSecret, got, want)
 			}
 			cs, err := newCiphersuite(tc.ciphersuite)
 			if err != nil {
@@ -333,9 +334,9 @@ func TestS2AHalfConnectionUpdateKey(t *testing.T) {
 		},
 	} {
 		t.Run(tc.ciphersuite.String(), func(t *testing.T) {
-			hc, err := NewHalfConn(tc.ciphersuite, tc.trafficSecret, 0 /* sequence */)
+			hc, err := New(tc.ciphersuite, tc.trafficSecret, 0 /* sequence */)
 			if err != nil {
-				t.Fatalf("NewHalfConn(%v, %v) failed: %v", tc.ciphersuite, tc.trafficSecret, err)
+				t.Fatalf("New(%v, %v) failed: %v", tc.ciphersuite, tc.trafficSecret, err)
 			}
 			if err := hc.UpdateKey(); err != nil {
 				t.Fatalf("hc.updateKey() failed: %v", err)
@@ -374,15 +375,15 @@ func TestS2AHalfConnectionTagSize(t *testing.T) {
 			}
 			trafficSecret := make([]byte, cs.trafficSecretSize())
 			key := make([]byte, cs.keySize())
-			hc, err := NewHalfConn(ciphersuite, trafficSecret, 0 /* sequence */)
+			hc, err := New(ciphersuite, trafficSecret, 0 /* sequence */)
 			if err != nil {
-				t.Fatalf("NewHalfConn(%v, %v) failed: %v", ciphersuite, trafficSecret, err)
+				t.Fatalf("New(%v, %v) failed: %v", ciphersuite, trafficSecret, err)
 			}
-			crypter, err := newAESGCM(key)
+			crypter, err := aeadcrypter.NewAESGCM(key)
 			if err != nil {
-				t.Fatalf("newAESGCM(%v) failed: %v", key, err)
+				t.Fatalf("NewAESGCM(%v) failed: %v", key, err)
 			}
-			if got, want := hc.TagSize(), crypter.tagSize(); got != want {
+			if got, want := hc.TagSize(), crypter.TagSize(); got != want {
 				t.Errorf("hc.TagSize() = %v, want %v", got, want)
 			}
 		})
