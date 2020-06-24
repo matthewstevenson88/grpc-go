@@ -71,11 +71,11 @@ func NewConn(o *ConnOptions) (net.Conn, error) {
 		return nil, errors.New("TLS version must be TLS 1.3")
 	}
 
-	inConn, err := halfconn.NewHalfConn(o.ciphersuite, o.inTrafficSecret, o.inSequence)
+	inConn, err := halfconn.New(o.ciphersuite, o.inTrafficSecret, o.inSequence)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create inbound half connection: %v", err)
 	}
-	outConn, err := halfconn.NewHalfConn(o.ciphersuite, o.outTrafficSecret, o.outSequence)
+	outConn, err := halfconn.New(o.ciphersuite, o.outTrafficSecret, o.outSequence)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create outbound half connection: %v", err)
 	}
