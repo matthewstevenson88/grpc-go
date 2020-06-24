@@ -298,7 +298,7 @@ func TestClientHandshake(t *testing.T) {
 			!bytes.Equal(auth.PeerCertFingerprint(), result.GetPeerCertFingerprint()) {
 			return errors.New("Authinfo s2a context incorrect")
 		}
-		if newConn == nil{
+		if newConn == nil {
 			return errors.New("Expected non-nil net.Conn")
 		}
 		chs.Close()
@@ -306,7 +306,7 @@ func TestClientHandshake(t *testing.T) {
 	})
 
 	if err := errg.Wait(); err != nil {
-		t.Errorf("Handshake returned error: %v", err)
+		t.Errorf("Client handshake failed: %v", err)
 	}
 }
 
@@ -347,14 +347,15 @@ func TestServerHandshake(t *testing.T) {
 			!bytes.Equal(auth.PeerCertFingerprint(), result.GetPeerCertFingerprint()) {
 			return errors.New("Authinfo s2a context incorrect")
 		}
-		if newConn == nil{
+		if newConn == nil {
 			return errors.New("Expected non-nil net.Conn")
 		}
 		shs.Close()
 		return nil
 	})
+
 	if err := errg.Wait(); err != nil {
-		t.Errorf("Handshake returned error: %v", err)
+		t.Errorf("Client handshake failed: %v", err)
 	}
 }
 

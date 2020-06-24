@@ -28,8 +28,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/security/s2a/internal/authinfo"
-	"google.golang.org/grpc/security/s2a/internal/record"
 	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
+	"google.golang.org/grpc/security/s2a/internal/record"
 )
 
 var (
@@ -224,7 +224,7 @@ func (h *s2aHandshaker) setUpSession(req *s2apb.SessionReq) (net.Conn, *s2apb.Se
 	if err != nil {
 		return nil, nil, err
 	}
-	// create a new net.Conn with updated information
+	// Create a new net.Conn with updated information.
 	newConn, err := record.NewConn(&record.ConnOptions{
 		NetConn:          h.conn,
 		Ciphersuite:      result.GetState().GetTlsCiphersuite(),
@@ -239,7 +239,6 @@ func (h *s2aHandshaker) setUpSession(req *s2apb.SessionReq) (net.Conn, *s2apb.Se
 	if err != nil {
 		return nil, nil, err
 	}
-
 	return newConn, result, nil
 }
 
