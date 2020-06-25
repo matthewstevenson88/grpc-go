@@ -38,7 +38,7 @@ func TestNewS2ARecordConn(t *testing.T) {
 			options: &ConnOptions{
 				NetConn:          &fakeConn{},
 				Ciphersuite:      s2apb.Ciphersuite_AES_256_GCM_SHA384,
-				TlsVersion:       s2apb.TLSVersion_TLS1_3,
+				TLSVersion:       s2apb.TLSVersion_TLS1_3,
 				InTrafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 				OutTrafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 				HsAddr:           "test handshaker address",
@@ -50,7 +50,7 @@ func TestNewS2ARecordConn(t *testing.T) {
 			options: &ConnOptions{
 				NetConn:          &fakeConn{},
 				Ciphersuite:      s2apb.Ciphersuite_AES_256_GCM_SHA384,
-				TlsVersion:       s2apb.TLSVersion_TLS1_3,
+				TLSVersion:       s2apb.TLSVersion_TLS1_3,
 				InTrafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 				OutTrafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 				HsAddr:           "test handshaker address",
@@ -62,7 +62,7 @@ func TestNewS2ARecordConn(t *testing.T) {
 			options: &ConnOptions{
 				NetConn:          &fakeConn{},
 				Ciphersuite:      s2apb.Ciphersuite_AES_128_GCM_SHA256,
-				TlsVersion:       s2apb.TLSVersion_TLS1_2,
+				TLSVersion:       s2apb.TLSVersion_TLS1_2,
 				InTrafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 				OutTrafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 				HsAddr:           "test handshaker address",
@@ -74,7 +74,7 @@ func TestNewS2ARecordConn(t *testing.T) {
 			options: &ConnOptions{
 				NetConn:          &fakeConn{},
 				Ciphersuite:      s2apb.Ciphersuite_AES_128_GCM_SHA256,
-				TlsVersion:       s2apb.TLSVersion_TLS1_3,
+				TLSVersion:       s2apb.TLSVersion_TLS1_3,
 				InTrafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 				OutTrafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 				HsAddr:           "test handshaker address",
@@ -89,7 +89,7 @@ func TestNewS2ARecordConn(t *testing.T) {
 			options: &ConnOptions{
 				NetConn:          &fakeConn{},
 				Ciphersuite:      s2apb.Ciphersuite_AES_256_GCM_SHA384,
-				TlsVersion:       s2apb.TLSVersion_TLS1_3,
+				TLSVersion:       s2apb.TLSVersion_TLS1_3,
 				InTrafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 				OutTrafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 				HsAddr:           "test handshaker address",
@@ -104,7 +104,7 @@ func TestNewS2ARecordConn(t *testing.T) {
 			options: &ConnOptions{
 				NetConn:          &fakeConn{},
 				Ciphersuite:      s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
-				TlsVersion:       s2apb.TLSVersion_TLS1_3,
+				TLSVersion:       s2apb.TLSVersion_TLS1_3,
 				InTrafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 				OutTrafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 				HsAddr:           "test handshaker address",
@@ -119,7 +119,7 @@ func TestNewS2ARecordConn(t *testing.T) {
 			options: &ConnOptions{
 				NetConn:          &fakeConn{},
 				Ciphersuite:      s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
-				TlsVersion:       s2apb.TLSVersion_TLS1_3,
+				TLSVersion:       s2apb.TLSVersion_TLS1_3,
 				InTrafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 				OutTrafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 				UnusedBuf:        testutil.Dehex("ffffffff"),

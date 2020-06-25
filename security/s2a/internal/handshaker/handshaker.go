@@ -89,7 +89,7 @@ type s2aHandshaker struct {
 	// isClient determines if the handshaker is client or server side
 	isClient bool
 	// HandshakerServiceAddress stores the address of the S2A handshaker service.
-	handshakerServiceAddress string
+	hsAddr string
 }
 
 // NewClientHandshaker creates an s2aHandshaker instance that performs a
@@ -104,11 +104,11 @@ func NewClientHandshaker(ctx context.Context, conn *grpc.ClientConn, c net.Conn,
 
 func newClientHandshaker(stream s2apb.S2AService_SetUpSessionClient, c net.Conn, hsAddr string, opts *ClientHandshakerOptions) *s2aHandshaker {
 	return &s2aHandshaker{
-		stream:                   stream,
-		conn:                     c,
-		clientOpts:               opts,
-		isClient:                 true,
-		handshakerServiceAddress: hsAddr,
+		stream:     stream,
+		conn:       c,
+		clientOpts: opts,
+		isClient:   true,
+		hsAddr:     hsAddr,
 	}
 }
 
@@ -124,11 +124,11 @@ func NewServerHandshaker(ctx context.Context, conn *grpc.ClientConn, c net.Conn,
 
 func newServerHandshaker(stream s2apb.S2AService_SetUpSessionClient, c net.Conn, hsAddr string, opts *ServerHandshakerOptions) *s2aHandshaker {
 	return &s2aHandshaker{
-		stream:                   stream,
-		conn:                     c,
-		serverOpts:               opts,
-		isClient:                 false,
-		handshakerServiceAddress: hsAddr,
+		stream:     stream,
+		conn:       c,
+		serverOpts: opts,
+		isClient:   false,
+		hsAddr:     hsAddr,
 	}
 }
 
@@ -228,13 +228,13 @@ func (h *s2aHandshaker) setUpSession(req *s2apb.SessionReq) (net.Conn, *s2apb.Se
 	newConn, err := record.NewConn(&record.ConnOptions{
 		NetConn:          h.conn,
 		Ciphersuite:      result.GetState().GetTlsCiphersuite(),
-		TlsVersion:       result.GetState().GetTlsVersion(),
+		TLSVersion:       result.GetState().GetTlsVersion(),
 		InTrafficSecret:  result.GetState().GetInKey(),
 		OutTrafficSecret: result.GetState().GetOutKey(),
 		UnusedBuf:        extra,
 		InSequence:       result.GetState().GetInSequence(),
 		OutSequence:      result.GetState().GetOutSequence(),
-		HsAddr:           h.handshakerServiceAddress,
+		HsAddr:           h.hsAddr,
 	})
 	if err != nil {
 		return nil, nil, err

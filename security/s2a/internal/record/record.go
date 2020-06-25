@@ -61,9 +61,9 @@ type ConnOptions struct {
 	// Ciphersuite is the TLS ciphersuite negotiated by the S2A's handshaker
 	// module.
 	Ciphersuite s2apb.Ciphersuite
-	// TlsVersion is the TLS version number that the S2A's handshaker module
+	// TLSVersion is the TLS version number that the S2A's handshaker module
 	// used to set up the session.
-	TlsVersion s2apb.TLSVersion
+	TLSVersion s2apb.TLSVersion
 	// InTrafficSecret is the key for the in bound direction.
 	InTrafficSecret []byte
 	// OutTrafficSecret is the key for the out bound direction.
@@ -83,7 +83,7 @@ func NewConn(o *ConnOptions) (net.Conn, error) {
 	if o == nil {
 		return nil, errors.New("conn options must not be nil")
 	}
-	if o.TlsVersion != s2apb.TLSVersion_TLS1_3 {
+	if o.TLSVersion != s2apb.TLSVersion_TLS1_3 {
 		return nil, errors.New("TLS version must be TLS 1.3")
 	}
 
