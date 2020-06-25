@@ -3,9 +3,10 @@ package record
 import (
 	"errors"
 	"fmt"
+	"net"
+
 	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
 	"google.golang.org/grpc/security/s2a/internal/record/internal/halfconn"
-	"net"
 )
 
 const (
@@ -55,27 +56,42 @@ type conn struct {
 
 // ConnOptions holds the options used for creating a new conn object.
 type ConnOptions struct {
-	netConn                                      net.Conn
-	ciphersuite                                  s2apb.Ciphersuite
-	tlsVersion                                   s2apb.TLSVersion
-	inTrafficSecret, outTrafficSecret, unusedBuf []byte
-	inSequence, outSequence                      uint64
-	hsAddr                                       string
+	// NetConn is the current TLS record.
+	NetConn net.Conn
+	// Ciphersuite is the TLS ciphersuite negotiated by the S2A's handshaker
+	// module.
+	Ciphersuite s2apb.Ciphersuite
+	// TLSVersion is the TLS version number that the S2A's handshaker module
+	// used to set up the session.
+	TLSVersion s2apb.TLSVersion
+	// InTrafficSecret is the key for the in bound direction.
+	InTrafficSecret []byte
+	// OutTrafficSecret is the key for the out bound direction.
+	OutTrafficSecret []byte
+	// UnusedBuf is the data read from the network that has not yet been
+	// decrypted.
+	UnusedBuf []byte
+	// InSequence is the sequence number of the next, incoming, TLS record.
+	InSequence uint64
+	// OutSequence is the sequence number of the next, outgoing, TLS record.
+	OutSequence uint64
+	// hsAddr stores the address of the S2A handshaker service.
+	HsAddr string
 }
 
 func NewConn(o *ConnOptions) (net.Conn, error) {
 	if o == nil {
 		return nil, errors.New("conn options must not be nil")
 	}
-	if o.tlsVersion != s2apb.TLSVersion_TLS1_3 {
+	if o.TLSVersion != s2apb.TLSVersion_TLS1_3 {
 		return nil, errors.New("TLS version must be TLS 1.3")
 	}
 
-	inConn, err := halfconn.New(o.ciphersuite, o.inTrafficSecret, o.inSequence)
+	inConn, err := halfconn.New(o.Ciphersuite, o.InTrafficSecret, o.InSequence)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create inbound half connection: %v", err)
 	}
-	outConn, err := halfconn.New(o.ciphersuite, o.outTrafficSecret, o.outSequence)
+	outConn, err := halfconn.New(o.Ciphersuite, o.OutTrafficSecret, o.OutSequence)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create outbound half connection: %v", err)
 	}
@@ -84,20 +100,20 @@ func NewConn(o *ConnOptions) (net.Conn, error) {
 	overheadSize := tlsRecordHeaderSize + tlsRecordTypeSize + inConn.TagSize()
 	var unusedBuf []byte
 	// TODO(gud): Potentially optimize unusedBuf with pre-allocation.
-	if o.unusedBuf != nil {
-		unusedBuf = make([]byte, len(o.unusedBuf))
-		copy(unusedBuf, o.unusedBuf)
+	if o.UnusedBuf != nil {
+		unusedBuf = make([]byte, len(o.UnusedBuf))
+		copy(unusedBuf, o.UnusedBuf)
 	}
 
 	s2aConn := &conn{
-		Conn:          o.netConn,
+		Conn:          o.NetConn,
 		inConn:        inConn,
 		outConn:       outConn,
 		unusedBuf:     unusedBuf,
 		outRecordsBuf: make([]byte, outBufSize),
 		nextRecord:    unusedBuf,
 		overheadSize:  overheadSize,
-		hsAddr:        o.hsAddr,
+		hsAddr:        o.HsAddr,
 	}
 	return s2aConn, nil
 }

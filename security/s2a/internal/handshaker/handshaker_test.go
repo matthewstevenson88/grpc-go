@@ -28,11 +28,13 @@ import (
 
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
-
 	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
 )
 
 var (
+	// testHSAddr is the handshaker service address used for testing
+	testHSAddr = "handshaker_address"
+
 	// testClientHandshakerOptions are the client-side handshaker options used for
 	// testing.
 	testClientHandshakerOptions = &ClientHandshakerOptions{
@@ -142,7 +144,7 @@ type fakeStream struct {
 	grpc.ClientStream
 	t *testing.T
 	// expectedResp is the expected SessionResp message from the handshaker
-	//  service.
+	// service.
 	expectedResp *s2apb.SessionResp
 	// isFirstAccess indicates whether the first call to the handshaker service
 	// has been made or not.
@@ -219,7 +221,7 @@ func (fc *fakeConn) Read(b []byte) (n int, err error)  { return fc.in.Read(b) }
 func (fc *fakeConn) Write(b []byte) (n int, err error) { return fc.out.Write(b) }
 func (fc *fakeConn) Close() error                      { return nil }
 
-// fakeInvalidConn is a fake implementation of a invalid net.Conn interface//
+// fakeInvalidConn is a fake implementation of a invalid net.Conn interface
 // that is used for testing.
 type fakeInvalidConn struct {
 	net.Conn
@@ -239,7 +241,7 @@ func TestNewClientHandshaker(t *testing.T) {
 		in:  in,
 		out: new(bytes.Buffer),
 	}
-	chs := newClientHandshaker(stream, c, testClientHandshakerOptions)
+	chs := newClientHandshaker(stream, c, testHSAddr, testClientHandshakerOptions)
 	if chs.clientOpts != testClientHandshakerOptions || chs.conn != c {
 		t.Errorf("handshaker parameters incorrect")
 	}
@@ -255,7 +257,7 @@ func TestNewServerHandshaker(t *testing.T) {
 		in:  in,
 		out: new(bytes.Buffer),
 	}
-	shs := newServerHandshaker(stream, c, testServerHandshakerOptions)
+	shs := newServerHandshaker(stream, c, testHSAddr, testServerHandshakerOptions)
 	if shs.serverOpts != testServerHandshakerOptions || shs.conn != c {
 		t.Errorf("handshaker parameters incorrect")
 	}
@@ -280,12 +282,12 @@ func TestClientHandshake(t *testing.T) {
 		conn:       c,
 		clientOpts: testClientHandshakerOptions,
 		isClient:   true,
+		hsAddr:     testHSAddr,
 	}
 	result := testClientSessionResult
 	errg.Go(func() error {
 		// Returned conn is ignored until record protocol is implemented.
-		// TODO(gud): Add tests for returned conn.
-		_, auth, err := chs.ClientHandshake(context.Background())
+		newConn, auth, err := chs.ClientHandshake(context.Background())
 		if err != nil {
 			return err
 		}
@@ -297,6 +299,9 @@ func TestClientHandshake(t *testing.T) {
 			!bytes.Equal(auth.LocalCertFingerprint(), result.GetLocalCertFingerprint()) ||
 			!bytes.Equal(auth.PeerCertFingerprint(), result.GetPeerCertFingerprint()) {
 			return errors.New("Authinfo s2a context incorrect")
+		}
+		if newConn == nil {
+			return errors.New("Expected non-nil net.Conn")
 		}
 		chs.Close()
 		return nil
@@ -326,13 +331,13 @@ func TestServerHandshake(t *testing.T) {
 		conn:       c,
 		serverOpts: testServerHandshakerOptions,
 		isClient:   false,
+		hsAddr:     testHSAddr,
 	}
 	result := testServerSessionResult
 	errg.Go(func() error {
 		// The conn returned by ServerHandshake is ignored until record protocol
 		// is implemented.
-		// TODO(gud): Add tests for returned conn.
-		_, auth, err := shs.ServerHandshake(context.Background())
+		newConn, auth, err := shs.ServerHandshake(context.Background())
 		if err != nil {
 			return err
 		}
@@ -344,6 +349,9 @@ func TestServerHandshake(t *testing.T) {
 			!bytes.Equal(auth.LocalCertFingerprint(), result.GetLocalCertFingerprint()) ||
 			!bytes.Equal(auth.PeerCertFingerprint(), result.GetPeerCertFingerprint()) {
 			return errors.New("Authinfo s2a context incorrect")
+		}
+		if newConn == nil {
+			return errors.New("Expected non-nil net.Conn")
 		}
 		shs.Close()
 		return nil
@@ -381,6 +389,7 @@ func TestPeerNotResponding(t *testing.T) {
 		conn:       c,
 		clientOpts: testClientHandshakerOptions,
 		isClient:   true,
+		hsAddr:     testHSAddr,
 	}
 	_, context, err := chs.ClientHandshake(context.Background())
 	chs.Close()

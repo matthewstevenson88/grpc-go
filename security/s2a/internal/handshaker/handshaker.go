@@ -29,6 +29,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/security/s2a/internal/authinfo"
 	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
+	"google.golang.org/grpc/security/s2a/internal/record"
 )
 
 var (
@@ -87,43 +88,47 @@ type s2aHandshaker struct {
 	serverOpts *ServerHandshakerOptions
 	// isClient determines if the handshaker is client or server side
 	isClient bool
+	// HandshakerServiceAddress stores the address of the S2A handshaker service.
+	hsAddr string
 }
 
 // NewClientHandshaker creates an s2aHandshaker instance that performs a
 // client-side TLS handshake using the S2A handshaker service.
-func NewClientHandshaker(ctx context.Context, conn *grpc.ClientConn, c net.Conn, opts *ClientHandshakerOptions) (*s2aHandshaker, error) {
+func NewClientHandshaker(ctx context.Context, conn *grpc.ClientConn, c net.Conn, hsAddr string, opts *ClientHandshakerOptions) (*s2aHandshaker, error) {
 	stream, err := s2apb.NewS2AServiceClient(conn).SetUpSession(ctx, grpc.WaitForReady(true))
 	if err != nil {
 		return nil, err
 	}
-	return newClientHandshaker(stream, c, opts), err
+	return newClientHandshaker(stream, c, hsAddr, opts), err
 }
 
-func newClientHandshaker(stream s2apb.S2AService_SetUpSessionClient, c net.Conn, opts *ClientHandshakerOptions) *s2aHandshaker {
+func newClientHandshaker(stream s2apb.S2AService_SetUpSessionClient, c net.Conn, hsAddr string, opts *ClientHandshakerOptions) *s2aHandshaker {
 	return &s2aHandshaker{
 		stream:     stream,
 		conn:       c,
 		clientOpts: opts,
 		isClient:   true,
+		hsAddr:     hsAddr,
 	}
 }
 
 // NewServerHandshaker creates an s2aHandshaker instance that performs a
 // server-side TLS handshake using the S2A handshaker service.
-func NewServerHandshaker(ctx context.Context, conn *grpc.ClientConn, c net.Conn, opts *ServerHandshakerOptions) (*s2aHandshaker, error) {
+func NewServerHandshaker(ctx context.Context, conn *grpc.ClientConn, c net.Conn, hsAddr string, opts *ServerHandshakerOptions) (*s2aHandshaker, error) {
 	stream, err := s2apb.NewS2AServiceClient(conn).SetUpSession(ctx, grpc.WaitForReady(true))
 	if err != nil {
 		return nil, err
 	}
-	return newServerHandshaker(stream, c, opts), err
+	return newServerHandshaker(stream, c, hsAddr, opts), err
 }
 
-func newServerHandshaker(stream s2apb.S2AService_SetUpSessionClient, c net.Conn, opts *ServerHandshakerOptions) *s2aHandshaker {
+func newServerHandshaker(stream s2apb.S2AService_SetUpSessionClient, c net.Conn, hsAddr string, opts *ServerHandshakerOptions) *s2aHandshaker {
 	return &s2aHandshaker{
 		stream:     stream,
 		conn:       c,
 		serverOpts: opts,
 		isClient:   false,
+		hsAddr:     hsAddr,
 	}
 }
 
@@ -206,8 +211,8 @@ func (h *s2aHandshaker) setUpSession(req *s2apb.SessionReq) (net.Conn, *s2apb.Se
 			return nil, nil, fmt.Errorf("%v", resp.GetStatus().Details)
 		}
 	}
-	// Calculate the extra unread bytes from the Session. Attempting to consume more
-	// than the bytes sent will throw an error.
+	// Calculate the extra unread bytes from the Session. Attempting to consume
+	// more than the bytes sent will throw an error.
 	var extra []byte
 	if req.GetServerStart() != nil {
 		if resp.GetBytesConsumed() > uint32(len(req.GetServerStart().GetInBytes())) {
@@ -219,9 +224,22 @@ func (h *s2aHandshaker) setUpSession(req *s2apb.SessionReq) (net.Conn, *s2apb.Se
 	if err != nil {
 		return nil, nil, err
 	}
-	// TODO(gud): use the NewConn API to construct the record protocol when PR#29
-	// is merged.
-	return h.conn, result, nil
+	// Create a new TLS record protocol using the Session Result.
+	newConn, err := record.NewConn(&record.ConnOptions{
+		NetConn:          h.conn,
+		Ciphersuite:      result.GetState().GetTlsCiphersuite(),
+		TLSVersion:       result.GetState().GetTlsVersion(),
+		InTrafficSecret:  result.GetState().GetInKey(),
+		OutTrafficSecret: result.GetState().GetOutKey(),
+		UnusedBuf:        extra,
+		InSequence:       result.GetState().GetInSequence(),
+		OutSequence:      result.GetState().GetOutSequence(),
+		HsAddr:           h.hsAddr,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	return newConn, result, nil
 }
 
 // accessHandshakerService sends the session request to the S2A Handshaker
@@ -255,16 +273,16 @@ func (h *s2aHandshaker) processUntilDone(resp *s2apb.SessionResp, unusedBytes []
 		if err != nil && err != io.EOF {
 			return nil, nil, err
 		}
-		// If there is nothing to send to the handshaker service and
-		// nothing is received from the peer, then we are stuck.
-		// This covers the case when the peer is not responding. Note
-		// that handshaker service connection issues are caught in
-		// accessHandshakerService before we even get here.
+		// If there is nothing to send to the handshaker service and nothing is
+		// received from the peer, then we are stuck. This covers the case when
+		// the peer is not responding. Note that handshaker service connection
+		// issues are caught in accessHandshakerService before we even get
+		// here.
 		if len(resp.OutFrames) == 0 && n == 0 {
 			return nil, nil, peerNotRespondingError
 		}
-		// Append extra bytes from the previous interaction with the
-		// handshaker service with the current buffer read from conn.
+		// Append extra bytes from the previous interaction with the handshaker
+		// service with the current buffer read from conn.
 		p := append(unusedBytes, buf[:n]...)
 		// From here on, p and unusedBytes point to the same slice.
 		resp, err = h.accessHandshakerService(&s2apb.SessionReq{
