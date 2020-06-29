@@ -125,5 +125,28 @@ func (p *conn) Read(b []byte) (n int, err error) {
 
 func (p *conn) Write(b []byte) (n int, err error) {
 	// TODO: Implement this.
-	return 0, errors.New("write unimplemented")
+	n= len(b)
+	numOfFrames := int(math.Ceil(float64(len(b)))/float64(tlsRecordMaxPlaintextSize))
+	totalSize := len(b) + numOfFrames * tlsRecordHeaderSize
+
+	for bStart := 0; bStart < len(b); bStart += tlsRecordMaxPlaintextSize{
+		bEnd := bStart + tlsRecordMaxPlaintextSize
+		if bEnd >len(b){
+			bEnd = len(b)
+		}
+		payloadLen = bEnd-bStart
+
+		newHeader = bytes.NewBuffer(tlsRecordHeaderSize)
+		newHeader.Write([]byte{23,3,3,payloadLen})
+
+		encrypted := p.outConn.Encrypt(p.outRecordsBuf, b[bStart:bEnd], newHeader)
+
+		nn, err := p.Conn.Write(p.outRecordsBuf[:payloadLen])
+		if err != nil {
+			return bStart + nn, err
+		} 
+	}
+
+
+	return n, nil
 }
