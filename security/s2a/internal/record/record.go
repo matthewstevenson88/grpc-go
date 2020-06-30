@@ -61,8 +61,8 @@ type ConnParameters struct {
 	// Ciphersuite is the TLS ciphersuite negotiated by the S2A handshaker
 	// service. It is a required parameter.
 	Ciphersuite s2apb.Ciphersuite
-	// TLSVersion is the TLS version number that the S2A handshaker service
-	// used to set up the session. It is a required parameter.
+	// TLSVersion is the TLS version number negotiated by the S2A handshaker
+	// service. It is a required parameter.
 	TLSVersion s2apb.TLSVersion
 	// InTrafficSecret is the traffic secret used to derive the session key for
 	// the inbound direction. It is a required parameter.
@@ -73,7 +73,7 @@ type ConnParameters struct {
 	// UnusedBuf is the data read from the network that has not yet been
 	// decrypted. If not provided, then that must mean that no application data
 	// was sent in the same flight of messages as the final handshake
-	// settings.
+	// message.
 	UnusedBuf []byte
 	// InSequence is the sequence number of the next, incoming, TLS record. It 
 	// is a required parameter.
