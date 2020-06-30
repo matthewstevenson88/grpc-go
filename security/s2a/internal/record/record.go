@@ -54,32 +54,35 @@ type conn struct {
 	hsAddr string
 }
 
-// ConnOptions holds the options used for creating a new conn object. NetConn,
-// Ciphersuite, TLSVersion, InTrafficSecret, OutTraffic Secret, InSequence, and
-// OutSequence are required parameters, and if not provided, will throw an 
-// error.
+// ConnOptions holds the options used for creating a new conn object. 
 type ConnParameters struct {
-	// NetConn is the current TLS record. 
+	// NetConn is the TCP connection to the peer. It is a required parameter.
 	NetConn net.Conn
-	// Ciphersuite is the TLS ciphersuite negotiated by the S2A's handshaker
-	// module.
+	// Ciphersuite is the TLS ciphersuite negotiated by the S2A handshaker
+	// service. It is a required parameter.
 	Ciphersuite s2apb.Ciphersuite
-	// TLSVersion is the TLS version number that the S2A's handshaker module
-	// used to set up the session.
+	// TLSVersion is the TLS version number that the S2A handshaker service
+	// used to set up the session. It is a required parameter.
 	TLSVersion s2apb.TLSVersion
-	// InTrafficSecret is the key for the in bound direction.
+	// InTrafficSecret is the traffic secret used to derive the session key for
+	// the in bound direction. It is a required parameter.
 	InTrafficSecret []byte
-	// OutTrafficSecret is the key for the out bound direction.
+	// OutTrafficSecret is the traffic secret used to derive the session key 
+	// for the out bound direction. It is a required parameter.
 	OutTrafficSecret []byte
 	// UnusedBuf is the data read from the network that has not yet been
-	// decrypted. If not provided, then no additional data is sent.
+	// decrypted. If not provided, then that must mean that no application data
+	// was sent in the same flight of messages as the final handshake
+	// settings.
 	UnusedBuf []byte
-	// InSequence is the sequence number of the next, incoming, TLS record.
+	// InSequence is the sequence number of the next, incoming, TLS record. It 
+	// is a required parameter.
 	InSequence uint64
-	// OutSequence is the sequence number of the next, outgoing, TLS record.
+	// OutSequence is the sequence number of the next, outgoing, TLS record. It
+	// is a required parameter.
 	OutSequence uint64
 	// hsAddr stores the address of the S2A handshaker service. If not 
-	// provided, resumption is disabled.
+	// provided, then TLS resumption is disabled.
 	HsAddr string
 }
 
