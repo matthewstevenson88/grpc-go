@@ -54,32 +54,39 @@ type conn struct {
 	hsAddr string
 }
 
-// ConnOptions holds the options used for creating a new conn object.
-type ConnOptions struct {
-	// NetConn is the current TLS record.
+// ConnParameters holds the parameters used for creating a new conn object. 
+type ConnParameters struct {
+	// NetConn is the TCP connection to the peer. This parameter is required.
 	NetConn net.Conn
-	// Ciphersuite is the TLS ciphersuite negotiated by the S2A's handshaker
-	// module.
+	// Ciphersuite is the TLS ciphersuite negotiated by the S2A handshaker
+	// service. This parameter is required.
 	Ciphersuite s2apb.Ciphersuite
-	// TLSVersion is the TLS version number that the S2A's handshaker module
-	// used to set up the session.
+	// TLSVersion is the TLS version number negotiated by the S2A handshaker
+	// service. This parameter is required.
 	TLSVersion s2apb.TLSVersion
-	// InTrafficSecret is the key for the in bound direction.
+	// InTrafficSecret is the traffic secret used to derive the session key for
+	// the inbound direction. This parameter is required.
 	InTrafficSecret []byte
-	// OutTrafficSecret is the key for the out bound direction.
+	// OutTrafficSecret is the traffic secret used to derive the session key 
+	// for the outbound direction. This parameter is required.
 	OutTrafficSecret []byte
 	// UnusedBuf is the data read from the network that has not yet been
-	// decrypted.
+	// decrypted. This parameter is optional. If not provided, then no 
+	// application data was sent in the same flight of messages as the final
+	// handshake message.
 	UnusedBuf []byte
-	// InSequence is the sequence number of the next, incoming, TLS record.
+	// InSequence is the sequence number of the next, incoming, TLS record. 
+	// This parameter is required.
 	InSequence uint64
-	// OutSequence is the sequence number of the next, outgoing, TLS record.
+	// OutSequence is the sequence number of the next, outgoing, TLS record. 
+	// This parameter is required.
 	OutSequence uint64
-	// hsAddr stores the address of the S2A handshaker service.
+	// hsAddr stores the address of the S2A handshaker service. This parameter 
+	// is optional. If not provided, then TLS resumption is disabled.
 	HsAddr string
 }
 
-func NewConn(o *ConnOptions) (net.Conn, error) {
+func NewConn(o *ConnParameters) (net.Conn, error) {
 	if o == nil {
 		return nil, errors.New("conn options must not be nil")
 	}
