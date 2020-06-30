@@ -65,10 +65,10 @@ type ConnParameters struct {
 	// used to set up the session. It is a required parameter.
 	TLSVersion s2apb.TLSVersion
 	// InTrafficSecret is the traffic secret used to derive the session key for
-	// the in bound direction. It is a required parameter.
+	// the inbound direction. It is a required parameter.
 	InTrafficSecret []byte
 	// OutTrafficSecret is the traffic secret used to derive the session key 
-	// for the out bound direction. It is a required parameter.
+	// for the outbound direction. It is a required parameter.
 	OutTrafficSecret []byte
 	// UnusedBuf is the data read from the network that has not yet been
 	// decrypted. If not provided, then that must mean that no application data
