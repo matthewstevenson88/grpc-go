@@ -54,9 +54,12 @@ type conn struct {
 	hsAddr string
 }
 
-// ConnOptions holds the options used for creating a new conn object.
-type ConnOptions struct {
-	// NetConn is the current TLS record.
+// ConnOptions holds the options used for creating a new conn object. NetConn,
+// Ciphersuite, TLSVersion, InTrafficSecret, OutTraffic Secret, InSequence, and
+// OutSequence are required parameters, and if not provided, will throw an 
+// error.
+type ConnParameters struct {
+	// NetConn is the current TLS record. 
 	NetConn net.Conn
 	// Ciphersuite is the TLS ciphersuite negotiated by the S2A's handshaker
 	// module.
@@ -69,17 +72,18 @@ type ConnOptions struct {
 	// OutTrafficSecret is the key for the out bound direction.
 	OutTrafficSecret []byte
 	// UnusedBuf is the data read from the network that has not yet been
-	// decrypted.
+	// decrypted. If not provided, then no additional data is sent.
 	UnusedBuf []byte
 	// InSequence is the sequence number of the next, incoming, TLS record.
 	InSequence uint64
 	// OutSequence is the sequence number of the next, outgoing, TLS record.
 	OutSequence uint64
-	// hsAddr stores the address of the S2A handshaker service.
+	// hsAddr stores the address of the S2A handshaker service. If not 
+	// provided, resumption is disabled.
 	HsAddr string
 }
 
-func NewConn(o *ConnOptions) (net.Conn, error) {
+func NewConn(o *ConnParameters) (net.Conn, error) {
 	if o == nil {
 		return nil, errors.New("conn options must not be nil")
 	}
