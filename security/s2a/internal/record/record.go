@@ -54,7 +54,7 @@ type conn struct {
 	hsAddr string
 }
 
-// ConnOptions holds the options used for creating a new conn object. 
+// ConnParameters holds the parameters used for creating a new conn object. 
 type ConnParameters struct {
 	// NetConn is the TCP connection to the peer. It is a required parameter.
 	NetConn net.Conn
