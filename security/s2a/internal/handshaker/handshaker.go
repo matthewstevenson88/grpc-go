@@ -35,10 +35,10 @@ import (
 var (
 	// appProtocol contains the application protocol accepted by the handshaker.
 	appProtocol = "grpc"
-	// frameLimit is the maximum size of a frame.
+	// frameLimit is the maximum size of a frame in bytes.
 	frameLimit = 1024 * 64
 	// peerNotRespondingError is the error thrown when the peer doesnt respond.
-	peerNotRespondingError = errors.New("Peer is not responding and re-connection should be attempted.")
+	peerNotRespondingError = errors.New("peer is not responding and re-connection should be attempted")
 )
 
 // ClientHandshakerOptions contains the options needed to configure the S2A
@@ -48,7 +48,8 @@ type ClientHandshakerOptions struct {
 	MinTLSVersion s2apb.TLSVersion
 	// MaxTLSVersion specifies the max TLS version supported by the client.
 	MaxTLSVersion s2apb.TLSVersion
-	// The ordered list of ciphersuites supported by the client.
+	// TLSCiphersuites is the ordered list of ciphersuites supported by the
+	// client.
 	TLSCiphersuites []s2apb.Ciphersuite
 	// TargetIdentities contains a list of allowed server identities. One of the
 	// target identities should match the peer identity in the handshake
@@ -69,26 +70,28 @@ type ServerHandshakerOptions struct {
 	MinTLSVersion s2apb.TLSVersion
 	// MaxTLSVersion specifies the max TLS version supported by the server.
 	MaxTLSVersion s2apb.TLSVersion
-	// The ordered list of ciphersuites supported by the server.
+	// TLSCiphersuites is the ordered list of ciphersuites supported by the
+	// server.
 	TLSCiphersuites []s2apb.Ciphersuite
-	// The local identities that may be assumed by the server. If no local
-	// identity is specified, then the S2A chooses a default local identity.
+	// LocalIdentities is the list of local identities that may be assumed by
+	// the server. If no local identity is specified, then the S2A chooses a
+	// default local identity.
 	LocalIdentities []*s2apb.Identity
 }
 
 // s2aHandshaker performs a TLS handshake using the S2A handshaker service.
 type s2aHandshaker struct {
-	// Stream used to communicate with the S2A handshaker service.
+	// stream used to communicate with the S2A handshaker service.
 	stream s2apb.S2AService_SetUpSessionClient
-	// The connection to the peer.
+	// conn is the connection to the peer.
 	conn net.Conn
 	// clientOpts should be non-nil iff the handshaker is client-side.
 	clientOpts *ClientHandshakerOptions
 	// serverOpts should be non-nil iff the handshaker is server-side.
 	serverOpts *ServerHandshakerOptions
-	// isClient determines if the handshaker is client or server side
+	// isClient determines if the handshaker is client or server side.
 	isClient bool
-	// HandshakerServiceAddress stores the address of the S2A handshaker service.
+	// hsAddr stores the address of the S2A handshaker service.
 	hsAddr string
 }
 
@@ -134,9 +137,9 @@ func newServerHandshaker(stream s2apb.S2AService_SetUpSessionClient, c net.Conn,
 
 // ClientHandshake performs a client-side TLS handshake using the S2A handshaker
 // service. When complete, returns a TLS connection.
-func (h *s2aHandshaker) ClientHandshake(ctx context.Context) (net.Conn, *authinfo.S2AAuthInfo, error) {
+func (h *s2aHandshaker) ClientHandshake() (net.Conn, *authinfo.S2AAuthInfo, error) {
 	if !h.isClient {
-		return nil, nil, errors.New("Only handshakers created using NewClientHandshaker can perform a client-side handshake.")
+		return nil, nil, errors.New("only handshakers created using NewClientHandshaker can perform a client-side handshake")
 	}
 	// Prepare a client start message to send to the S2A handshaker service.
 	req := &s2apb.SessionReq{
@@ -165,9 +168,9 @@ func (h *s2aHandshaker) ClientHandshake(ctx context.Context) (net.Conn, *authinf
 
 // ServerHandshake performs a server-side TLS handshake using the S2A handshaker
 // service. When complete, returns a TLS connection.
-func (h *s2aHandshaker) ServerHandshake(ctx context.Context) (net.Conn, *authinfo.S2AAuthInfo, error) {
+func (h *s2aHandshaker) ServerHandshake() (net.Conn, *authinfo.S2AAuthInfo, error) {
 	if h.isClient {
-		return nil, nil, errors.New("Only handshakers created using NewServerHandshaker can perform a server-side handshake.")
+		return nil, nil, errors.New("only handshakers created using NewServerHandshaker can perform a server-side handshake")
 	}
 	p := make([]byte, frameLimit)
 	n, err := h.conn.Read(p)
@@ -216,7 +219,7 @@ func (h *s2aHandshaker) setUpSession(req *s2apb.SessionReq) (net.Conn, *s2apb.Se
 	var extra []byte
 	if req.GetServerStart() != nil {
 		if resp.GetBytesConsumed() > uint32(len(req.GetServerStart().GetInBytes())) {
-			return nil, nil, errors.New("Handshaker service consumed bytes value is out-of-bounds.")
+			return nil, nil, errors.New("handshaker service consumed bytes value is out-of-bounds")
 		}
 		extra = req.GetServerStart().GetInBytes()[resp.GetBytesConsumed():]
 	}
@@ -297,7 +300,7 @@ func (h *s2aHandshaker) processUntilDone(resp *s2apb.SessionResp, unusedBytes []
 		}
 		// Set unusedBytes based on the handshaker service response.
 		if resp.GetBytesConsumed() > uint32(len(p)) {
-			return nil, nil, errors.New("Handshaker service consumed bytes value is out-of-bounds.")
+			return nil, nil, errors.New("handshaker service consumed bytes value is out-of-bounds")
 		}
 		unusedBytes = p[resp.GetBytesConsumed():]
 	}
@@ -306,6 +309,6 @@ func (h *s2aHandshaker) processUntilDone(resp *s2apb.SessionResp, unusedBytes []
 // Close shuts down the handshaker and the stream to the S2A handshaker service
 // when the handshake is complete. It should be called when the caller obtains
 // the secure connection at the end of the handshake; otherwise it is a no-op.
-func (h *s2aHandshaker) Close() {
-	h.stream.CloseSend()
+func (h *s2aHandshaker) Close() error {
+	return h.stream.CloseSend()
 }
