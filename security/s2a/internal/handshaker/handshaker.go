@@ -234,7 +234,7 @@ func (h *s2aHandshaker) setUpSession(req *s2apb.SessionReq) (net.Conn, *s2apb.Se
 		UnusedBuf:        extra,
 		InSequence:       result.GetState().GetInSequence(),
 		OutSequence:      result.GetState().GetOutSequence(),
-		HsAddr:           h.hsAddr,
+		HSAddr:           h.hsAddr,
 	})
 	if err != nil {
 		return nil, nil, err
