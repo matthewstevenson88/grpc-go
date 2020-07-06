@@ -3,6 +3,7 @@ package record
 import (
 	"errors"
 	"fmt"
+	"math"
 	"net"
 
 	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
@@ -103,6 +104,8 @@ func NewConn(o *ConnOptions) (net.Conn, error) {
 	if o.UnusedBuf != nil {
 		unusedBuf = make([]byte, len(o.UnusedBuf))
 		copy(unusedBuf, o.UnusedBuf)
+	} else {
+		unusedBuf = make([]byte, 0, 2*tlsRecordMaxPlaintextSize-1)
 	}
 
 	s2aConn := &conn{
@@ -125,28 +128,48 @@ func (p *conn) Read(b []byte) (n int, err error) {
 
 func (p *conn) Write(b []byte) (n int, err error) {
 	// TODO: Implement this.
-	n= len(b)
-	numOfFrames := int(math.Ceil(float64(len(b)))/float64(tlsRecordMaxPlaintextSize))
-	totalSize := len(b) + numOfFrames * tlsRecordHeaderSize
+	n = len(b)
+	numOfFrames := int(math.Ceil(float64(len(b))) / float64(tlsRecordMaxPlaintextSize))
+	totalSize := len(b) + numOfFrames*tlsRecordHeaderSize
 
-	for bStart := 0; bStart < len(b); bStart += tlsRecordMaxPlaintextSize{
-		bEnd := bStart + tlsRecordMaxPlaintextSize
-		if bEnd >len(b){
-			bEnd = len(b)
-		}
-		payloadLen = bEnd-bStart
-
-		newHeader = bytes.NewBuffer(tlsRecordHeaderSize)
-		newHeader.Write([]byte{23,3,3,payloadLen})
-
-		encrypted := p.outConn.Encrypt(p.outRecordsBuf, b[bStart:bEnd], newHeader)
-
-		nn, err := p.Conn.Write(p.outRecordsBuf[:payloadLen])
-		if err != nil {
-			return bStart + nn, err
-		} 
+	if len(p.outRecordsBuf) < totalSize {
+		p.outRecordsBuf = make([]byte, totalSize)
 	}
 
+	for bStart := 0; bStart < len(b); bStart += tlsRecordMaxPlaintextSize {
+		bEnd := bStart + tlsRecordMaxPlaintextSize
+		if bEnd > len(b) {
+			bEnd = len(b)
+		}
+
+		appData := b[bStart:bEnd]
+
+		outRecordsBufIndex := 0
+		for len(appData) > 0 {
+			// Construct the payload consisting of app data and record type.
+			payloadLen := len(appData)
+			buffer := appData[:payloadLen]
+			appData = appData[payloadLen:]
+
+			payload := append(appData, byte(23))
+
+			// Construct the header.
+			newHeader := []byte{23, 3, 3, byte(len(payload))}
+
+			// Encrypt the payload using header as aad
+			encrypted, err := p.outConn.Encrypt(p.outRecordsBuf, payload, newHeader)
+			if err != nil {
+				return bStart, err
+			}
+
+			outRecordsBufIndex += payloadLen
+		}
+
+		nn, err := p.Conn.Write(p.outRecordsBuf[:outRecordsBufIndex])
+		if err != nil {
+			return bStart + nn, err
+		}
+	}
 
 	return n, nil
 }
