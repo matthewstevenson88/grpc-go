@@ -1,4 +1,4 @@
-package main
+package service
 
 import (
 	"bytes"
@@ -37,9 +37,9 @@ const (
 	outKey = "jjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj"
 )
 
-// fakeHandshakerService implements the s2apb.S2AServiceServer. The fake
+// FakeHandshakerService implements the s2apb.S2AServiceServer. The fake
 // handshaker service should not be used by more than 1 application at a time.
-type fakeHandshakerService struct {
+type FakeHandshakerService struct {
 	assistingClient bool
 	state           handshakeState
 	peerIdentity    *s2apb.Identity
@@ -47,7 +47,7 @@ type fakeHandshakerService struct {
 }
 
 // SetUpSession sets up the S2A session.
-func (hs *fakeHandshakerService) SetUpSession(stream s2apb.S2AService_SetUpSessionServer) error {
+func (hs *FakeHandshakerService) SetUpSession(stream s2apb.S2AService_SetUpSessionServer) error {
 	for {
 		sessionReq, err := stream.Recv()
 		if err != nil {
@@ -77,7 +77,7 @@ func (hs *fakeHandshakerService) SetUpSession(stream s2apb.S2AService_SetUpSessi
 }
 
 // processClientStart processes a ClientSessionStartReq.
-func (hs *fakeHandshakerService) processClientStart(req *s2apb.SessionReq_ClientStart) *s2apb.SessionResp {
+func (hs *FakeHandshakerService) processClientStart(req *s2apb.SessionReq_ClientStart) *s2apb.SessionResp {
 	resp := s2apb.SessionResp{}
 	if hs.state != initial {
 		resp.Status = &s2apb.SessionStatus{
@@ -114,7 +114,7 @@ func (hs *fakeHandshakerService) processClientStart(req *s2apb.SessionReq_Client
 }
 
 // processServerStart processes a ServerSessionStartReq.
-func (hs *fakeHandshakerService) processServerStart(req *s2apb.SessionReq_ServerStart) *s2apb.SessionResp {
+func (hs *FakeHandshakerService) processServerStart(req *s2apb.SessionReq_ServerStart) *s2apb.SessionResp {
 	resp := s2apb.SessionResp{}
 	if hs.state != initial {
 		resp.Status = &s2apb.SessionStatus{
@@ -163,7 +163,7 @@ func (hs *fakeHandshakerService) processServerStart(req *s2apb.SessionReq_Server
 }
 
 // processNext processes a SessionNext request.
-func (hs *fakeHandshakerService) processNext(req *s2apb.SessionReq_Next) *s2apb.SessionResp {
+func (hs *FakeHandshakerService) processNext(req *s2apb.SessionReq_Next) *s2apb.SessionResp {
 	resp := s2apb.SessionResp{}
 	if hs.assistingClient {
 		if hs.state != sent {
@@ -221,7 +221,7 @@ func (hs *fakeHandshakerService) processNext(req *s2apb.SessionReq_Next) *s2apb.
 }
 
 // getSessionResult returns a dummy SessionResult.
-func (hs *fakeHandshakerService) getSessionResult() *s2apb.SessionResult {
+func (hs *FakeHandshakerService) getSessionResult() *s2apb.SessionResult {
 	res := s2apb.SessionResult{}
 	res.ApplicationProtocol = grpcAppProtocol
 	res.State = &s2apb.SessionState{

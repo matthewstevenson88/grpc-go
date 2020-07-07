@@ -144,7 +144,7 @@ func (c *s2aTransportCreds) ClientHandshake(ctx context.Context, serverAddr stri
 		}
 	}()
 
-	secConn, authInfo, err := chs.ClientHandshake()
+	secConn, authInfo, err := chs.ClientHandshake(context.Background())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -185,7 +185,7 @@ func (c *s2aTransportCreds) ServerHandshake(rawConn net.Conn) (net.Conn, credent
 		}
 	}()
 
-	secConn, authInfo, err := shs.ServerHandshake()
+	secConn, authInfo, err := shs.ServerHandshake(context.Background())
 	if err != nil {
 		return nil, nil, err
 	}
