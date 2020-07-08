@@ -26,7 +26,8 @@ import (
 
 const (
 	// The address is irrelevant in this test.
-	testAddress = "some_address"
+	testAddress  = "test_address"
+	testAddress2 = "test_address_2"
 )
 
 func TestDial(t *testing.T) {
@@ -40,30 +41,43 @@ func TestDial(t *testing.T) {
 		}
 	}()
 
-	// Ensure that hsConn is nil at first.
-	hsConn = nil
-
-	// First call to Dial, it should create set hsConn.
+	// First call to Dial, it should create a connection for the given address.
 	conn1, err := Dial(testAddress)
 	if err != nil {
-		t.Fatalf("first call to Dial failed: %v", err)
+		t.Fatalf("first call to Dial(%v) failed: %v", testAddress, err)
 	}
 	if conn1 == nil {
-		t.Fatal("first call to Dial(_)=(nil, _), want not nil")
+		t.Fatalf("first call to Dial(%v)=(nil, _), want not nil", testAddress)
 	}
-	if got, want := hsConn, conn1; got != want {
-		t.Fatalf("hsConn=%v, want %v", got, want)
+	if got, want := hsConnMap[testAddress], conn1; got != want {
+		t.Fatalf("hsConnmap[%v] = %v, want %v", testAddress, got, want)
 	}
 
 	// Second call to Dial should return conn1 above.
 	conn2, err := Dial(testAddress)
 	if err != nil {
-		t.Fatalf("second call to Dial(_) failed: %v", err)
+		t.Fatalf("second call to Dial(%v) failed: %v", testAddress, err)
 	}
 	if got, want := conn2, conn1; got != want {
-		t.Fatalf("second call to Dial(_)=(%v, _), want (%v,. _)", got, want)
+		t.Fatalf("second call to Dial(%v)=(%v, _), want (%v, _)", testAddress, got, want)
 	}
-	if got, want := hsConn, conn1; got != want {
-		t.Fatalf("hsConn=%v, want %v", got, want)
+	if got, want := hsConnMap[testAddress], conn1; got != want {
+		t.Fatalf("hsConnMap[%v] = %v, want %v", testAddress, got, want)
+	}
+
+	// Third call to Dial using a different address should create a new
+	// connection.
+	conn3, err := Dial(testAddress2)
+	if err != nil {
+		t.Fatalf("third call to Dial(%v) failed: %v", testAddress2, err)
+	}
+	if conn3 == nil {
+		t.Fatalf("third call to Dial(%v)=(nil, _), want not nil", testAddress)
+	}
+	if got, want := hsConnMap[testAddress2], conn3; got != want {
+		t.Fatalf("hsConnmap[%v] = %v, want %v", testAddress2, got, want)
+	}
+	if got, want := conn2 == conn3, false; got != want {
+		t.Fatalf("(conn2 == conn3) = %v, want %v", got, want)
 	}
 }
