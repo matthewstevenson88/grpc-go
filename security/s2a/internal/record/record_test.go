@@ -515,7 +515,7 @@ func TestConnWrite(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			c, err := NewConn(&ConnOptions{
+			c, err := NewConn(&ConnParameters{
 				NetConn:          &fakeConn{in: tc.completedRecords},
 				Ciphersuite:      tc.ciphersuite,
 				TLSVersion:       s2apb.TLSVersion_TLS1_3,
@@ -533,7 +533,6 @@ func TestConnWrite(t *testing.T) {
 				if n!= len(inPlaintext) {
 					t.Errorf("Wrote %v bytes, expected %v", n, len(inPlaintext))
 				}
-				
 				if err != nil {
 					return
 				}
