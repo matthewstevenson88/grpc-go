@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"encoding/binary"
+
 
 	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
 	"google.golang.org/grpc/security/s2a/internal/record/internal/halfconn"
@@ -129,8 +131,12 @@ func (p *conn) Read(b []byte) (n int, err error) {
 func (p *conn) Write(b []byte) (n int, err error) {
 	// TODO: Implement this.
 	n = len(b)
-	numOfFrames := int(math.Ceil(float64(len(b))) / float64(tlsRecordMaxPlaintextSize))
+	if n == 0 {
+		return 0, errors.New("Input bytes can not be of length 0")
+	}
+	numOfFrames := int(math.Ceil(float64(len(b)) / float64(tlsRecordMaxPlaintextSize)))
 	totalSize := len(b) + numOfFrames*tlsRecordHeaderSize
+	fmt.Printf("%v, %v, %v", b, numOfFrames, totalSize)
 
 	if len(p.outRecordsBuf) < totalSize {
 		p.outRecordsBuf = make([]byte, totalSize)
@@ -148,19 +154,21 @@ func (p *conn) Write(b []byte) (n int, err error) {
 		for len(appData) > 0 {
 			// Construct the payload consisting of app data and record type.
 			payloadLen := len(appData)
-			buffer := appData[:payloadLen]
-			appData = appData[payloadLen:]
+			appData := appData[:payloadLen]
+			//buffer = appData[payloadLen:]
 
 			payload := append(appData, byte(23))
 
 			// Construct the header.
-			newHeader := []byte{23, 3, 3, byte(len(payload))}
+			newHeader := buildHeader(payload)
 
 			// Encrypt the payload using header as aad
-			encrypted, err := p.outConn.Encrypt(p.outRecordsBuf, payload, newHeader)
+			encrypted, err := p.encryptPayload(payload, newHeader)
 			if err != nil {
 				return bStart, err
 			}
+			binary.BigEndian.PutUint32(p.outRecordsBuf[outRecordsBufIndex:], uint32(len(encrypted)))
+
 
 			outRecordsBufIndex += payloadLen
 		}
@@ -172,4 +180,19 @@ func (p *conn) Write(b []byte) (n int, err error) {
 	}
 
 	return n, nil
+}
+
+
+func (p *conn) encryptPayload (b, header []byte) ([]byte, error) {
+	encrypted, err := p.outConn.Encrypt(p.outRecordsBuf, b, header)
+	if err != nil {
+		return nil, err
+	}
+	return encrypted, err
+}
+
+func buildHeader(b []byte) ([]byte){
+	payloadLen := make([]byte, 2)
+	binary.BigEndian.PutUint16(payloadLen, uint16(len(b) + 17))
+	return append([]byte{23, 3, 3}, payloadLen...)
 }
