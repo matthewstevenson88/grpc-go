@@ -186,12 +186,6 @@ func TestConnRead(t *testing.T) {
 	}
 }
 
-func TestConnWrite(t *testing.T) {
-	conn := &conn{}
-	if _, err := conn.Write(nil); err == nil {
-		t.Errorf("write is unimplemented")
-	}
-}
 func TestBuildHeader(t *testing.T) {
 	payload := make([]byte,6)
 	expectedHeader := []byte{23, 3, 3, 0,23}
@@ -205,10 +199,9 @@ func TestBuildHeader(t *testing.T) {
 	if !bytes.Equal(expectedHeader, resultHeader) {
 		t.Errorf("Incorrect Header: Expected: %v, Received: %v", expectedHeader, resultHeader)
 	}
-
 }
 
-func TestConnReadApplicationData(t *testing.T) {
+func TestConnWrite(t *testing.T) {
 	for _, tc := range []struct {
 		desc             string
 		ciphersuite      s2apb.Ciphersuite
@@ -540,6 +533,7 @@ func TestConnReadApplicationData(t *testing.T) {
 				if n!= len(inPlaintext) {
 					t.Errorf("Wrote %v bytes, expected %v", n, len(inPlaintext))
 				}
+				
 				if err != nil {
 					return
 				}
@@ -547,3 +541,4 @@ func TestConnReadApplicationData(t *testing.T) {
 		})
 	}
 }
+

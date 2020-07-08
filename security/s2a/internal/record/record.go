@@ -143,9 +143,6 @@ func (p *conn) Read(b []byte) (n int, err error) {
 
 func (p *conn) Write(b []byte) (n int, err error) {
 	n = len(b)
-	if n == 0 {
-		return 0, errors.New("Input bytes can not be of length 0")
-	}
 	numOfFrames := int(math.Ceil(float64(len(b)) / float64(tlsRecordMaxPlaintextSize)))
 	totalSize := len(b) + numOfFrames*tlsRecordHeaderSize
 	partialBSize := len(b)
@@ -153,19 +150,15 @@ func (p *conn) Write(b []byte) (n int, err error) {
 		totalSize = outBufSize
 		partialBSize = outBufSize/tlsRecordMaxPlaintextSize * tlsRecordHeaderPayloadLengthSize
 	}
-
 	if len(p.outRecordsBuf) < totalSize {
 		p.outRecordsBuf = make([]byte, totalSize)
 	}
-
 	for bStart := 0; bStart < len(b); bStart += partialBSize {
 		bEnd := bStart + partialBSize
 		if bEnd > len(b) {
 			bEnd = len(b)
 		}
-
 		partialB := b[bStart:bEnd]
-
 		outRecordsBufIndex := 0
 		for len(partialB) > 0 {
 			// Construct the payload consisting of app data and record type.
@@ -175,26 +168,22 @@ func (p *conn) Write(b []byte) (n int, err error) {
 			}
 			buff := partialB[:payloadLen]
 			partialB = partialB[payloadLen:]
-
 			payload := append(buff, byte(23))
 			// Construct the header.
 			newHeader := buildHeader(payload)
-
 			// Encrypt the payload using header as aad
 			encrypted, err := p.encryptPayload(payload, newHeader)
 			if err != nil {
 				return bStart, err
 			}
-			binary.BigEndian.PutUint16(p.outRecordsBuf[outRecordsBufIndex:], uint16(len(encrypted)))
+			binary.BigEndian.PutUint16(p.outRecordsBuf[outRecordsBufIndex:], binary.BigEndian.Uint16(append(newHeader, encrypted...)))
 			outRecordsBufIndex += payloadLen + len(buff)
 		}
-
 		nn, err := p.Conn.Write(p.outRecordsBuf[:outRecordsBufIndex])
 		if err != nil {
 			return bStart + nn, err
 		}
 	}
-
 	return n, nil
 }
 
