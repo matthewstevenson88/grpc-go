@@ -148,8 +148,10 @@ func (p *conn) Read(b []byte) (n int, err error) {
 	return 0, errors.New("read unimplemented")
 }
 
+// Write encrypts, frames, and writes bytes from b to the underlying connection.
 func (p *conn) Write(b []byte) (n int, err error) {
 	n = len(b)
+	// Calculate the output buffer size.
 	numOfFrames := int(math.Ceil(float64(len(b)) / float64(tlsRecordMaxPlaintextSize)))
 	totalSize := len(b) + numOfFrames*tlsRecordHeaderSize
 	partialBSize := len(b)
@@ -178,7 +180,7 @@ func (p *conn) Write(b []byte) (n int, err error) {
 			payload := append(buff, byte(23))
 			// Construct the header.
 			newHeader := buildHeader(payload)
-			// Encrypt the payload using header as aad
+			// Encrypt the payload using header as aad.
 			encrypted, err := p.encryptPayload(payload, newHeader)
 			if err != nil {
 				return bStart, err
