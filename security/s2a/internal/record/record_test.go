@@ -48,7 +48,7 @@ func (c *fakeConn) Close() error {
 func TestNewS2ARecordConn(t *testing.T) {
 	for _, tc := range []struct {
 		desc                     string
-		options                  *ConnOptions
+		options                  *ConnParameters
 		outUnusedBytesBuf        []byte
 		outOverheadSize          int
 		outHandshakerServiceAddr string
@@ -60,7 +60,7 @@ func TestNewS2ARecordConn(t *testing.T) {
 		},
 		{
 			desc: "invalid input traffic secret size",
-			options: &ConnOptions{
+			options: &ConnParameters{
 				NetConn:          &fakeConn{},
 				Ciphersuite:      s2apb.Ciphersuite_AES_256_GCM_SHA384,
 				TLSVersion:       s2apb.TLSVersion_TLS1_3,
@@ -72,7 +72,7 @@ func TestNewS2ARecordConn(t *testing.T) {
 		},
 		{
 			desc: "invalid output traffic secret size",
-			options: &ConnOptions{
+			options: &ConnParameters{
 				NetConn:          &fakeConn{},
 				Ciphersuite:      s2apb.Ciphersuite_AES_256_GCM_SHA384,
 				TLSVersion:       s2apb.TLSVersion_TLS1_3,
@@ -84,7 +84,7 @@ func TestNewS2ARecordConn(t *testing.T) {
 		},
 		{
 			desc: "invalid tls version",
-			options: &ConnOptions{
+			options: &ConnParameters{
 				NetConn:          &fakeConn{},
 				Ciphersuite:      s2apb.Ciphersuite_AES_128_GCM_SHA256,
 				TLSVersion:       s2apb.TLSVersion_TLS1_2,
@@ -96,7 +96,7 @@ func TestNewS2ARecordConn(t *testing.T) {
 		},
 		{
 			desc: "basic with AES-128-GCM-SHA256",
-			options: &ConnOptions{
+			options: &ConnParameters{
 				NetConn:          &fakeConn{},
 				Ciphersuite:      s2apb.Ciphersuite_AES_128_GCM_SHA256,
 				TLSVersion:       s2apb.TLSVersion_TLS1_3,
@@ -111,7 +111,7 @@ func TestNewS2ARecordConn(t *testing.T) {
 		},
 		{
 			desc: "basic with AES-256-GCM-SHA384",
-			options: &ConnOptions{
+			options: &ConnParameters{
 				NetConn:          &fakeConn{},
 				Ciphersuite:      s2apb.Ciphersuite_AES_256_GCM_SHA384,
 				TLSVersion:       s2apb.TLSVersion_TLS1_3,
@@ -126,7 +126,7 @@ func TestNewS2ARecordConn(t *testing.T) {
 		},
 		{
 			desc: "basic with CHACHA20-POLY1305-SHA256",
-			options: &ConnOptions{
+			options: &ConnParameters{
 				NetConn:          &fakeConn{},
 				Ciphersuite:      s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
 				TLSVersion:       s2apb.TLSVersion_TLS1_3,
@@ -141,7 +141,7 @@ func TestNewS2ARecordConn(t *testing.T) {
 		},
 		{
 			desc: "basic with unusedBytes",
-			options: &ConnOptions{
+			options: &ConnParameters{
 				NetConn:          &fakeConn{},
 				Ciphersuite:      s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
 				TLSVersion:       s2apb.TLSVersion_TLS1_3,

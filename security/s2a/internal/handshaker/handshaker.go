@@ -225,7 +225,7 @@ func (h *s2aHandshaker) setUpSession(req *s2apb.SessionReq) (net.Conn, *s2apb.Se
 		return nil, nil, err
 	}
 	// Create a new TLS record protocol using the Session Result.
-	newConn, err := record.NewConn(&record.ConnOptions{
+	newConn, err := record.NewConn(&record.ConnParameters{
 		NetConn:          h.conn,
 		Ciphersuite:      result.GetState().GetTlsCiphersuite(),
 		TLSVersion:       result.GetState().GetTlsVersion(),
