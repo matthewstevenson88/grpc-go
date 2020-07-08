@@ -533,17 +533,15 @@ func TestConnReadApplicationData(t *testing.T) {
 				t.Fatalf("NewConn() failed: %v", err)
 			}
 			for _, inPlaintext := range tc.inPlaintexts {
-				plaintext := make([]byte, tlsRecordMaxPlaintextSize)
 				n, err := c.Write(inPlaintext)
 				if got, want := err == nil, !tc.outErr; got != want {
-					t.Errorf("c.Read(plaintext) = (err=nil) = %v, want %v", got, want)
+					t.Errorf("c.Write(plaintext) = (err=nil) = %v, want %v", got, want)
+				}
+				if n!= len(inPlaintext) {
+					t.Errorf("Wrote %v bytes, expected %v", n, len(inPlaintext))
 				}
 				if err != nil {
 					return
-				}
-				plaintext = plaintext[:n]
-				if got, want := plaintext, inPlaintext; !bytes.Equal(got, want) {
-					t.Errorf("c.Read(plaintext) = %v, want %v", got, want)
 				}
 			}
 		})

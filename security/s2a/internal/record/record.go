@@ -20,13 +20,27 @@ const (
 	// tlsRecordMaxPlaintextSize is the maximum size in bytes of the plaintext
 	// in a single TLS 1.3 record.
 	tlsRecordMaxPlaintextSize = 16384 // 2^14
+	// tlsRecordHeaderTypeSize is the size in bytes of the TLS 1.3 record
+	// header type.
+	tlsRecordHeaderTypeSize = 1
+	// tlsRecordHeaderLegacyRecordVersionSize is the size in bytes of the TLS
+	// 1.3 record header legacy record version.
+	tlsRecordHeaderLegacyRecordVersionSize = 2
+	// tlsRecordHeaderPayloadLengthSize is the size in bytes of the TLS 1.3
+	// record header payload length.
+	tlsRecordHeaderPayloadLengthSize = 2
 	// tlsRecordHeaderSize is the size in bytes of the TLS 1.3 record header.
-	tlsRecordHeaderSize = 5
+	tlsRecordHeaderSize = tlsRecordHeaderTypeSize + tlsRecordHeaderLegacyRecordVersionSize + tlsRecordHeaderPayloadLengthSize
+	// tlsApplicationData is the application data type of the TLS 1.3 record
+	// header.
+	tlsApplicationData = 23
 	// tlsRecordTypeSize is the size in bytes of the TLS 1.3 record type.
 	tlsRecordTypeSize = 1
 	// TODO(gud): Revisit what initial size to use when implementating Write.
 	// outBufSize is the initial write buffer size in bytes.
 	outBufSize = 32 * 1024
+	// tlsAlertSize is the size in bytes of an alert of TLS 1.3.
+	tlsAlertSize = 2
 )
 
 // conn represents a secured TLS connection. It implements the net.Conn
@@ -102,7 +116,6 @@ func NewConn(o *ConnOptions) (net.Conn, error) {
 	// The tag size for the in/out connections should be the same.
 	overheadSize := tlsRecordHeaderSize + tlsRecordTypeSize + inConn.TagSize()
 	var unusedBuf []byte
-	// TODO(gud): Potentially optimize unusedBuf with pre-allocation.
 	if o.UnusedBuf != nil {
 		unusedBuf = make([]byte, len(o.UnusedBuf))
 		copy(unusedBuf, o.UnusedBuf)
@@ -129,36 +142,41 @@ func (p *conn) Read(b []byte) (n int, err error) {
 }
 
 func (p *conn) Write(b []byte) (n int, err error) {
-	// TODO: Implement this.
 	n = len(b)
 	if n == 0 {
 		return 0, errors.New("Input bytes can not be of length 0")
 	}
 	numOfFrames := int(math.Ceil(float64(len(b)) / float64(tlsRecordMaxPlaintextSize)))
 	totalSize := len(b) + numOfFrames*tlsRecordHeaderSize
-	fmt.Printf("%v, %v, %v", b, numOfFrames, totalSize)
+	partialBSize := len(b)
+	if totalSize > outBufSize {
+		totalSize = outBufSize
+		partialBSize = outBufSize/tlsRecordMaxPlaintextSize * tlsRecordHeaderPayloadLengthSize
+	}
 
 	if len(p.outRecordsBuf) < totalSize {
 		p.outRecordsBuf = make([]byte, totalSize)
 	}
 
-	for bStart := 0; bStart < len(b); bStart += tlsRecordMaxPlaintextSize {
-		bEnd := bStart + tlsRecordMaxPlaintextSize
+	for bStart := 0; bStart < len(b); bStart += partialBSize {
+		bEnd := bStart + partialBSize
 		if bEnd > len(b) {
 			bEnd = len(b)
 		}
 
-		appData := b[bStart:bEnd]
+		partialB := b[bStart:bEnd]
 
 		outRecordsBufIndex := 0
-		for len(appData) > 0 {
+		for len(partialB) > 0 {
 			// Construct the payload consisting of app data and record type.
-			payloadLen := len(appData)
-			appData := appData[:payloadLen]
-			//buffer = appData[payloadLen:]
+			payloadLen := len(partialB)
+			if payloadLen > len(p.outRecordsBuf) {
+				payloadLen = len(p.outRecordsBuf)
+			}
+			buff := partialB[:payloadLen]
+			partialB = partialB[payloadLen:]
 
-			payload := append(appData, byte(23))
-
+			payload := append(buff, byte(23))
 			// Construct the header.
 			newHeader := buildHeader(payload)
 
@@ -167,10 +185,8 @@ func (p *conn) Write(b []byte) (n int, err error) {
 			if err != nil {
 				return bStart, err
 			}
-			binary.BigEndian.PutUint32(p.outRecordsBuf[outRecordsBufIndex:], uint32(len(encrypted)))
-
-
-			outRecordsBufIndex += payloadLen
+			binary.BigEndian.PutUint16(p.outRecordsBuf[outRecordsBufIndex:], uint16(len(encrypted)))
+			outRecordsBufIndex += payloadLen + len(buff)
 		}
 
 		nn, err := p.Conn.Write(p.outRecordsBuf[:outRecordsBufIndex])
