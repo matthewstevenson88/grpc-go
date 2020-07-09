@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"net"
+	"reflect"
 	"testing"
 
 	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
@@ -1047,19 +1048,19 @@ func TestBuildHeader(t *testing.T) {
 
 func TestConnWrite(t *testing.T) {
 	for _, tc := range []struct {
-		desc             string
-		ciphersuite      s2apb.Ciphersuite
+		desc          string
+		ciphersuite   s2apb.Ciphersuite
 		trafficSecret []byte
-		records          [][]byte
-		inPlaintexts     [][]byte
-		outErr           bool
+		records       [][]byte
+		inPlaintexts  [][]byte
+		outErr        bool
 	}{
 		// The traffic secrets were chosen randomly and are equivalent to the
 		// ones used in C++ and Java. The ciphertext was constructed using an
 		// existing TLS library.
 		{
-			desc:             "AES-128-GCM-SHA256 with no padding",
-			ciphersuite:      s2apb.Ciphersuite_AES_128_GCM_SHA256,
+			desc:          "AES-128-GCM-SHA256 with no padding",
+			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			records: [][]byte{
 				testutil.Dehex("1703030017f2e4e411ac6760e4e3f074a36574c45ee4c1906103db0d"),
@@ -1071,8 +1072,8 @@ func TestConnWrite(t *testing.T) {
 			},
 		},
 		{
-			desc:             "AES-128-GCM-SHA256 with padding",
-			ciphersuite:      s2apb.Ciphersuite_AES_128_GCM_SHA256,
+			desc:          "AES-128-GCM-SHA256 with padding",
+			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			records: [][]byte{
 				testutil.Dehex("1703030021f2e4e411ac6760e84726e4886d7432e39b34f0fccfc1f4558303c68a19535c0ff5"),
@@ -1082,8 +1083,8 @@ func TestConnWrite(t *testing.T) {
 			},
 		},
 		{
-			desc:             "AES-128-GCM-SHA256 empty",
-			ciphersuite:      s2apb.Ciphersuite_AES_128_GCM_SHA256,
+			desc:          "AES-128-GCM-SHA256 empty",
+			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			records: [][]byte{
 				testutil.Dehex("1703030011d47cb2ec040f26cc8989330339c669dd4e"),
@@ -1093,8 +1094,8 @@ func TestConnWrite(t *testing.T) {
 			},
 		},
 		{
-			desc:             "AES-256-GCM-SHA384 with no padding",
-			ciphersuite:      s2apb.Ciphersuite_AES_256_GCM_SHA384,
+			desc:          "AES-256-GCM-SHA384 with no padding",
+			ciphersuite:   s2apb.Ciphersuite_AES_256_GCM_SHA384,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			records: [][]byte{
 				testutil.Dehex("170303001724efee5af1a62170ad5a95f899d038b965386a1a7daed9"),
@@ -1106,8 +1107,8 @@ func TestConnWrite(t *testing.T) {
 			},
 		},
 		{
-			desc:             "AES-256-GCM-SHA384 with padding",
-			ciphersuite:      s2apb.Ciphersuite_AES_256_GCM_SHA384,
+			desc:          "AES-256-GCM-SHA384 with padding",
+			ciphersuite:   s2apb.Ciphersuite_AES_256_GCM_SHA384,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			records: [][]byte{
 				testutil.Dehex("170303002124efee5af1a621e8a4d1f269930e7835cfdd05e2d0bec5b01a67decfa6372c2af7"),
@@ -1117,8 +1118,8 @@ func TestConnWrite(t *testing.T) {
 			},
 		},
 		{
-			desc:             "AES-256-GCM-SHA384 empty",
-			ciphersuite:      s2apb.Ciphersuite_AES_256_GCM_SHA384,
+			desc:          "AES-256-GCM-SHA384 empty",
+			ciphersuite:   s2apb.Ciphersuite_AES_256_GCM_SHA384,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			records: [][]byte{
 				testutil.Dehex("170303001102a04134d38c1118f36b01d177c5d2dcf7"),
@@ -1128,8 +1129,8 @@ func TestConnWrite(t *testing.T) {
 			},
 		},
 		{
-			desc:             "CHACHA20-POLY1305-SHA256 with no padding",
-			ciphersuite:      s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			desc:          "CHACHA20-POLY1305-SHA256 with no padding",
+			ciphersuite:   s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			records: [][]byte{
 				testutil.Dehex("1703030017c947ffa470304370338bb07ce468e6b8a0944a338ba402"),
@@ -1141,8 +1142,8 @@ func TestConnWrite(t *testing.T) {
 			},
 		},
 		{
-			desc:             "CHACHA20-POLY1305-SHA256 with padding",
-			ciphersuite:      s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			desc:          "CHACHA20-POLY1305-SHA256 with padding",
+			ciphersuite:   s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			records: [][]byte{
 				testutil.Dehex("1703030021c947ffa4703043f063e7b6a0519fbd0956cf3a7c9730c13597eec17ec7e700f140"),
@@ -1152,8 +1153,8 @@ func TestConnWrite(t *testing.T) {
 			},
 		},
 		{
-			desc:             "CHACHA20-POLY1305-SHA256 empty",
-			ciphersuite:      s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			desc:          "CHACHA20-POLY1305-SHA256 empty",
+			ciphersuite:   s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			records: [][]byte{
 				testutil.Dehex("1703030011ef8f7a428ddc84ee5968cd6306bf1d2d1b"),
@@ -1163,8 +1164,8 @@ func TestConnWrite(t *testing.T) {
 			},
 		},
 		{
-			desc:             "AES-128-GCM-SHA256 split in first record",
-			ciphersuite:      s2apb.Ciphersuite_AES_128_GCM_SHA256,
+			desc:          "AES-128-GCM-SHA256 split in first record",
+			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			records: [][]byte{
 				testutil.Dehex("1703030017f2e4e411ac6760"),
@@ -1175,8 +1176,8 @@ func TestConnWrite(t *testing.T) {
 			},
 		},
 		{
-			desc:             "AES-256-GCM-SHA384 split in first record",
-			ciphersuite:      s2apb.Ciphersuite_AES_256_GCM_SHA384,
+			desc:          "AES-256-GCM-SHA384 split in first record",
+			ciphersuite:   s2apb.Ciphersuite_AES_256_GCM_SHA384,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			records: [][]byte{
 				testutil.Dehex("170303001724efee5af1a6"),
@@ -1187,8 +1188,8 @@ func TestConnWrite(t *testing.T) {
 			},
 		},
 		{
-			desc:             "CHACHA20-POLY1305-SHA256 split in first record",
-			ciphersuite:      s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			desc:          "CHACHA20-POLY1305-SHA256 split in first record",
+			ciphersuite:   s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			records: [][]byte{
 				testutil.Dehex("1703030017c947ffa470"),
@@ -1199,8 +1200,8 @@ func TestConnWrite(t *testing.T) {
 			},
 		},
 		{
-			desc:             "AES-128-GCM-SHA256 split in first record header",
-			ciphersuite:      s2apb.Ciphersuite_AES_128_GCM_SHA256,
+			desc:          "AES-128-GCM-SHA256 split in first record header",
+			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			records: [][]byte{
 				testutil.Dehex("17"),
@@ -1211,8 +1212,8 @@ func TestConnWrite(t *testing.T) {
 			},
 		},
 		{
-			desc:             "AES-256-GCM-SHA384 split in first record header",
-			ciphersuite:      s2apb.Ciphersuite_AES_256_GCM_SHA384,
+			desc:          "AES-256-GCM-SHA384 split in first record header",
+			ciphersuite:   s2apb.Ciphersuite_AES_256_GCM_SHA384,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			records: [][]byte{
 				testutil.Dehex("17"),
@@ -1223,8 +1224,8 @@ func TestConnWrite(t *testing.T) {
 			},
 		},
 		{
-			desc:             "CHACHA20-POLY1305-SHA256 split in first record header",
-			ciphersuite:      s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			desc:          "CHACHA20-POLY1305-SHA256 split in first record header",
+			ciphersuite:   s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			records: [][]byte{
 				testutil.Dehex("17"),
@@ -1235,8 +1236,8 @@ func TestConnWrite(t *testing.T) {
 			},
 		},
 		{
-			desc:             "AES-128-GCM-SHA256 split in second record",
-			ciphersuite:      s2apb.Ciphersuite_AES_128_GCM_SHA256,
+			desc:          "AES-128-GCM-SHA256 split in second record",
+			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			records: [][]byte{
 				testutil.Dehex("1703030017f2e4e411ac6760e4e3f074a36574c45ee4c1906103db0d170303001ad7"),
@@ -1248,8 +1249,8 @@ func TestConnWrite(t *testing.T) {
 			},
 		},
 		{
-			desc:             "AES-256-GCM-SHA384 split in second record",
-			ciphersuite:      s2apb.Ciphersuite_AES_256_GCM_SHA384,
+			desc:          "AES-256-GCM-SHA384 split in second record",
+			ciphersuite:   s2apb.Ciphersuite_AES_256_GCM_SHA384,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			records: [][]byte{
 				testutil.Dehex("170303001724efee5af1a62170ad5a95f899d038b965386a1a7daed9170303001a83"),
@@ -1261,8 +1262,8 @@ func TestConnWrite(t *testing.T) {
 			},
 		},
 		{
-			desc:             "CHACHA20-POLY1305-SHA256 split in second record",
-			ciphersuite:      s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			desc:          "CHACHA20-POLY1305-SHA256 split in second record",
+			ciphersuite:   s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			records: [][]byte{
 				testutil.Dehex("1703030017c947ffa470304370338bb07ce468e6b8a0944a338ba402170303001a0c"),
@@ -1274,8 +1275,8 @@ func TestConnWrite(t *testing.T) {
 			},
 		},
 		{
-			desc:             "AES-128-GCM-SHA256 split in second record header",
-			ciphersuite:      s2apb.Ciphersuite_AES_128_GCM_SHA256,
+			desc:          "AES-128-GCM-SHA256 split in second record header",
+			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			records: [][]byte{
 				testutil.Dehex("1703030017f2e4e411ac6760e4e3f074a36574c45ee4c1906103db0d17"),
@@ -1287,8 +1288,8 @@ func TestConnWrite(t *testing.T) {
 			},
 		},
 		{
-			desc:             "AES-256-GCM-SHA384 split in second record header",
-			ciphersuite:      s2apb.Ciphersuite_AES_256_GCM_SHA384,
+			desc:          "AES-256-GCM-SHA384 split in second record header",
+			ciphersuite:   s2apb.Ciphersuite_AES_256_GCM_SHA384,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			records: [][]byte{
 				testutil.Dehex("170303001724efee5af1a62170ad5a95f899d038b965386a1a7daed917"),
@@ -1300,8 +1301,8 @@ func TestConnWrite(t *testing.T) {
 			},
 		},
 		{
-			desc:             "CHACHA20-POLY1305-SHA256 split in second record header",
-			ciphersuite:      s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			desc:          "CHACHA20-POLY1305-SHA256 split in second record header",
+			ciphersuite:   s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			records: [][]byte{
 				testutil.Dehex("1703030017c947ffa470304370338bb07ce468e6b8a0944a338ba40217"),
@@ -1313,8 +1314,8 @@ func TestConnWrite(t *testing.T) {
 			},
 		},
 		{
-			desc:             "AES-128-GCM-SHA256 split randomly",
-			ciphersuite:      s2apb.Ciphersuite_AES_128_GCM_SHA256,
+			desc:          "AES-128-GCM-SHA256 split randomly",
+			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			records: [][]byte{
 				testutil.Dehex("1703030017f2e4e411ac6760e4"),
@@ -1328,8 +1329,8 @@ func TestConnWrite(t *testing.T) {
 			},
 		},
 		{
-			desc:             "AES-256-GCM-SHA384 split randomly",
-			ciphersuite:      s2apb.Ciphersuite_AES_256_GCM_SHA384,
+			desc:          "AES-256-GCM-SHA384 split randomly",
+			ciphersuite:   s2apb.Ciphersuite_AES_256_GCM_SHA384,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			records: [][]byte{
 				testutil.Dehex("170303001724efee"),
@@ -1343,8 +1344,8 @@ func TestConnWrite(t *testing.T) {
 			},
 		},
 		{
-			desc:             "CHACHA20-POLY1305-SHA256 split randomly",
-			ciphersuite:      s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			desc:          "CHACHA20-POLY1305-SHA256 split randomly",
+			ciphersuite:   s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			records: [][]byte{
 				testutil.Dehex("17"),
@@ -1359,23 +1360,30 @@ func TestConnWrite(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			c, err := NewConn(&ConnParameters{
-				NetConn:          &fakeConn{in: tc.records},
+			fConn := &fakeConn{in: tc.records}
+			newConn, err := NewConn(&ConnParameters{
+				NetConn:          fConn,
 				Ciphersuite:      tc.ciphersuite,
 				TLSVersion:       s2apb.TLSVersion_TLS1_3,
 				InTrafficSecret:  tc.trafficSecret,
 				OutTrafficSecret: tc.trafficSecret,
 			})
+			c := newConn.(*conn)
 			if err != nil {
 				t.Fatalf("NewConn() failed: %v", err)
 			}
 			for _, inPlaintext := range tc.inPlaintexts {
-				n, err := c.Write(inPlaintext)
+				numBytesWritten := len(inPlaintext)
+				n, err := c.writeTLSRecord(inPlaintext, tlsApplicationData, tlsRecordMaxPlaintextSize)
 				if got, want := err == nil, !tc.outErr; got != want {
 					t.Errorf("c.Write(plaintext) = (err=nil) = %v, want %v", got, want)
 				}
 				if n != len(inPlaintext) {
-					t.Errorf("Wrote %v bytes, expected %v", n, len(inPlaintext))
+					t.Errorf("Wrote %v bytes, expected %v", n, numBytesWritten)
+				}
+				gotRecord := fConn.out
+				if !reflect.DeepEqual(gotRecord, tc.records) {
+					t.Errorf("Incorrect Record: got: %v, want: %v", gotRecord, tc.records)
 				}
 			}
 		})
