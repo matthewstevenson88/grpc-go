@@ -54,7 +54,7 @@ type conn struct {
 	hsAddr string
 }
 
-// ConnParameters holds the parameters used for creating a new conn object. 
+// ConnParameters holds the parameters used for creating a new conn object.
 type ConnParameters struct {
 	// NetConn is the TCP connection to the peer. This parameter is required.
 	NetConn net.Conn
@@ -67,23 +67,23 @@ type ConnParameters struct {
 	// InTrafficSecret is the traffic secret used to derive the session key for
 	// the inbound direction. This parameter is required.
 	InTrafficSecret []byte
-	// OutTrafficSecret is the traffic secret used to derive the session key 
+	// OutTrafficSecret is the traffic secret used to derive the session key
 	// for the outbound direction. This parameter is required.
 	OutTrafficSecret []byte
 	// UnusedBuf is the data read from the network that has not yet been
-	// decrypted. This parameter is optional. If not provided, then no 
+	// decrypted. This parameter is optional. If not provided, then no
 	// application data was sent in the same flight of messages as the final
 	// handshake message.
 	UnusedBuf []byte
-	// InSequence is the sequence number of the next, incoming, TLS record. 
+	// InSequence is the sequence number of the next, incoming, TLS record.
 	// This parameter is required.
 	InSequence uint64
-	// OutSequence is the sequence number of the next, outgoing, TLS record. 
+	// OutSequence is the sequence number of the next, outgoing, TLS record.
 	// This parameter is required.
 	OutSequence uint64
-	// hsAddr stores the address of the S2A handshaker service. This parameter 
+	// HSAddr stores the address of the S2A handshaker service. This parameter
 	// is optional. If not provided, then TLS resumption is disabled.
-	HsAddr string
+	HSAddr string
 }
 
 func NewConn(o *ConnParameters) (net.Conn, error) {
@@ -120,7 +120,7 @@ func NewConn(o *ConnParameters) (net.Conn, error) {
 		outRecordsBuf: make([]byte, outBufSize),
 		nextRecord:    unusedBuf,
 		overheadSize:  overheadSize,
-		hsAddr:        o.HsAddr,
+		hsAddr:        o.HSAddr,
 	}
 	return s2aConn, nil
 }

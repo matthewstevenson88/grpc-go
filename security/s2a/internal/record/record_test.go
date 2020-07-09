@@ -41,7 +41,7 @@ func TestNewS2ARecordConn(t *testing.T) {
 				TLSVersion:       s2apb.TLSVersion_TLS1_3,
 				InTrafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 				OutTrafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-				HsAddr:           "test handshaker address",
+				HSAddr:           "test handshaker address",
 			},
 			outErr: true,
 		},
@@ -53,7 +53,7 @@ func TestNewS2ARecordConn(t *testing.T) {
 				TLSVersion:       s2apb.TLSVersion_TLS1_3,
 				InTrafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 				OutTrafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-				HsAddr:           "test handshaker address",
+				HSAddr:           "test handshaker address",
 			},
 			outErr: true,
 		},
@@ -65,7 +65,7 @@ func TestNewS2ARecordConn(t *testing.T) {
 				TLSVersion:       s2apb.TLSVersion_TLS1_2,
 				InTrafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 				OutTrafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-				HsAddr:           "test handshaker address",
+				HSAddr:           "test handshaker address",
 			},
 			outErr: true,
 		},
@@ -77,7 +77,7 @@ func TestNewS2ARecordConn(t *testing.T) {
 				TLSVersion:       s2apb.TLSVersion_TLS1_3,
 				InTrafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 				OutTrafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-				HsAddr:           "test handshaker address",
+				HSAddr:           "test handshaker address",
 			},
 			// outOverheadSize = header size (5) + record type byte (1) +
 			// tag size (16).
@@ -92,7 +92,7 @@ func TestNewS2ARecordConn(t *testing.T) {
 				TLSVersion:       s2apb.TLSVersion_TLS1_3,
 				InTrafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 				OutTrafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-				HsAddr:           "test handshaker address",
+				HSAddr:           "test handshaker address",
 			},
 			// outOverheadSize = header size (5) + record type byte (1) +
 			// tag size (16).
@@ -107,7 +107,7 @@ func TestNewS2ARecordConn(t *testing.T) {
 				TLSVersion:       s2apb.TLSVersion_TLS1_3,
 				InTrafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 				OutTrafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-				HsAddr:           "test handshaker address",
+				HSAddr:           "test handshaker address",
 			},
 			// outOverheadSize = header size (5) + record type byte (1) +
 			// tag size (16).
@@ -123,7 +123,7 @@ func TestNewS2ARecordConn(t *testing.T) {
 				InTrafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 				OutTrafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 				UnusedBuf:        testutil.Dehex("ffffffff"),
-				HsAddr:           "test handshaker address",
+				HSAddr:           "test handshaker address",
 			},
 			outUnusedBytesBuf: testutil.Dehex("ffffffff"),
 			// outOverheadSize = header size (5) + record type byte (1) +
@@ -148,7 +148,7 @@ func TestNewS2ARecordConn(t *testing.T) {
 				t.Errorf("conn.overheadSize = %v, want %v", got, want)
 			}
 			if got, want := conn.hsAddr, tc.outHandshakerServiceAddr; got != want {
-				t.Errorf("conn.HsAddr = %v, want %v", got, want)
+				t.Errorf("conn.HSAddr = %v, want %v", got, want)
 			}
 		})
 	}
