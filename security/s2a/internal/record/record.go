@@ -221,12 +221,12 @@ func (p *conn) writeTlsRecord(b []byte, recordType byte) (n int, err error) {
 		outRecordsBufIndex := 0
 		for len(partialB) > 0 {
 			// Construct the payload consisting of app data and record type.
-			payloadLen := len(partialB)
-			if payloadLen > len(p.outRecordsBuf) {
-				payloadLen = len(p.outRecordsBuf)
+			dataLen := len(partialB)
+			if dataLen > len(p.outRecordsBuf) {
+				dataLen = len(p.outRecordsBuf)
 			}
-			buff := partialB[:payloadLen]
-			partialB = partialB[payloadLen:]
+			buff := partialB[:dataLen]
+			partialB = partialB[dataLen:]
 			payload := append(buff, recordType)
 			// Construct the header.
 			newHeader, err := buildHeader(payload, recordType)
@@ -239,12 +239,13 @@ func (p *conn) writeTlsRecord(b []byte, recordType byte) (n int, err error) {
 				return bStart, err
 			}
 			binary.BigEndian.PutUint16(p.outRecordsBuf[outRecordsBufIndex:], binary.BigEndian.Uint16(append(newHeader, encrypted...)))
-			outRecordsBufIndex += payloadLen + len(buff)
+			outRecordsBufIndex += dataLen + len(buff)
 		}
 		partialWritten, err := p.Conn.Write(p.outRecordsBuf[:outRecordsBufIndex])
 		if err != nil {
 			return bStart + partialWritten, err
 		}
+		p.outRecordsBuf = make([]byte, outBufSize)
 	}
 	return n, nil
 }
@@ -264,7 +265,7 @@ func buildHeader(b []byte, recordType byte) (header []byte, err error) {
 	if len(b) > tlsRecordMaxPlaintextSize {
 		return nil, errors.New("plaintext length exceeds max size")
 	}
-	payloadLen := make([]byte, tlsRecordHeaderPayloadLengthSize)
-	binary.BigEndian.PutUint16(payloadLen, uint16(len(b)+17))
-	return append([]byte{recordType, tlsLegacyRecordVersion, tlsLegacyRecordVersion}, payloadLen...), nil
+	dataLen := make([]byte, tlsRecordHeaderPayloadLengthSize)
+	binary.BigEndian.PutUint16(dataLen, uint16(len(b)+17))
+	return append([]byte{recordType, tlsLegacyRecordVersion, tlsLegacyRecordVersion}, dataLen...), nil
 }
