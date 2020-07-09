@@ -82,10 +82,10 @@ const (
 const (
 	// tlsHandshakeNewSessionTicket is the prefix of a handshake new session
 	// ticket message of TLS 1.3.
-	tlsHandshakeNewSessionTicket = 0x04
+	tlsHandshakeNewSessionTicket = 4
 	// tlsHandshakeKeyUpdatePrefix is the prefix of a handshake key update
 	// message of TLS 1.3.
-	tlsHandshakeKeyUpdatePrefix = 0x18
+	tlsHandshakeKeyUpdatePrefix = 24
 	// tlsHandshakeMsgTypeSize is the size in bytes of the TLS 1.3 handshake
 	// message type field.
 	tlsHandshakeMsgTypeSize = 1
