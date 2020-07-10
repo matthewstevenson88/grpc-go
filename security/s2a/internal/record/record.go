@@ -114,15 +114,23 @@ const (
 	// tlsHandshakeLengthSize is the size in bytes of the TLS 1.3 handshake
 	// message length field.
 	tlsHandshakeLengthSize = 3
-	// tlsHandshakeLengthSize is the size in bytes of the TLS 1.3 handshake
-	// key update message.
+	// tlsHandshakeKeyUpdateMsgSize is the size in bytes of the TLS 1.3
+	// handshake key update message.
 	tlsHandshakeKeyUpdateMsgSize = 1
+	// tlsHandshakePrefixSize is the size in bytes of the prefix of the TLS 1.3
+	// handshake message.
+	tlsHandshakePrefixSize = 4
 )
 
 const (
 	// outBufMaxSize is the maximum size (in bytes) of the outRecordsBuf buffer.
 	outBufMaxSize = 16 * tlsRecordMaxSize
 )
+
+// preConstructedKeyUpdateMsg holds the key update message. This is needed as an
+// optimization so that the same message does not need to be constructed every
+// time a key update message is sent.
+var preConstructedKeyUpdateMsg = buildKeyUpdateRequest()
 
 // conn represents a secured TLS connection. It implements the net.Conn
 // interface.
@@ -303,14 +311,27 @@ func (p *conn) Read(b []byte) (n int, err error) {
 				if msgLen != tlsHandshakeKeyUpdateMsgSize {
 					return 0, errors.New("invalid handshake key update message length")
 				}
-				if p.pendingApplicationData[tlsHandshakeMsgTypeSize+tlsHandshakeLengthSize] != byte(updateNotRequested) &&
-					p.pendingApplicationData[tlsHandshakeMsgTypeSize+tlsHandshakeLengthSize] != byte(updateRequested) {
-					// TODO: send a key update message back to the peer if it
-					// is requested.
+				keyUpdateRequest := p.pendingApplicationData[tlsHandshakeMsgTypeSize+tlsHandshakeLengthSize]
+				if keyUpdateRequest != byte(updateNotRequested) &&
+					keyUpdateRequest != byte(updateRequested) {
 					return 0, errors.New("invalid handshake key update message")
 				}
 				if err = p.inConn.UpdateKey(); err != nil {
 					return 0, err
+				}
+				// Send a key update message back to the peer if requested.
+				if keyUpdateRequest == byte(updateRequested) {
+					// TODO: lock before sending and updating.
+					n, err := p.writeTLSRecord(preConstructedKeyUpdateMsg, byte(handshake))
+					if err != nil {
+						return 0, err
+					}
+					if n != tlsHandshakePrefixSize+tlsHandshakeKeyUpdateMsgSize {
+						return 0, errors.New("key update request message wrote less bytes than expected")
+					}
+					if err = p.outConn.UpdateKey(); err != nil {
+						return 0, err
+					}
 				}
 				// Clear the body of the key update message.
 				p.pendingApplicationData = p.pendingApplicationData[:0]
@@ -343,8 +364,8 @@ func (p *conn) Write(b []byte) (n int, err error) {
 }
 
 // writeTLSRecord divides b into segments of size maxPlaintextBytesPerRecord,
-// builds a TLS 1.3 record (of type recordType) from each segment, and sends 
-// the record to the peer. It returns the number of plaintext bytes that were 
+// builds a TLS 1.3 record (of type recordType) from each segment, and sends
+// the record to the peer. It returns the number of plaintext bytes that were
 // successfully sent to the peer.
 func (p *conn) writeTLSRecord(b []byte, recordType byte) (n int, err error) {
 	// Create a record of only header, record type, and tag if given empty
@@ -362,12 +383,12 @@ func (p *conn) writeTLSRecord(b []byte, recordType byte) (n int, err error) {
 		return 0, err
 	}
 
-	numRecords := int(math.Ceil(float64(len(b))/float64(tlsRecordMaxPlaintextSize)))
+	numRecords := int(math.Ceil(float64(len(b)) / float64(tlsRecordMaxPlaintextSize)))
 	totalRecordsSize := len(b) + numRecords*p.overheadSize
 	partialBSize := len(b)
 	if totalRecordsSize > outBufMaxSize {
 		totalRecordsSize = outBufMaxSize
-		partialBSize = outBufMaxSize/tlsRecordMaxSize * tlsRecordMaxPlaintextSize
+		partialBSize = outBufMaxSize / tlsRecordMaxSize * tlsRecordMaxPlaintextSize
 	}
 	if len(p.outRecordsBuf) < totalRecordsSize {
 		p.outRecordsBuf = make([]byte, totalRecordsSize)
@@ -400,8 +421,8 @@ func (p *conn) writeTLSRecord(b []byte, recordType byte) (n int, err error) {
 
 // buildRecord builds a TLS 1.3 record of type recordType from plaintext,
 // and writes the record to outRecordsBuf at recordStartIndex. The record will
-// have at most tlsRecordMaxPlaintextSize bytes of payload. It returns the 
-// index of outRecordsBuf where the current record ends, as well as any 
+// have at most tlsRecordMaxPlaintextSize bytes of payload. It returns the
+// index of outRecordsBuf where the current record ends, as well as any
 // remaining plaintext bytes.
 func (p *conn) buildRecord(plaintext []byte, recordType byte, recordStartIndex int) (n int, remainingPlaintext []byte, err error) {
 	// Construct the payload, which consists of application data and record type.
@@ -535,6 +556,16 @@ func splitAndValidateHeader(record []byte) (header, payload []byte, err error) {
 		return nil, nil, fmt.Errorf("incorrect legacy record version in the header")
 	}
 	return header, payload, nil
+}
+
+func buildKeyUpdateRequest() []byte {
+	b := make([]byte, tlsHandshakePrefixSize+tlsHandshakeKeyUpdateMsgSize)
+	b[0] = tlsHandshakeKeyUpdatePrefix
+	b[1] = 0
+	b[2] = 0
+	b[3] = tlsHandshakeKeyUpdateMsgSize
+	b[4] = byte(updateNotRequested)
+	return b
 }
 
 // bidEndianInt24 converts the given byte buffer of at least size 3 and
