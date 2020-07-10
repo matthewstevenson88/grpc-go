@@ -25,6 +25,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
 	"google.golang.org/grpc/security/s2a/internal/record/internal/aeadcrypter/testutil"
 )
@@ -960,7 +961,9 @@ func TestConnReadKeyUpdate(t *testing.T) {
 		ciphersuite      s2apb.Ciphersuite
 		inTrafficSecret  []byte
 		completedRecords [][]byte
+		plaintexts       [][]byte
 		outPlaintexts    [][]byte
+		outWriteBuf      [][]byte
 	}{
 		{
 			desc:            "AES-128-GCM-SHA256",
@@ -970,9 +973,15 @@ func TestConnReadKeyUpdate(t *testing.T) {
 				testutil.Dehex("1703030020dbd6d724994777e84726e4886d7432e311a73b42d0073f28ea60e30e8eb498fd"),
 				testutil.Dehex("1703030017dd99ebef48292cd4c372a000740372d2ae9aad31cfd274"),
 			},
+			plaintexts: [][]byte{
+				[]byte("123456"),
+			},
 			outPlaintexts: [][]byte{
 				[]byte(""),
 				[]byte("123456"),
+			},
+			outWriteBuf: [][]byte{
+				testutil.Dehex("1703030017f2e4e411ac6760e4e3f074a36574c45ee4c1906103db0d"),
 			},
 		},
 		{
@@ -983,9 +992,15 @@ func TestConnReadKeyUpdate(t *testing.T) {
 				testutil.Dehex("17030300200ddddd6fc48636e8a4d1f269930e7835adc07e732ba7fd617ff9a65a51c36b6d"),
 				testutil.Dehex("17030300179cd5972e76baf56af644c92235460301c0a013ad35be00"),
 			},
+			plaintexts: [][]byte{
+				[]byte("123456"),
+			},
 			outPlaintexts: [][]byte{
 				[]byte(""),
 				[]byte("123456"),
+			},
+			outWriteBuf: [][]byte{
+				testutil.Dehex("170303001724efee5af1a62170ad5a95f899d038b965386a1a7daed9"),
 			},
 		},
 		{
@@ -996,15 +1011,82 @@ func TestConnReadKeyUpdate(t *testing.T) {
 				testutil.Dehex("1703030020e075cc91451054f063e7b6a0519fbd098e83bda4b515bea5196cccc008556ad0"),
 				testutil.Dehex("1703030017c4e48ccaf036bd9bc146bbc6192404f9a2d2da5d1afe78"),
 			},
+			plaintexts: [][]byte{
+				[]byte("123456"),
+			},
 			outPlaintexts: [][]byte{
 				[]byte(""),
 				[]byte("123456"),
 			},
+			outWriteBuf: [][]byte{
+				testutil.Dehex("1703030017c947ffa470304370338bb07ce468e6b8a0944a338ba402"),
+			},
+		},
+		{
+			desc:            "AES-128-GCM-SHA256 send key update request",
+			ciphersuite:     s2apb.Ciphersuite_AES_128_GCM_SHA256,
+			inTrafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			completedRecords: [][]byte{
+				testutil.Dehex("1703030016dbd6d724984756cc7bd50502b024f94b489f1a943df5"),
+				testutil.Dehex("1703030017dd99ebef48292cd4c372a000740372d2ae9aad31cfd274"),
+			},
+			plaintexts: [][]byte{
+				[]byte("123456"),
+			},
+			outPlaintexts: [][]byte{
+				[]byte(""),
+				[]byte("123456"),
+			},
+			outWriteBuf: [][]byte{
+				testutil.Dehex("1703030016dbd6d7249947cdda08655a3c2622891c1758fb0c0d0e"),
+				testutil.Dehex("1703030017dd99ebef48292cd4c372a000740372d2ae9aad31cfd274"),
+			},
+		},
+		{
+			desc:            "AES-256-GCM-SHA384 send key update request",
+			ciphersuite:     s2apb.Ciphersuite_AES_256_GCM_SHA384,
+			inTrafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			completedRecords: [][]byte{
+				testutil.Dehex("17030300160ddddd6fc5862e8275a95a35a9a43502a1da78f8a416"),
+				testutil.Dehex("17030300179cd5972e76baf56af644c92235460301c0a013ad35be00"),
+			},
+			plaintexts: [][]byte{
+				[]byte("123456"),
+			},
+			outPlaintexts: [][]byte{
+				[]byte(""),
+				[]byte("123456"),
+			},
+			outWriteBuf: [][]byte{
+				testutil.Dehex("17030300160ddddd6fc486a82b55d4457e3dc846f77b6d3f24de45"),
+				testutil.Dehex("17030300179cd5972e76baf56af644c92235460301c0a013ad35be00"),
+			},
+		},
+		{
+			desc:            "CHACHA20-POLY1305-SHA256 send key update request",
+			ciphersuite:     s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			inTrafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			completedRecords: [][]byte{
+				testutil.Dehex("1703030016e075cc914410ffeb7e4d960f8e3b1e830c137cc69692"),
+				testutil.Dehex("1703030017c4e48ccaf036bd9bc146bbc6192404f9a2d2da5d1afe78"),
+			},
+			plaintexts: [][]byte{
+				[]byte("123456"),
+			},
+			outPlaintexts: [][]byte{
+				[]byte(""),
+				[]byte("123456"),
+			},
+			outWriteBuf: [][]byte{
+				testutil.Dehex("1703030016e075cc914510bc0dbc87cfc12f394b235147042f42d0"),
+				testutil.Dehex("1703030017c4e48ccaf036bd9bc146bbc6192404f9a2d2da5d1afe78"),
+			},
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
+			fc := &fakeConn{in: tc.completedRecords}
 			c, err := NewConn(&ConnParameters{
-				NetConn:          &fakeConn{in: tc.completedRecords},
+				NetConn:          fc,
 				Ciphersuite:      tc.ciphersuite,
 				TLSVersion:       s2apb.TLSVersion_TLS1_3,
 				InTrafficSecret:  tc.inTrafficSecret,
@@ -1022,6 +1104,43 @@ func TestConnReadKeyUpdate(t *testing.T) {
 				plaintext = plaintext[:n]
 				if got, want := plaintext, outPlaintext; !bytes.Equal(got, want) {
 					t.Errorf("c.Read(plaintext) = %v, want %v", got, want)
+				}
+			}
+			// Check that the outbound traffic secret was updated properly. This
+			// is done by writing plaintexts after the key update and verifying
+			// the output.
+			for _, plaintext := range tc.plaintexts {
+				n, err := c.Write(plaintext)
+				if err != nil {
+					t.Fatalf("c.Write(plaintext) failed: %v", err)
+				}
+				if got, want := n, len(plaintext); got != want {
+					t.Fatalf("c.Write(plaintext) = %v, want %v", got, want)
+				}
+			}
+			if got, want := fc.out, tc.outWriteBuf; !cmp.Equal(fc.out, tc.outWriteBuf) {
+				t.Errorf("fc.out = %x, want %x", got, want)
+			}
+			// If a key update message is produced on request, verify that it
+			// can be decrypted properly by a new Conn object. Also, verify that
+			// messages written by the original Conn object after the key update
+			// can be decrypted properly by the new Conn object.
+			fc2 := &fakeConn{in: tc.outWriteBuf}
+			c2, err := NewConn(&ConnParameters{
+				NetConn:          fc2,
+				Ciphersuite:      tc.ciphersuite,
+				TLSVersion:       s2apb.TLSVersion_TLS1_3,
+				InTrafficSecret:  tc.inTrafficSecret,
+				OutTrafficSecret: tc.inTrafficSecret,
+			})
+			if err != nil {
+				t.Fatalf("NewConn() failed: %v", err)
+			}
+			for range tc.outWriteBuf {
+				plaintext := make([]byte, tlsRecordMaxPlaintextSize)
+				_, err := c2.Read(plaintext)
+				if err != nil {
+					t.Fatalf("c.Read(plaintext) failed: %v", err)
 				}
 			}
 		})
