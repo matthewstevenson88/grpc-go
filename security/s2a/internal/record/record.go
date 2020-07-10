@@ -50,7 +50,7 @@ const (
 	// tlsRecordMaxPayloadSize is the maximum size in bytes of the payload in a
 	// single TLS 1.3 record. This is the maximum size of the plaintext plus the
 	// record type byte and 16 bytes of the tag.
-	tlsRecordMaxPayloadSize = tlsRecordMaxPlaintextSize + 17
+	tlsRecordMaxPayloadSize = tlsRecordMaxPlaintextSize + tlsOverheadSize
 	// tlsRecordHeaderTypeSize is the size in bytes of the TLS 1.3 record
 	// header type.
 	tlsRecordHeaderTypeSize = 1
@@ -69,10 +69,11 @@ const (
 	tlsLegacyRecordVersion = 3
 	// tlsRecordTypeSize is the size in bytes of the TLS 1.3 record type.
 	tlsRecordTypeSize = 1
+	tlsTagSize = 16
+	tlsOverheadSize = tlsTagSize + tlsRecordTypeSize
 )
 
 const (
-	// TODO(gud): Revisit what initial size to use when implementating Write.
 	// outBufSize is the initial write buffer size in bytes.
 	outBufSize = 32 * 1024
 	// tlsAlertSize is the size in bytes of an alert of TLS 1.3.
@@ -306,23 +307,29 @@ func (p *conn) Read(b []byte) (n int, err error) {
 	return n, nil
 }
 
-// Write encrypts, frames, and writes bytes from b to the underlying connection.
+// Write encrypts, frames, and writes bytes from b to the underlying 
+// connection. b should contain application data, which will be divided up into
+// pieces of size tlsRecordMaxPlaintextSize, packaged into a TLS 1.3 record of 
+// type "application data", and finally written to the wire. I
 func (p *conn) Write(b []byte) (n int, err error) {
 	return p.writeTLSRecord(b, tlsApplicationData, tlsRecordMaxPlaintextSize)
 
 }
 
-// writeTLSRecord accepts bytes from b, and writes the data according to the
-// recordType and max payload size to the underlying connection.
-func (p *conn) writeTLSRecord(b []byte, recordType byte, maxSize int) (n int, err error) {
+// writeTLSRecord accepts bytes from b, and writes the data to the underlying
+// connection. b should contain application data, which will be divided up into
+// pieces of size tlsRecordMaxPlaintextSize, packaged into a TLS 1.3 record of 
+// type recordType and max payload size of maxPlaintextBytesPerRecord, and 
+// finally written to the wire. 
+func (p *conn) writeTLSRecord(b []byte, recordType byte, maxPlaintextBytesPerRecord int) (n int, err error) {
 	n = len(b)
-	// Calculate the output buffer size.
+	fmt.Printf("bytes %v", b)
 	numOfRecords := int(math.Ceil(float64(len(b)) / float64(tlsRecordMaxPayloadSize)))
-	totalNumOfRecordBytes := len(b) + numOfRecords*17
+	totalNumOfRecordBytes := len(b) + numOfRecords*tlsOverheadSize
 	partialBSize := len(b)
 	if totalNumOfRecordBytes > outBufSize {
 		totalNumOfRecordBytes = outBufSize
-		partialBSize = outBufSize / maxSize * tlsRecordMaxPayloadSize
+		partialBSize = (outBufSize / maxPlaintextBytesPerRecord) * tlsRecordMaxPayloadSize
 	}
 	if len(p.outRecordsBuf) < totalNumOfRecordBytes {
 		p.outRecordsBuf = make([]byte, totalNumOfRecordBytes)
@@ -340,35 +347,40 @@ func (p *conn) writeTLSRecord(b []byte, recordType byte, maxSize int) (n int, er
 			if dataLen > tlsRecordMaxPayloadSize {
 				dataLen = tlsRecordMaxPayloadSize
 			}
-			buff := partialB[:dataLen]
+			buff := partialB[dataLen:]
 			partialB = partialB[dataLen:]
 			payload := append(buff, recordType)
 			// Construct the header.
-			newHeader, err := buildHeader(payload, recordType)
+			newHeader, err := buildHeader(payload)
 			if err != nil {
 				return bStart, err
 			}
 			// Encrypt the payload using header as aad.
-			encrypted, err := p.encryptPayload(payload, newHeader)
+			encryptedPayload, err := p.encryptPayload(payload, newHeader)
 			if err != nil {
 				return bStart, err
 			}
-			binary.BigEndian.PutUint16(p.outRecordsBuf[outRecordsBufIndex:], binary.BigEndian.Uint16(append(newHeader, encrypted...)))
-			outRecordsBufIndex += dataLen + len(buff)
+			completeRecord := append(newHeader, encryptedPayload...)
+			fmt.Printf("header: %v, encryptedPayload: %v =len %v, complete: %v ",newHeader, encryptedPayload, len(encryptedPayload), completeRecord)
+
+			binary.BigEndian.PutUint16(p.outRecordsBuf[outRecordsBufIndex:], binary.BigEndian.Uint16(completeRecord))
+			outRecordsBufIndex += dataLen + tlsRecordHeaderSize
 		}
-		partialWritten, err := p.Conn.Write(p.outRecordsBuf[:outRecordsBufIndex])
+		lengthWrittenRecord, err := p.Conn.Write(p.outRecordsBuf[:outRecordsBufIndex])
+		fmt.Printf("outrecord %v",p.outRecordsBuf[:outRecordsBufIndex])
 		if err != nil {
-			return bStart + partialWritten, err
+			return bStart + lengthWrittenRecord, err
 		}
 		p.outRecordsBuf = make([]byte, outBufSize)
 	}
 	return n, nil
 }
 
-// encryptPayload takes in b as the payload and feeds it into the ADEED crypter
+// encryptPayload takes in b as the payload and feeds it into the crypter
 // with header as the aad.
 func (p *conn) encryptPayload(b, header []byte) ([]byte, error) {
-	encrypted, err := p.outConn.Encrypt(p.outRecordsBuf, b, header)
+	encrypted := make([]byte,header[4])
+	encrypted, err := p.outConn.Encrypt(encrypted, b, header)
 	if err != nil {
 		return nil, err
 	}
@@ -376,15 +388,15 @@ func (p *conn) encryptPayload(b, header []byte) ([]byte, error) {
 }
 
 // buildHeader takes in b as the payload and builds the header for it.
-func buildHeader(b []byte, recordType byte) (header []byte, err error) {
-	if len(b) > tlsRecordMaxPlaintextSize {
-		return nil, errors.New("plaintext length exceeds max size")
+func buildHeader(b []byte) (header []byte, err error) {
+	if len(b) > tlsRecordMaxPayloadSize {
+		return nil, errors.New("payload length exceeds max size")
 	}
-	dataLen := make([]byte, tlsRecordHeaderPayloadLengthSize)
+	payloadLengthInHex := make([]byte, tlsRecordHeaderPayloadLengthSize)
 	// Write the length of the ciphertext, which is length of the payload,
 	// record type byte, and 16 bytes of tag.
-	binary.BigEndian.PutUint16(dataLen, uint16(len(b)+tlsRecordTypeSize+16))
-	return append([]byte{recordType, tlsLegacyRecordVersion, tlsLegacyRecordVersion}, dataLen...), nil
+	binary.BigEndian.PutUint16(payloadLengthInHex, uint16(len(b)+tlsRecordTypeSize+16))
+	return append([]byte{tlsApplicationData, tlsLegacyRecordVersion, tlsLegacyRecordVersion}, payloadLengthInHex...), nil
 }
 
 func (p *conn) Close() error {
