@@ -1012,7 +1012,7 @@ func TestConnReadKeyUpdate(t *testing.T) {
 
 func TestBuildHeader(t *testing.T) {
 	payload := make([]byte, 0)
-	expectedHeader := []byte{23, 3, 3, 0, 17}
+	expectedHeader := []byte{23, 3, 3, 0, 16}
 	resultHeader, err := buildHeader(payload)
 	if !bytes.Equal(expectedHeader, resultHeader) {
 		t.Errorf("Incorrect Header: Expected: %v, Received: %v", expectedHeader, resultHeader)
@@ -1021,7 +1021,7 @@ func TestBuildHeader(t *testing.T) {
 		t.Errorf("buildHeader returned error: %v", err)
 	}
 	payload = make([]byte, 6)
-	expectedHeader = []byte{23, 3, 3, 0, 23}
+	expectedHeader = []byte{23, 3, 3, 0, 22}
 	resultHeader, err = buildHeader(payload)
 	if !bytes.Equal(expectedHeader, resultHeader) {
 		t.Errorf("Incorrect Header: Expected: %v, Received: %v", expectedHeader, resultHeader)
@@ -1030,7 +1030,7 @@ func TestBuildHeader(t *testing.T) {
 		t.Errorf("buildHeader returned error: %v", err)
 	}
 	payload = make([]byte, 256)
-	expectedHeader = []byte{23, 3, 3, 1, 17}
+	expectedHeader = []byte{23, 3, 3, 1, 16}
 	resultHeader, err = buildHeader(payload)
 	if !bytes.Equal(expectedHeader, resultHeader) {
 		t.Errorf("Incorrect Header: Expected: %v, Received: %v", expectedHeader, resultHeader)
@@ -1058,7 +1058,7 @@ func TestConnWrite(t *testing.T) {
 		// The traffic secrets were chosen randomly and are equivalent to the
 		// ones used in C++ and Java. The ciphertext was constructed using an
 		// existing TLS library.
-		/*
+
 		{
 			desc:          "AES-128-GCM-SHA256 with no padding",
 			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
@@ -1071,7 +1071,7 @@ func TestConnWrite(t *testing.T) {
 				[]byte("123456"),
 				[]byte("789123456"),
 			},
-		},*/
+		},
 		{
 			desc:          "AES-128-GCM-SHA256 with padding",
 			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
@@ -1082,7 +1082,7 @@ func TestConnWrite(t *testing.T) {
 			inPlaintexts: [][]byte{
 				[]byte("123456"),
 			},
-		},/*
+		},
 		{
 			desc:          "AES-128-GCM-SHA256 empty",
 			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
@@ -1164,201 +1164,6 @@ func TestConnWrite(t *testing.T) {
 				[]byte(""),
 			},
 		},
-		{
-			desc:          "AES-128-GCM-SHA256 split in first record",
-			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
-			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			records: [][]byte{
-				testutil.Dehex("1703030017f2e4e411ac6760"),
-				testutil.Dehex("e4e3f074a36574c45ee4c1906103db0d"),
-			},
-			inPlaintexts: [][]byte{
-				[]byte("123456"),
-			},
-		},
-		{
-			desc:          "AES-256-GCM-SHA384 split in first record",
-			ciphersuite:   s2apb.Ciphersuite_AES_256_GCM_SHA384,
-			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			records: [][]byte{
-				testutil.Dehex("170303001724efee5af1a6"),
-				testutil.Dehex("2170ad5a95f899d038b965386a1a7daed9"),
-			},
-			inPlaintexts: [][]byte{
-				[]byte("123456"),
-			},
-		},
-		{
-			desc:          "CHACHA20-POLY1305-SHA256 split in first record",
-			ciphersuite:   s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
-			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			records: [][]byte{
-				testutil.Dehex("1703030017c947ffa470"),
-				testutil.Dehex("304370338bb07ce468e6b8a0944a338ba402"),
-			},
-			inPlaintexts: [][]byte{
-				[]byte("123456"),
-			},
-		},
-		{
-			desc:          "AES-128-GCM-SHA256 split in first record header",
-			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
-			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			records: [][]byte{
-				testutil.Dehex("17"),
-				testutil.Dehex("03030017f2e4e411ac6760e4e3f074a36574c45ee4c1906103db0d"),
-			},
-			inPlaintexts: [][]byte{
-				[]byte("123456"),
-			},
-		},
-		{
-			desc:          "AES-256-GCM-SHA384 split in first record header",
-			ciphersuite:   s2apb.Ciphersuite_AES_256_GCM_SHA384,
-			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			records: [][]byte{
-				testutil.Dehex("17"),
-				testutil.Dehex("0303001724efee5af1a62170ad5a95f899d038b965386a1a7daed9"),
-			},
-			inPlaintexts: [][]byte{
-				[]byte("123456"),
-			},
-		},
-		{
-			desc:          "CHACHA20-POLY1305-SHA256 split in first record header",
-			ciphersuite:   s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
-			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			records: [][]byte{
-				testutil.Dehex("17"),
-				testutil.Dehex("03030017c947ffa470304370338bb07ce468e6b8a0944a338ba402"),
-			},
-			inPlaintexts: [][]byte{
-				[]byte("123456"),
-			},
-		},
-		{
-			desc:          "AES-128-GCM-SHA256 split in second record",
-			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
-			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			records: [][]byte{
-				testutil.Dehex("1703030017f2e4e411ac6760e4e3f074a36574c45ee4c1906103db0d170303001ad7"),
-				testutil.Dehex("853afd6d7ceaabab950a0b6707905d2b908894871c7c62021f"),
-			},
-			inPlaintexts: [][]byte{
-				[]byte("123456"),
-				[]byte("789123456"),
-			},
-		},
-		{
-			desc:          "AES-256-GCM-SHA384 split in second record",
-			ciphersuite:   s2apb.Ciphersuite_AES_256_GCM_SHA384,
-			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			records: [][]byte{
-				testutil.Dehex("170303001724efee5af1a62170ad5a95f899d038b965386a1a7daed9170303001a83"),
-				testutil.Dehex("2a5fd271b6442e74bc02111a8e8b52a74b14dd3eca8598b293"),
-			},
-			inPlaintexts: [][]byte{
-				[]byte("123456"),
-				[]byte("789123456"),
-			},
-		},
-		{
-			desc:          "CHACHA20-POLY1305-SHA256 split in second record",
-			ciphersuite:   s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
-			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			records: [][]byte{
-				testutil.Dehex("1703030017c947ffa470304370338bb07ce468e6b8a0944a338ba402170303001a0c"),
-				testutil.Dehex("edeb922170c110c172262542c67916b78fa0d1c1261709cd00"),
-			},
-			inPlaintexts: [][]byte{
-				[]byte("123456"),
-				[]byte("789123456"),
-			},
-		},
-		{
-			desc:          "AES-128-GCM-SHA256 split in second record header",
-			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
-			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			records: [][]byte{
-				testutil.Dehex("1703030017f2e4e411ac6760e4e3f074a36574c45ee4c1906103db0d17"),
-				testutil.Dehex("0303001ad7853afd6d7ceaabab950a0b6707905d2b908894871c7c62021f"),
-			},
-			inPlaintexts: [][]byte{
-				[]byte("123456"),
-				[]byte("789123456"),
-			},
-		},
-		{
-			desc:          "AES-256-GCM-SHA384 split in second record header",
-			ciphersuite:   s2apb.Ciphersuite_AES_256_GCM_SHA384,
-			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			records: [][]byte{
-				testutil.Dehex("170303001724efee5af1a62170ad5a95f899d038b965386a1a7daed917"),
-				testutil.Dehex("0303001a832a5fd271b6442e74bc02111a8e8b52a74b14dd3eca8598b293"),
-			},
-			inPlaintexts: [][]byte{
-				[]byte("123456"),
-				[]byte("789123456"),
-			},
-		},
-		{
-			desc:          "CHACHA20-POLY1305-SHA256 split in second record header",
-			ciphersuite:   s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
-			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			records: [][]byte{
-				testutil.Dehex("1703030017c947ffa470304370338bb07ce468e6b8a0944a338ba40217"),
-				testutil.Dehex("0303001a0cedeb922170c110c172262542c67916b78fa0d1c1261709cd00"),
-			},
-			inPlaintexts: [][]byte{
-				[]byte("123456"),
-				[]byte("789123456"),
-			},
-		},
-		{
-			desc:          "AES-128-GCM-SHA256 split randomly",
-			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
-			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			records: [][]byte{
-				testutil.Dehex("1703030017f2e4e411ac6760e4"),
-				testutil.Dehex("e3f074a36574c45ee4c1906103db0d17"),
-				testutil.Dehex("0303001ad7853afd6d7ceaab"),
-				testutil.Dehex("ab950a0b6707905d2b908894871c7c62021f"),
-			},
-			inPlaintexts: [][]byte{
-				[]byte("123456"),
-				[]byte("789123456"),
-			},
-		},
-		{
-			desc:          "AES-256-GCM-SHA384 split randomly",
-			ciphersuite:   s2apb.Ciphersuite_AES_256_GCM_SHA384,
-			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			records: [][]byte{
-				testutil.Dehex("170303001724efee"),
-				testutil.Dehex("5af1a62170ad5a95f899d038b965386a1a7daed917"),
-				testutil.Dehex("03"),
-				testutil.Dehex("03001a832a5fd271b6442e74bc02111a8e8b52a74b14dd3eca8598b293"),
-			},
-			inPlaintexts: [][]byte{
-				[]byte("123456"),
-				[]byte("789123456"),
-			},
-		},
-		{
-			desc:          "CHACHA20-POLY1305-SHA256 split randomly",
-			ciphersuite:   s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
-			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			records: [][]byte{
-				testutil.Dehex("17"),
-				testutil.Dehex("03030017c947ffa470304370338bb07ce468e6b8a0944a338ba40217"),
-				testutil.Dehex("0303001a0cedeb922170"),
-				testutil.Dehex("c110c172262542c67916b78fa0d1c1261709cd00"),
-			},
-			inPlaintexts: [][]byte{
-				[]byte("123456"),
-				[]byte("789123456"),
-			},
-		},*/
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			fConn := &fakeConn{in: tc.records}
@@ -1382,10 +1187,11 @@ func TestConnWrite(t *testing.T) {
 				if n != len(inPlaintext) {
 					t.Errorf("Wrote %v bytes, expected %v", n, numBytesWritten)
 				}
-				gotRecord := fConn.out
-				if !reflect.DeepEqual(gotRecord, tc.records) {
-					t.Errorf("Incorrect Record: got: %v, want: %v", gotRecord, tc.records)
-				}
+			}
+
+			gotRecord := fConn.out
+			if !reflect.DeepEqual(gotRecord, tc.records) {
+				t.Errorf("Incorrect Record: got: %v, want: %v", gotRecord, tc.records)
 			}
 		})
 	}
