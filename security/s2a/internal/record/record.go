@@ -378,7 +378,10 @@ func (p *conn) writeTLSRecord(b []byte, recordType byte, maxPlaintextBytesPerRec
 	return n, nil
 }
 
-func (p *conn) buildRecord(partialB []byte, recordType byte, bStart, bEnd, outRecordsBufIndex int, maxPayloadSize int) (n int, newPartialB []byte, err error) {
+// buildRecord uses partialB and recordType to create a TLS record with payload
+// size of maxPayloadSize, and then writes it to p.outRecordsBuf. The updated
+// outRecordsBufIndex and partialB is returned.
+func (p *conn) buildRecord(partialB []byte, recordType byte, outRecordsBufIndex int, maxPayloadSize int) (n int, newPartialB []byte, err error) {
 	// Construct the payload consisting of app data and record type.
 	dataLen := len(partialB)
 	if dataLen > maxPayloadSize {
