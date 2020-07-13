@@ -1051,8 +1051,8 @@ func TestConnWrite(t *testing.T) {
 		desc             string
 		ciphersuite      s2apb.Ciphersuite
 		trafficSecret    []byte
-		records          [][]byte
-		inPlaintexts     [][]byte
+		outRecords       [][]byte
+		plaintexts       [][]byte
 		maxPlaintextSize int
 		outErr           bool
 	}{
@@ -1064,93 +1064,97 @@ func TestConnWrite(t *testing.T) {
 			desc:          "Exceed payload max length",
 			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			inPlaintexts: [][]byte{
-				make([]byte, 128),
+			plaintexts: [][]byte{
+				[]byte("123456"),
+				[]byte("789123456"),
 			},
 			maxPlaintextSize: 1,
-			outErr:           true,
+			outRecords: [][]byte{
+				testutil.Dehex("1703030017f2e4e411ac6760e4e3f074a36574c45ee4c1906103db0d"),
+				testutil.Dehex("170303001ad7853afd6d7ceaabab950a0b6707905d2b908894871c7c62021f"),
+			},
 		},
 		{
 			desc:          "AES-128-GCM-SHA256 ",
 			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			records: [][]byte{
-				testutil.Dehex("1703030017f2e4e411ac6760e4e3f074a36574c45ee4c1906103db0d"),
-				testutil.Dehex("170303001ad7853afd6d7ceaabab950a0b6707905d2b908894871c7c62021f"),
-			},
-			inPlaintexts: [][]byte{
+			plaintexts: [][]byte{
 				[]byte("123456"),
 				[]byte("789123456"),
 			},
 			maxPlaintextSize: tlsRecordMaxPlaintextSize,
+			outRecords: [][]byte{
+				testutil.Dehex("1703030017f2e4e411ac6760e4e3f074a36574c45ee4c1906103db0d"),
+				testutil.Dehex("170303001ad7853afd6d7ceaabab950a0b6707905d2b908894871c7c62021f"),
+			},
 		},
 		{
 			desc:          "AES-128-GCM-SHA256 empty",
 			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			records: [][]byte{
-				testutil.Dehex("1703030011d47cb2ec040f26cc8989330339c669dd4e"),
-			},
-			inPlaintexts: [][]byte{
+			plaintexts: [][]byte{
 				[]byte(""),
 			},
 			maxPlaintextSize: tlsRecordMaxPlaintextSize,
+			outRecords: [][]byte{
+				testutil.Dehex("1703030011d47cb2ec040f26cc8989330339c669dd4e"),
+			},
 		},
 		{
 			desc:          "AES-256-GCM-SHA384",
 			ciphersuite:   s2apb.Ciphersuite_AES_256_GCM_SHA384,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			records: [][]byte{
-				testutil.Dehex("170303001724efee5af1a62170ad5a95f899d038b965386a1a7daed9"),
-				testutil.Dehex("170303001a832a5fd271b6442e74bc02111a8e8b52a74b14dd3eca8598b293"),
-			},
-			inPlaintexts: [][]byte{
+			plaintexts: [][]byte{
 				[]byte("123456"),
 				[]byte("789123456"),
 			},
 			maxPlaintextSize: tlsRecordMaxPlaintextSize,
+			outRecords: [][]byte{
+				testutil.Dehex("170303001724efee5af1a62170ad5a95f899d038b965386a1a7daed9"),
+				testutil.Dehex("170303001a832a5fd271b6442e74bc02111a8e8b52a74b14dd3eca8598b293"),
+			},
 		},
 		{
 			desc:          "AES-256-GCM-SHA384 empty",
 			ciphersuite:   s2apb.Ciphersuite_AES_256_GCM_SHA384,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			records: [][]byte{
-				testutil.Dehex("170303001102a04134d38c1118f36b01d177c5d2dcf7"),
-			},
-			inPlaintexts: [][]byte{
+			plaintexts: [][]byte{
 				[]byte(""),
 			},
 			maxPlaintextSize: tlsRecordMaxPlaintextSize,
+			outRecords: [][]byte{
+				testutil.Dehex("170303001102a04134d38c1118f36b01d177c5d2dcf7"),
+			},
 		},
 		{
 			desc:          "CHACHA20-POLY1305-SHA256",
 			ciphersuite:   s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			records: [][]byte{
-				testutil.Dehex("1703030017c947ffa470304370338bb07ce468e6b8a0944a338ba402"),
-				testutil.Dehex("170303001a0cedeb922170c110c172262542c67916b78fa0d1c1261709cd00"),
-			},
-			inPlaintexts: [][]byte{
+			plaintexts: [][]byte{
 				[]byte("123456"),
 				[]byte("789123456"),
 			},
 			maxPlaintextSize: tlsRecordMaxPlaintextSize,
+			outRecords: [][]byte{
+				testutil.Dehex("1703030017c947ffa470304370338bb07ce468e6b8a0944a338ba402"),
+				testutil.Dehex("170303001a0cedeb922170c110c172262542c67916b78fa0d1c1261709cd00"),
+			},
 		},
 		{
 			desc:          "CHACHA20-POLY1305-SHA256 empty",
 			ciphersuite:   s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			records: [][]byte{
-				testutil.Dehex("1703030011ef8f7a428ddc84ee5968cd6306bf1d2d1b"),
-			},
-			inPlaintexts: [][]byte{
+			plaintexts: [][]byte{
 				[]byte(""),
 			},
 			maxPlaintextSize: tlsRecordMaxPlaintextSize,
+			outRecords: [][]byte{
+				testutil.Dehex("1703030011ef8f7a428ddc84ee5968cd6306bf1d2d1b"),
+			},
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			fConn := &fakeConn{in: tc.records}
+			fConn := &fakeConn{in: tc.outRecords}
 			newConn, err := NewConn(&ConnParameters{
 				NetConn:          fConn,
 				Ciphersuite:      tc.ciphersuite,
@@ -1162,18 +1166,18 @@ func TestConnWrite(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewConn() failed: %v", err)
 			}
-			for _, inPlaintext := range tc.inPlaintexts {
-				numBytesWritten := len(inPlaintext)
-				n, err := c.writeTLSRecord(inPlaintext, tlsApplicationData, tc.maxPlaintextSize)
+			for _, plaintext := range tc.plaintexts {
+				numBytesWritten := len(plaintext)
+				n, err := c.writeTLSRecord(plaintext, tlsApplicationData, tc.maxPlaintextSize)
 				if got, want := err == nil, !tc.outErr; got != want {
 					t.Errorf("c.Write(plaintext) = (err=nil) = %v, want %v", got, want)
 				}
-				if !tc.outErr && n != len(inPlaintext) {
+				if !tc.outErr && n != len(plaintext) {
 					t.Errorf("Wrote %v bytes, expected %v", n, numBytesWritten)
 				}
 			}
-			if !reflect.DeepEqual(fConn.out, tc.records) {
-				t.Errorf("Incorrect Record: got: %v, want: %v", fConn.out, tc.records)
+			if !reflect.DeepEqual(fConn.out, tc.outRecords) {
+				t.Errorf("Incorrect Record: got: %v, want: %v", fConn.out, tc.outRecords)
 			}
 		})
 	}

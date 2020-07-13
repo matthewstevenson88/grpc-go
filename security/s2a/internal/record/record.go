@@ -323,14 +323,10 @@ func (p *conn) Write(b []byte) (n int, err error) {
 // finally written to the wire.
 func (p *conn) writeTLSRecord(b []byte, recordType byte, maxPlaintextBytesPerRecord int) (n int, err error) {
 	n = len(b)
-	// Calculate the newTlsRecordMaxPayloadSize from the given
-	// maxPlaintextBytesPerRecord, and should strictly be less than the
-	// tlsRecordMaxPayloadSize constant.
-	newTlsRecordMaxPayloadSize := maxPlaintextBytesPerRecord + tlsRecordTypeSize + tlsTagSize
-	if newTlsRecordMaxPayloadSize > tlsRecordMaxPayloadSize {
-		return 0, errors.New("Payload size exceeds 1.3 TLS record max payload size")
-	}
 
+	// Calculate the newTlsRecordMaxPayloadSize from the given
+	// maxPlaintextBytesPerRecord.
+	newTlsRecordMaxPayloadSize := maxPlaintextBytesPerRecord + tlsRecordTypeSize + tlsTagSize
 	// Create a record of only header, record type, and tag if given empty byte array.
 	if len(b) == 0 {
 		outRecordsBufIndex, _, err := p.buildRecord(b, recordType, 0, 0, 0, newTlsRecordMaxPayloadSize)
