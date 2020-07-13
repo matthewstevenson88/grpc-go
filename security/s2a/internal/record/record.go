@@ -181,8 +181,6 @@ func NewConn(o *ConnParameters) (net.Conn, error) {
 	if o.UnusedBuf != nil {
 		unusedBuf = make([]byte, len(o.UnusedBuf))
 		copy(unusedBuf, o.UnusedBuf)
-	} else {
-		unusedBuf = make([]byte, 0, 2*tlsRecordMaxPlaintextSize-1)
 	}
 
 	s2aConn := &conn{
