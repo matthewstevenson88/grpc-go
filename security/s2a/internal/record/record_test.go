@@ -1065,7 +1065,7 @@ func TestConnWrite(t *testing.T) {
 			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			inPlaintexts: [][]byte{
-				[]byte("12345678901234567890"),
+				make([]byte, 128),
 			},
 			maxPlaintextSize: 1,
 			outErr:           true,

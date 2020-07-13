@@ -47,10 +47,14 @@ const (
 	// tlsRecordMaxPlaintextSize is the maximum size in bytes of the plaintext
 	// in a single TLS 1.3 record.
 	tlsRecordMaxPlaintextSize = 16384 // 2^14
+	// tlsRecordTypeSize is the size in bytes of the TLS 1.3 record type.
+	tlsRecordTypeSize = 1
+	// tlsTagSize is the size in bytes of the TLS crypter.
+	tlsTagSize = 16
 	// tlsRecordMaxPayloadSize is the maximum size in bytes of the payload in a
 	// single TLS 1.3 record. This is the maximum size of the plaintext plus the
 	// record type byte and 16 bytes of the tag.
-	tlsRecordMaxPayloadSize = tlsRecordMaxPlaintextSize + tlsOverheadSize
+	tlsRecordMaxPayloadSize = tlsRecordMaxPlaintextSize + tlsRecordTypeSize + tlsTagSize
 	// tlsRecordHeaderTypeSize is the size in bytes of the TLS 1.3 record
 	// header type.
 	tlsRecordHeaderTypeSize = 1
@@ -67,10 +71,6 @@ const (
 	tlsApplicationData = 23
 	// tlsLegacyRecordVersion is the legacy record version of the TLS record.
 	tlsLegacyRecordVersion = 3
-	// tlsRecordTypeSize is the size in bytes of the TLS 1.3 record type.
-	tlsRecordTypeSize = 1
-	tlsTagSize        = 16
-	tlsOverheadSize   = tlsTagSize + tlsRecordTypeSize
 )
 
 const (
@@ -323,8 +323,15 @@ func (p *conn) Write(b []byte) (n int, err error) {
 // finally written to the wire.
 func (p *conn) writeTLSRecord(b []byte, recordType byte, maxPlaintextBytesPerRecord int) (n int, err error) {
 	n = len(b)
+	// Calculate the newTlsRecordMaxPayloadSize from the given
+	// maxPlaintextBytesPerRecord, and should strictly be less than the
+	// tlsRecordMaxPayloadSize constant.
+	newTlsRecordMaxPayloadSize := maxPlaintextBytesPerRecord + tlsRecordTypeSize + tlsTagSize
+	if newTlsRecordMaxPayloadSize > tlsRecordMaxPayloadSize {
+		return 0, errors.New("Payload size exceeds 1.3 TLS record max payload size")
+	}
+
 	// Create a record of only header, record type, and tag if given empty byte array.
-	newTlsRecordMaxPayloadSize := maxPlaintextBytesPerRecord + tlsOverheadSize
 	if len(b) == 0 {
 		outRecordsBufIndex, _, err := p.buildRecord(b, recordType, 0, 0, 0, newTlsRecordMaxPayloadSize)
 
@@ -341,7 +348,7 @@ func (p *conn) writeTLSRecord(b []byte, recordType byte, maxPlaintextBytesPerRec
 	}
 
 	numOfRecords := int(math.Ceil(float64(len(b)) / float64(newTlsRecordMaxPayloadSize)))
-	totalNumOfRecordBytes := len(b) + numOfRecords*tlsOverheadSize
+	totalNumOfRecordBytes := len(b) + numOfRecords*(tlsRecordTypeSize+tlsTagSize)
 	partialBSize := len(b)
 	if totalNumOfRecordBytes > outBufSize {
 		totalNumOfRecordBytes = outBufSize
