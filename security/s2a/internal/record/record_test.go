@@ -1010,40 +1010,64 @@ func TestConnReadKeyUpdate(t *testing.T) {
 	}
 }
 
-func TestBuildHeader(t *testing.T) {
-	payload := make([]byte, 0)
-	expectedHeader := []byte{23, 3, 3, 0, 16}
-	resultHeader, err := buildHeader(payload, tlsRecordMaxPayloadSize)
-	if !bytes.Equal(expectedHeader, resultHeader) {
-		t.Errorf("Incorrect Header: Expected: %v, Received: %v", expectedHeader, resultHeader)
+func TestBuildValidHeader(t *testing.T) {
+	for _, tc := range []struct {
+		desc           string
+		payloadLength  int
+		expectedHeader []byte
+		outErr         error
+	}{
+		{
+			desc:           "Payload with length 0",
+			payloadLength:  0,
+			expectedHeader: []byte{tlsApplicationData, tlsLegacyRecordVersion, tlsLegacyRecordVersion, 0, 16},
+		},
+		{
+			desc:           "Payload with length 6",
+			payloadLength:  6,
+			expectedHeader: []byte{tlsApplicationData, tlsLegacyRecordVersion, tlsLegacyRecordVersion, 0, 22},
+		},
+		{
+			desc:           "Payload with length 256",
+			payloadLength:  256,
+			expectedHeader: []byte{tlsApplicationData, tlsLegacyRecordVersion, tlsLegacyRecordVersion, 1, 16},
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			resultHeader, err := buildHeader(tc.payloadLength, tlsRecordMaxPayloadSize)
+			if !bytes.Equal(tc.expectedHeader, resultHeader) {
+				t.Errorf("Incorrect Header: Expected: %v, Received: %v", tc.expectedHeader, resultHeader)
+			}
+			if (err == nil) != (tc.outErr == nil) {
+				t.Errorf("Incorrect Error: Expected: %v, Received: %v", tc.outErr, err)
+			}
+		})
 	}
-	if err != nil {
-		t.Errorf("buildHeader returned error: %v", err)
-	}
-	payload = make([]byte, 6)
-	expectedHeader = []byte{23, 3, 3, 0, 22}
-	resultHeader, err = buildHeader(payload, tlsRecordMaxPayloadSize)
-	if !bytes.Equal(expectedHeader, resultHeader) {
-		t.Errorf("Incorrect Header: Expected: %v, Received: %v", expectedHeader, resultHeader)
-	}
-	if err != nil {
-		t.Errorf("buildHeader returned error: %v", err)
-	}
-	payload = make([]byte, 256)
-	expectedHeader = []byte{23, 3, 3, 1, 16}
-	resultHeader, err = buildHeader(payload, tlsRecordMaxPayloadSize)
-	if !bytes.Equal(expectedHeader, resultHeader) {
-		t.Errorf("Incorrect Header: Expected: %v, Received: %v", expectedHeader, resultHeader)
-	}
-	if err != nil {
-		t.Errorf("buildHeader returned error: %v", err)
-	}
-	payload = make([]byte, tlsRecordMaxPayloadSize+1)
-	resultHeader, err = buildHeader(payload, tlsRecordMaxPayloadSize)
-	if resultHeader != nil || err == nil {
-		t.Errorf("Expected error, got: %v, %v", resultHeader, err)
-	}
+}
 
+func TestBuildInvalidheader(t *testing.T) {
+	for _, tc := range []struct {
+		desc           string
+		payloadLength  int
+		expectedHeader []byte
+		outErr         error
+	}{
+		{
+			desc:          "Payload with length greater than max payload size",
+			payloadLength: tlsRecordMaxPayloadSize + 1,
+			outErr:        errors.New("payload length exceeds max allowed size"),
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			resultHeader, err := buildHeader(tc.payloadLength, tlsRecordMaxPayloadSize)
+			if !bytes.Equal(tc.expectedHeader, resultHeader) {
+				t.Errorf("Incorrect Header: Expected: %v, Received: %v", tc.expectedHeader, resultHeader)
+			}
+			if (err == nil) != (tc.outErr == nil) {
+				t.Errorf("Incorrect Error: Expected: %v, Received: %v", tc.outErr, err)
+			}
+		})
+	}
 }
 
 func TestConnWrite(t *testing.T) {
@@ -1066,16 +1090,15 @@ func TestConnWrite(t *testing.T) {
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			plaintexts: [][]byte{
 				[]byte("123456"),
-				[]byte("789123456"),
 			},
-			maxPlaintextSize: 1,
+			maxPlaintextSize: 3,
 			outRecords: [][]byte{
 				testutil.Dehex("1703030017f2e4e411ac6760e4e3f074a36574c45ee4c1906103db0d"),
-				testutil.Dehex("170303001ad7853afd6d7ceaabab950a0b6707905d2b908894871c7c62021f"),
+				testutil.Dehex("1703030017d18f30f86a79c98f5ec2136835ca6e6c5d89ec7aa119d7"),
 			},
 		},
 		{
-			desc:          "AES-128-GCM-SHA256 ",
+			desc:          "AES-128-GCM-SHA256",
 			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			plaintexts: [][]byte{
@@ -1154,7 +1177,7 @@ func TestConnWrite(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			fConn := &fakeConn{in: tc.outRecords}
+			fConn := &fakeConn{}
 			newConn, err := NewConn(&ConnParameters{
 				NetConn:          fConn,
 				Ciphersuite:      tc.ciphersuite,
