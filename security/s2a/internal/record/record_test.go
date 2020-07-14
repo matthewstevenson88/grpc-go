@@ -1085,7 +1085,7 @@ func TestConnWrite(t *testing.T) {
 		// existing TLS library.
 
 		{
-			desc:          "Exceed payload max length",
+			desc:          "AES-128-GCM-SHA256 payload max length",
 			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			plaintexts: [][]byte{
@@ -1093,8 +1093,34 @@ func TestConnWrite(t *testing.T) {
 			},
 			maxPlaintextSize: 3,
 			outRecords: [][]byte{
-				testutil.Dehex("1703030017f2e4e411ac6760e4e3f074a36574c45ee4c1906103db0d"),
-				testutil.Dehex("1703030017d18f30f86a79c98f5ec2136835ca6e6c5d89ec7aa119d7"),
+				testutil.Dehex("1703030014f2e4e432b1c71d1071abf6d5e1f7b32a158c4872"),
+				testutil.Dehex("1703030014f78835db07e7d1ceb81ad7c0698ad4aeff469bb6"),
+			},
+		},
+		{
+			desc:          "AES-256-GCM-SHA384 payload max length",
+			ciphersuite:   s2apb.Ciphersuite_AES_256_GCM_SHA384,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			plaintexts: [][]byte{
+				[]byte("123456"),
+			},
+			maxPlaintextSize: 3,
+			outRecords: [][]byte{
+				testutil.Dehex("170303001424efee7905fc3ab0938bf9a03b1788460cb2b39b"),
+				testutil.Dehex("1703030014a32750f43dbf6371e3ceab7200f28b68bb523d46"),
+			},
+		},
+		{
+			desc:          "CHACHA20-POLY1305-SHA256 payload max length",
+			ciphersuite:   s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			plaintexts: [][]byte{
+				[]byte("123456"),
+			},
+			maxPlaintextSize: 3,
+			outRecords: [][]byte{
+				testutil.Dehex("1703030014c947ff873efb31727561a3e3432380c89113e6eb"),
+				testutil.Dehex("17030300142ce0e4b4fc51399db8c264f2aec8870830fd02d3"),
 			},
 		},
 		{
@@ -1190,13 +1216,9 @@ func TestConnWrite(t *testing.T) {
 				t.Fatalf("NewConn() failed: %v", err)
 			}
 			for _, plaintext := range tc.plaintexts {
-				numBytesWritten := len(plaintext)
-				n, err := c.writeTLSRecord(plaintext, tlsApplicationData, tc.maxPlaintextSize)
+				_, err := c.writeTLSRecord(plaintext, tlsApplicationData, tc.maxPlaintextSize)
 				if got, want := err == nil, !tc.outErr; got != want {
 					t.Errorf("c.Write(plaintext) = (err=nil) = %v, want %v", got, want)
-				}
-				if !tc.outErr && n != len(plaintext) {
-					t.Errorf("Wrote %v bytes, expected %v", n, numBytesWritten)
 				}
 			}
 			if !reflect.DeepEqual(fConn.out, tc.outRecords) {

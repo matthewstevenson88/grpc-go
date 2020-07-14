@@ -360,7 +360,7 @@ func (p *conn) writeTLSRecord(b []byte, recordType byte, maxPlaintextBytesPerRec
 		partialB := b[bStart:bEnd]
 		outRecordsBufIndex := 0
 		for len(partialB) > 0 {
-			outRecordsBufIndex, partialB, err = p.buildRecord(b, recordType, outRecordsBufIndex, newTlsRecordMaxPayloadSize)
+			outRecordsBufIndex, partialB, err = p.buildRecord(partialB, recordType, outRecordsBufIndex, newTlsRecordMaxPayloadSize)
 			if err != nil {
 				return bStart, err
 			}
