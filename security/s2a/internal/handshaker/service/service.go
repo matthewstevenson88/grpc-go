@@ -25,11 +25,10 @@ import (
 )
 
 var (
-	// mu guards hsConnMap and hsDialer.
+	// hsConn represents a connection to the S2A handshaker service.
+	hsConn *grpc.ClientConn
+	// mu guards hsDialer.
 	mu sync.Mutex
-	// hsConnMap represents a mapping from an S2A handshaker service address
-	// to a corresponding connection to an S2A handshaker service instance.
-	hsConnMap = make(map[string]*grpc.ClientConn)
 	// hsDialer will be reassigned in tests.
 	hsDialer = grpc.Dial
 )
@@ -41,8 +40,7 @@ func Dial(handshakerServiceAddress string) (*grpc.ClientConn, error) {
 	mu.Lock()
 	defer mu.Unlock()
 
-	hsConn, ok := hsConnMap[handshakerServiceAddress]
-	if !ok {
+	if hsConn == nil {
 		// Create a new connection to the S2A handshaker service. Note that
 		// this connection stays open until the application is closed.
 		var err error
@@ -50,7 +48,6 @@ func Dial(handshakerServiceAddress string) (*grpc.ClientConn, error) {
 		if err != nil {
 			return nil, err
 		}
-		hsConnMap[handshakerServiceAddress] = hsConn
 	}
 	return hsConn, nil
 }
