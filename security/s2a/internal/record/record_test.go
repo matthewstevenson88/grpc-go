@@ -1086,7 +1086,7 @@ func TestConnWrite(t *testing.T) {
 		// existing TLS library.
 
 		{
-			desc:          "AES-128-GCM-SHA256 payload split in two",
+			desc:          "AES-128-GCM-SHA256 plaintext split in 2 records",
 			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			plaintexts: [][]byte{
@@ -1128,7 +1128,7 @@ func TestConnWrite(t *testing.T) {
 			outBytesWritten: []int{0},
 		},
 		{
-			desc:          "AES-256-GCM-SHA384 payload split in two",
+			desc:          "AES-256-GCM-SHA384 plaintext split in 2 records",
 			ciphersuite:   s2apb.Ciphersuite_AES_256_GCM_SHA384,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			plaintexts: [][]byte{
@@ -1170,7 +1170,7 @@ func TestConnWrite(t *testing.T) {
 			outBytesWritten: []int{0},
 		},
 		{
-			desc:          "CHACHA20-POLY1305-SHA256 payload split in two",
+			desc:          "CHACHA20-POLY1305-SHA256 plaintext split in 2 records",
 			ciphersuite:   s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			plaintexts: [][]byte{

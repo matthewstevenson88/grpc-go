@@ -335,7 +335,8 @@ func (p *conn) writeTLSRecord(b []byte, recordType byte, maxPlaintextBytesPerRec
 			return 0, err
 		}
 
-		// We can ignore the return value of Write, since it will always be 0 regardless of err
+		// We can ignore the return value of Write, since plaintext bytes written will
+		// always be 0 regardless of err.
 		_, err = p.Conn.Write(p.outRecordsBuf[:outRecordsBufIndex])
 		if err != nil {
 			return 0, err
@@ -389,14 +390,14 @@ func (p *conn) writeTLSRecord(b []byte, recordType byte, maxPlaintextBytesPerRec
 // index of outRecordsBuf where the next record should be written, and any
 // unused bytes of plaintext.
 func (p *conn) buildRecord(plaintext []byte, recordType byte, outRecordsBufIndex int, maxPayloadSize int) (n int, remainingPlaintext []byte, err error) {
-	// Construct the payload which consists of application data and record type.
+	// Construct the payload, which consists of application data and record type.
 	dataLen := len(plaintext)
 	if dataLen > maxPayloadSize {
 		dataLen = maxPayloadSize
 	}
 	buff := plaintext[:dataLen]
 	plaintext = plaintext[dataLen:]
-	// TODO(gud): Invesstigate whether we should preallocate 16 bytes at the
+	// TODO(gud): Investigate whether we should preallocate 16 bytes at the
 	// end of payload to hold the tag.
 	payload := append(buff, recordType)
 	// Construct the header.
@@ -412,7 +413,6 @@ func (p *conn) buildRecord(plaintext []byte, recordType byte, outRecordsBufIndex
 	record := append(header, encryptedPayload...)
 	copy(p.outRecordsBuf[outRecordsBufIndex:], record)
 	outRecordsBufIndex += len(record)
-
 	return outRecordsBufIndex, plaintext, nil
 }
 
