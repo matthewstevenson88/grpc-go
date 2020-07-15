@@ -341,7 +341,7 @@ func (p *conn) writeTLSRecord(b []byte, recordType byte, maxPlaintextBytesPerRec
 		if err != nil {
 			return 0, err
 		}
-		return len(b), nil
+		return 0, nil
 	}
 
 	numOfRecords := int(math.Ceil(float64(len(b)) / float64(maxPlaintextBytesPerRecord)))
@@ -372,13 +372,8 @@ func (p *conn) writeTLSRecord(b []byte, recordType byte, maxPlaintextBytesPerRec
 		// return it.
 		numberOfBytesWrittenToPeer, err := p.Conn.Write(p.outRecordsBuf[:outRecordsBufIndex])
 		if err != nil {
-			plaintextBytesWrittenToPeer := numberOfBytesWrittenToPeer - tlsRecordHeaderSize
-			if partialBSize < plaintextBytesWrittenToPeer {
-				plaintextBytesWrittenToPeer = partialBSize
-			} else if plaintextBytesWrittenToPeer < 0 {
-				plaintextBytesWrittenToPeer = 0
-			}
-			return bStart + plaintextBytesWrittenToPeer, err
+			numberOfCompletedRecords := int(math.Floor(float64(numberOfBytesWrittenToPeer) / float64(effectiveMaxPayloadSize)))
+			return bStart + numberOfCompletedRecords*maxPlaintextBytesPerRecord, err
 		}
 	}
 	return len(b), nil

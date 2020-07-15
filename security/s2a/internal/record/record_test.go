@@ -1230,8 +1230,8 @@ func TestConnWrite(t *testing.T) {
 				if got, want := err == nil, !tc.outErr; got != want {
 					t.Errorf("c.Write(plaintext) = (err=nil) = %v, want %v", got, want)
 				}
-				if !tc.outErr && bytesWritten != tc.outBytesWritten[i] {
-					t.Errorf("incorrect number of bytes written: got: %v, want: %v", bytesWritten, tc.outBytesWritten[i])
+				if bytesWritten != tc.outBytesWritten[i] {
+					t.Errorf("Incorrect number of bytes written: got: %v, want: %v", bytesWritten, tc.outBytesWritten[i])
 				}
 			}
 			if !reflect.DeepEqual(fConn.out, tc.outRecords) {
