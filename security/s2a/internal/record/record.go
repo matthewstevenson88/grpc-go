@@ -77,7 +77,7 @@ const (
 const (
 	// outBufSize is the initial write buffer size in bytes.
 	outBufSize = tlsRecordHeaderSize + tlsRecordMaxPayloadSize
-	// outBufMaxSize is the maximum write buffer size in bytes.
+	// outBufMaxSize is the maximum outRecordsBuf size in bytes.
 	outBufMaxSize = 16 * outBufSize
 	// tlsAlertSize is the size in bytes of an alert of TLS 1.3.
 	tlsAlertSize = 2
