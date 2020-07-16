@@ -1094,8 +1094,7 @@ func TestConnWrite(t *testing.T) {
 			},
 			maxPlaintextSize: 3,
 			outRecords: [][]byte{
-				testutil.Dehex("1703030014f2e4e432b1c71d1071abf6d5e1f7b32a158c4872"),
-				testutil.Dehex("1703030014f78835db07e7d1ceb81ad7c0698ad4aeff469bb6"),
+				testutil.Dehex("1703030014f2e4e432b1c71d1071abf6d5e1f7b32a158c48721703030014d48835dbdd76ab0a2208cf7478249adb6c841f18"),
 			},
 			outBytesWritten: []int{6},
 		},
@@ -1136,8 +1135,7 @@ func TestConnWrite(t *testing.T) {
 			},
 			maxPlaintextSize: 3,
 			outRecords: [][]byte{
-				testutil.Dehex("170303001424efee7905fc3ab0938bf9a03b1788460cb2b39b"),
-				testutil.Dehex("1703030014a32750f43dbf6371e3ceab7200f28b68bb523d46"),
+				testutil.Dehex("170303001424efee7905fc3ab0938bf9a03b1788460cb2b39b1703030014802750f46511524b096b924333194fe73489f00e"),
 			},
 			outBytesWritten: []int{6},
 		},
@@ -1178,8 +1176,7 @@ func TestConnWrite(t *testing.T) {
 			},
 			maxPlaintextSize: 3,
 			outRecords: [][]byte{
-				testutil.Dehex("1703030014c947ff873efb31727561a3e3432380c89113e6eb"),
-				testutil.Dehex("17030300142ce0e4b4fc51399db8c264f2aec8870830fd02d3"),
+				testutil.Dehex("1703030014c947ff873efb31727561a3e3432380c89113e6eb17030300140fe0e4b4f7996f69ac2204ebff34f32498ece54e"),
 			},
 			outBytesWritten: []int{6},
 		},
@@ -1228,7 +1225,7 @@ func TestConnWrite(t *testing.T) {
 			for i, plaintext := range tc.plaintexts {
 				bytesWritten, err := c.writeTLSRecord(plaintext, tlsApplicationData, tc.maxPlaintextSize)
 				if got, want := err == nil, !tc.outErr; got != want {
-					t.Errorf("c.Write(plaintext) = (err=nil) = %v, want %v", got, want)
+					t.Errorf("c.Write(plaintext) = (err=nil) = %v, want %v", err, want)
 				}
 				if bytesWritten != tc.outBytesWritten[i] {
 					t.Errorf("Incorrect number of bytes written: got: %v, want: %v", bytesWritten, tc.outBytesWritten[i])
