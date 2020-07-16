@@ -76,7 +76,9 @@ const (
 
 const (
 	// outBufSize is the initial write buffer size in bytes.
-	outBufSize = 32 * 1024
+	outBufSize = tlsRecordHeaderSize + tlsRecordMaxPayloadSize
+	// outBufMaxSize is the maximum write buffer size in bytes.
+	outBufMaxSize = 16 * outBufSize
 	// tlsAlertSize is the size in bytes of an alert of TLS 1.3.
 	tlsAlertSize = 2
 )
@@ -319,7 +321,7 @@ func (p *conn) Write(b []byte) (n int, err error) {
 // Write divides b into segments of size maxPlaintextBytesPerRecord, builds a
 // TLS 1.3 record (of type recordType) from each segment, and sends the record
 // to the peer. It returns the number of plaintext bytes that were successfully
-// sent to the peer.
+// sent to the peer. maxPlaintextBytesPerRecord MUST be greater than zero.
 func (p *conn) writeTLSRecord(b []byte, recordType byte, maxPlaintextBytesPerRecord int) (n int, err error) {
 	// Calculate the effectiveMaxPayloadSize from the given
 	// maxPlaintextBytesPerRecord. It must be less than or equal to
@@ -347,7 +349,7 @@ func (p *conn) writeTLSRecord(b []byte, recordType byte, maxPlaintextBytesPerRec
 	totalNumOfRecordBytes := len(b) + int(math.Ceil(float64(len(b))/float64(maxPlaintextBytesPerRecord)))*p.overheadSize
 
 	// maxNumPlaintextBytesInBuf is the maximum number of plaintext bytes we
-	// can put into record buffer of size outBufMaxSize.
+	// can put into a buffer of size outBufMaxSize.
 	maxNumPlaintextBytesInBuf := (outBufMaxSize / effectiveMaxRecordSize) * maxPlaintextBytesPerRecord
 	partialBSize := int(math.Min(float64(len(b)), float64(maxNumPlaintextBytesInBuf)))
 

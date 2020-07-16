@@ -1288,9 +1288,12 @@ func TestExceedBufferSize(t *testing.T) {
 		expectedOutRecordsBufSize int
 		outErr                    bool
 	}{
-		// The traffic secrets were chosen randomly and are equivalent to the
-		// ones used in C++ and Java. The ciphertext was constructed using an
-		// existing TLS library.
+		// plaintext is set to 1426, 1 byte more than the maximum number of 
+		// plaintext bytes able to fully fill up the outRecordsBuf with 
+		// complete records if every record had a single byte of plaintext. 
+		//expectedOutRecordsBufSize is set to 32798 as it is the total number 
+		// of record bytes needed to write 1426 plaintext bytes with 
+		// maxPlaintextSize of 1.
 
 		{
 			desc:                      "AES-128-GCM-SHA256",
