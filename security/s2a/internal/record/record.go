@@ -328,34 +328,28 @@ func (p *conn) writeTLSRecord(b []byte, recordType byte, maxPlaintextBytesPerRec
 	if effectiveMaxPayloadSize > tlsRecordMaxPayloadSize {
 		return 0, errors.New("Effective payload size exceeds TLS max payload size")
 	}
-	// Create a record of only header, record type, and tag if given empty byte array.
+	// Create a record of only header, record type, and tag if given empty
+	// byte array.
 	if len(b) == 0 {
 		outRecordsBufIndex, _, err := p.buildRecord(b, recordType, 0, effectiveMaxPayloadSize)
 		if err != nil {
 			return 0, err
 		}
 
-		// We can ignore the return value of Write, since plaintext bytes written will
-		// always be 0 regardless of err.
+		// We can ignore the return value of Write, since plaintext bytes
+		// written will always be 0 regardless of err.
 		_, err = p.Conn.Write(p.outRecordsBuf[:outRecordsBufIndex])
 		return 0, err
 	}
-	/*
-		numOfRecords := int(math.Ceil(float64(len(b)) / float64(maxPlaintextBytesPerRecord)))
-		totalNumOfRecordBytes := len(b) + numOfRecords*p.overheadSize
-		partialBSize := maxPlaintextBytesPerRecord*/
 
-	outBufSize := maxPlaintextBytesPerRecord + p.overheadSize
-	outBufMaxSize := 16 * outBufSize
-	totalNumOfRecordBytes := len(b)
-	if outBufMaxSize < len(b) {
-		totalNumOfRecordBytes = outBufMaxSize
-	}
-	partialBSize := len(b)
-	maxNumPlaintextBytesInBuf := (outBufMaxSize / outBufSize) * maxPlaintextBytesPerRecord
-	if maxNumPlaintextBytesInBuf < len(b) {
-		partialBSize = maxNumPlaintextBytesInBuf
-	}
+	effectiveMaxRecordSize := maxPlaintextBytesPerRecord + p.overheadSize
+	outBufMaxSize := 16 * effectiveMaxRecordSize
+	totalNumOfRecordBytes := len(b) + int(math.Ceil(float64(len(b))/float64(maxPlaintextBytesPerRecord)))*p.overheadSize
+
+	// maxNumPlaintextBytesInBuf is the maximum number of plaintext bytes we
+	// can put into record buffer of size outBufMaxSize.
+	maxNumPlaintextBytesInBuf := (outBufMaxSize / effectiveMaxRecordSize) * maxPlaintextBytesPerRecord
+	partialBSize := int(math.Min(float64(len(b)), float64(maxNumPlaintextBytesInBuf)))
 
 	if len(p.outRecordsBuf) < totalNumOfRecordBytes {
 		p.outRecordsBuf = make([]byte, totalNumOfRecordBytes)
@@ -374,11 +368,11 @@ func (p *conn) writeTLSRecord(b []byte, recordType byte, maxPlaintextBytesPerRec
 			}
 		}
 		// Write the bytes stored in ourRecordsBuf to p.Conn. If there is an
-		// error, calculate the total number of plaintext bytes written to the peer and
-		// return it.
+		// error, calculate the total number of plaintext bytes of complete
+		// records successfully written to the peer and return it.
 		numberOfBytesWrittenToPeer, err := p.Conn.Write(p.outRecordsBuf[:outRecordsBufIndex])
 		if err != nil {
-			numberOfCompletedRecords := int(math.Floor(float64(numberOfBytesWrittenToPeer) / float64(outBufSize)))
+			numberOfCompletedRecords := int(math.Floor(float64(numberOfBytesWrittenToPeer) / float64(effectiveMaxRecordSize)))
 			return bStart + numberOfCompletedRecords*maxPlaintextBytesPerRecord, err
 		}
 	}
