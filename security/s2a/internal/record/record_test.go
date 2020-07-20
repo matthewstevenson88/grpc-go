@@ -24,10 +24,11 @@ type fakeConn struct {
 // called.
 func (c *fakeConn) Read(b []byte) (n int, err error) {
 	n = copy(b, c.in[c.inCount])
+
 	if n < len(c.in[c.inCount]) {
 		// For testing, we want to make sure that each buffer is copied in its
 		// entirety.
-		return 0, errors.New("copy copied less bytes than expected")
+		return 0, errors.New("copy copied less bytes than expected:")
 	}
 	c.inCount++
 	return n, nil
@@ -36,9 +37,10 @@ func (c *fakeConn) Read(b []byte) (n int, err error) {
 // Write copies the given buffer b, stores it in the `out` buffer, and returns
 // the number of bytes copied.
 func (c *fakeConn) Write(b []byte) (n int, err error) {
-	outBuf := make([]byte, len(b))
-	n = copy(outBuf, b)
-	c.out = append(c.out, outBuf)
+	buf := make([]byte, len(b))
+	n = copy(buf, b)
+	c.out = append(c.out, buf)
+	c.in = append(c.in, buf)
 	return n, nil
 }
 
@@ -1288,11 +1290,11 @@ func TestExceedBufferSize(t *testing.T) {
 		expectedOutRecordsBufSize int
 		outErr                    bool
 	}{
-		// plaintext is set to 1426, 1 byte more than the maximum number of 
-		// plaintext bytes able to fully fill up the outRecordsBuf with 
-		// complete records if every record had a single byte of plaintext. 
-		//expectedOutRecordsBufSize is set to 32798 as it is the total number 
-		// of record bytes needed to write 1426 plaintext bytes with 
+		// plaintext is set to 1426, 1 byte more than the maximum number of
+		// plaintext bytes able to fully fill up the outRecordsBuf with
+		// complete records if every record had a single byte of plaintext.
+		//expectedOutRecordsBufSize is set to 32798 as it is the total number
+		// of record bytes needed to write 1426 plaintext bytes with
 		// maxPlaintextSize of 1.
 
 		{
@@ -1346,3 +1348,141 @@ func TestExceedBufferSize(t *testing.T) {
 
 // TODO(gud): Add roundtrip tests.
 // TODO(gud): Remember to test the case where the payload size is maximum (2^14)
+
+func TestRoundtrip(t *testing.T) {
+	for _, tc := range []struct {
+		desc            string
+		ciphersuite     s2apb.Ciphersuite
+		trafficSecret   []byte
+		plaintexts      [][]byte
+		outRecords      [][]byte
+		outBytesWritten []int
+		outErr          bool
+	}{
+		// The traffic secrets were chosen randomly and are equivalent to the
+		// ones used in C++ and Java. The ciphertext was constructed using an
+		// existing TLS library.
+		{
+			desc:          "AES-128-GCM-SHA256",
+			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			plaintexts: [][]byte{
+				[]byte("123456"),
+				[]byte("789123456"),
+			},
+			outBytesWritten: []int{6, 9},
+		},
+		{
+			desc:          "AES-128-GCM-SHA256 empty",
+			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			plaintexts: [][]byte{
+				[]byte(""),
+			},
+			outBytesWritten: []int{0},
+		},
+		{
+			desc:          "AES-128-GCM-SHA256 exceed buffer size",
+			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			plaintexts: [][]byte{
+				make([]byte, 16384),
+			},
+			outBytesWritten: []int{16384},
+		},
+		{
+			desc:          "AES-256-GCM-SHA384",
+			ciphersuite:   s2apb.Ciphersuite_AES_256_GCM_SHA384,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			plaintexts: [][]byte{
+				[]byte("123456"),
+				[]byte("789123456"),
+			},
+			outBytesWritten: []int{6, 9},
+		},
+		{
+			desc:          "AES-256-GCM-SHA384 empty",
+			ciphersuite:   s2apb.Ciphersuite_AES_256_GCM_SHA384,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			plaintexts: [][]byte{
+				[]byte(""),
+			},
+			outBytesWritten: []int{0},
+		},
+		{
+			desc:          "AES-256-GCM-SHA384 exceed buffer size",
+			ciphersuite:   s2apb.Ciphersuite_AES_256_GCM_SHA384,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			plaintexts: [][]byte{
+				make([]byte, 16384),
+			},
+			outBytesWritten: []int{16384},
+		},
+		{
+			desc:          "CHACHA20-POLY1305-SHA256",
+			ciphersuite:   s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			plaintexts: [][]byte{
+				[]byte("123456"),
+				[]byte("789123456"),
+			},
+			outBytesWritten: []int{6, 9},
+		},
+		{
+			desc:          "CHACHA20-POLY1305-SHA256 empty",
+			ciphersuite:   s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			plaintexts: [][]byte{
+				[]byte(""),
+			},
+			outBytesWritten: []int{0},
+		},
+		{
+			desc:          "CHACHA20-POLY1305-SHA256 exceed buffer size",
+			ciphersuite:   s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			plaintexts: [][]byte{
+				make([]byte, 16384),
+			},
+			outBytesWritten: []int{16384},
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			fConn := &fakeConn{}
+			c, err := NewConn(&ConnParameters{
+				NetConn:          fConn,
+				Ciphersuite:      tc.ciphersuite,
+				TLSVersion:       s2apb.TLSVersion_TLS1_3,
+				InTrafficSecret:  tc.trafficSecret,
+				OutTrafficSecret: tc.trafficSecret,
+			})
+			if err != nil {
+				t.Fatalf("NewConn() failed: %v", err)
+			}
+			for i, plaintext := range tc.plaintexts {
+				bytesWritten, err := c.Write(plaintext)
+				if got, want := err == nil, !tc.outErr; got != want {
+					t.Errorf("c.Write(plaintext) = (err=nil) = %v, want %v", err, want)
+				}
+
+				if bytesWritten != tc.outBytesWritten[i] {
+					t.Errorf("Incorrect number of bytes written: got: %v, want: %v", bytesWritten, tc.outBytesWritten[i])
+				}
+			}
+			for _, outPlaintext := range tc.plaintexts {
+				plaintext := make([]byte, tlsRecordMaxPlaintextSize)
+				n, err := c.Read(plaintext)
+				if got, want := err == nil, !tc.outErr; got != want {
+					t.Errorf("c.Read(plaintext) = (err=nil) = %v, want %v", err, want)
+				}
+				if err != nil {
+					return
+				}
+				plaintext = plaintext[:n]
+				if got, want := plaintext, outPlaintext; !bytes.Equal(got, want) {
+					t.Errorf("c.Read(plaintext) = %v, want %v", got, want)
+				}
+			}
+		})
+	}
+}

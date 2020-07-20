@@ -485,11 +485,11 @@ func (p *conn) readFullRecord() (fullRecord []byte, err error) {
 	// Keep reading from the wire until we have a complete record.
 	for len(fullRecord) == 0 {
 		if len(p.unusedBuf) == cap(p.unusedBuf) {
-			tmp := make([]byte, len(p.unusedBuf), cap(p.unusedBuf)+tlsRecordMaxPayloadSize)
+			tmp := make([]byte, len(p.unusedBuf), cap(p.unusedBuf)+tlsRecordMaxPayloadSize+tlsRecordHeaderSize)
 			copy(tmp, p.unusedBuf)
 			p.unusedBuf = tmp
 		}
-		n, err := p.Conn.Read(p.unusedBuf[len(p.unusedBuf):min(cap(p.unusedBuf), len(p.unusedBuf)+tlsRecordMaxPayloadSize)])
+		n, err := p.Conn.Read(p.unusedBuf[len(p.unusedBuf):min(cap(p.unusedBuf), len(p.unusedBuf)+tlsRecordMaxPayloadSize+tlsRecordHeaderSize)])
 		if err != nil {
 			return nil, err
 		}
