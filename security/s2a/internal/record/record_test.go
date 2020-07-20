@@ -1337,7 +1337,7 @@ func TestExceedBufferSize(t *testing.T) {
 			}
 			_, err = c.writeTLSRecord(tc.plaintext, tlsApplicationData, tc.maxPlaintextSize)
 			if got, want := err == nil, !tc.outErr; got != want {
-				t.Errorf("c.Write(plaintext) = (err=nil) = %v, want %v", err, want)
+				t.Errorf("c.Write(plaintext) = (err=nil) = %v, want %v", got, want)
 			}
 			if len(c.outRecordsBuf) != tc.expectedOutRecordsBufSize {
 				t.Errorf("Incorrect buf size: got: %v, want: %v", len(c.outRecordsBuf), tc.expectedOutRecordsBufSize)
@@ -1462,7 +1462,7 @@ func TestRoundtrip(t *testing.T) {
 			for i, plaintext := range tc.plaintexts {
 				bytesWritten, err := c.Write(plaintext)
 				if got, want := err == nil, !tc.outErr; got != want {
-					t.Errorf("c.Write(plaintext) = (err=nil) = %v, want %v", err, want)
+					t.Errorf("c.Write(plaintext) = (err=nil) = %v, want %v", got, want)
 				}
 
 				if bytesWritten != tc.outBytesWritten[i] {
@@ -1473,7 +1473,7 @@ func TestRoundtrip(t *testing.T) {
 				plaintext := make([]byte, tlsRecordMaxPlaintextSize)
 				n, err := c.Read(plaintext)
 				if got, want := err == nil, !tc.outErr; got != want {
-					t.Errorf("c.Read(plaintext) = (err=nil) = %v, want %v", err, want)
+					t.Errorf("c.Read(plaintext) = (err=nil) = %v, want %v", got, want)
 				}
 				if err != nil {
 					return
