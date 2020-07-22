@@ -16,6 +16,10 @@
  *
  */
 
+/*
+Package authinfo provides authentication and authorization information from the
+S2A session result to the gRPC stack.
+*/
 package authinfo
 
 import (

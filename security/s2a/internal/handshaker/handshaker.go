@@ -16,6 +16,7 @@
  *
  */
 
+// Package handshaker implements the S2A handshaker service.
 package handshaker
 
 import (

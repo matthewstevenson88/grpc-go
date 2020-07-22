@@ -16,6 +16,10 @@
  *
  */
 
+/*
+Package halfconn implements a half connection for managing one side of a TLS 1.3
+connection.
+*/
 package halfconn
 
 import (

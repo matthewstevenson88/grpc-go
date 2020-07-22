@@ -16,6 +16,7 @@
  *
  */
 
+// The fakehandshaker binary provides a fake handshaker service for S2A.
 package main
 
 import (

@@ -16,6 +16,7 @@
  *
  */
 
+// Package record implements the TLS 1.3 record protocol.
 package record
 
 import (
