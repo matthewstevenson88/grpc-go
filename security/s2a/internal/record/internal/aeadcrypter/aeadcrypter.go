@@ -16,6 +16,10 @@
  *
  */
 
+/*
+Package aeadcrypter provides the interface for AEAD cipher implementations
+used by S2A's record protocol.
+*/
 package aeadcrypter
 
 // S2AAEADCrypter is the interface for an AEAD cipher used by the S2A record

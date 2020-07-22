@@ -16,6 +16,9 @@
  *
  */
 
+/*
+Package s2a provides the S2A transport credentials used by a gRPC application.
+*/
 package s2a
 
 import (
