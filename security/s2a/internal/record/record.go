@@ -16,6 +16,8 @@
  *
  */
 
+// Package record implements the TLS 1.3 record protocol used by the S2A
+// transport credentials.
 package record
 
 import (

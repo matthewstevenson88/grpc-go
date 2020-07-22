@@ -16,6 +16,7 @@
  *
  */
 
+// Package handshaker communicates with the S2A handshaker service.
 package handshaker
 
 import (
