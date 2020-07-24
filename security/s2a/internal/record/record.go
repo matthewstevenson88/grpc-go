@@ -68,6 +68,8 @@ const (
 	tlsRecordHeaderPayloadLengthSize = 2
 	// tlsRecordHeaderSize is the size in bytes of the TLS 1.3 record header.
 	tlsRecordHeaderSize = tlsRecordHeaderTypeSize + tlsRecordHeaderLegacyRecordVersionSize + tlsRecordHeaderPayloadLengthSize
+	// tlsRecordMaxSize
+	tlsRecordMaxSize = tlsRecordMaxPayloadSize + tlsRecordHeaderSize
 	// tlsApplicationData is the application data type of the TLS 1.3 record
 	// header.
 	tlsApplicationData = 23
@@ -78,12 +80,7 @@ const (
 )
 
 const (
-	// outBufSize is the initial write buffer size in bytes.
-	outBufSize = tlsRecordHeaderSize + tlsRecordMaxPayloadSize
-)
-
-const (
-	// These are TLS 1.3 handshake-specific constants
+	// These are TLS 1.3 handshake-specific constants.
 
 	// tlsHandshakeNewSessionTicket is the prefix of a handshake new session
 	// ticket message of TLS 1.3.
@@ -193,7 +190,7 @@ func NewConn(o *ConnParameters) (net.Conn, error) {
 		inConn:       inConn,
 		outConn:      outConn,
 		unusedBuf:    unusedBuf,
-		outRecordBuf: make([]byte, outBufSize),
+		outRecordBuf: make([]byte, tlsRecordMaxSize),
 		nextRecord:   unusedBuf,
 		overheadSize: overheadSize,
 		hsAddr:       o.HSAddr,
@@ -315,7 +312,7 @@ func (p *conn) Read(b []byte) (n int, err error) {
 // the record to the peer. It returns the number of plaintext bytes that were
 // successfully sent to the peer.
 func (p *conn) Write(b []byte) (n int, err error) {
-	return p.writeTLSRecord(b, tlsApplicationData, tlsRecordMaxPlaintextSize)
+	return p.writeTLSRecord(b, tlsApplicationData)
 
 }
 
@@ -323,47 +320,35 @@ func (p *conn) Write(b []byte) (n int, err error) {
 // TLS 1.3 record (of type recordType) from each segment, and sends the record
 // to the peer. It returns the number of plaintext bytes that were successfully
 // sent to the peer. maxPlaintextBytesPerRecord MUST be greater than zero.
-func (p *conn) writeTLSRecord(b []byte, recordType byte, maxPlaintextBytesPerRecord int) (n int, err error) {
-	if maxPlaintextBytesPerRecord <= 0 {
-		return 0, errors.New("maxPlaintextBytesPerRecord must be greater than 0")
-	}
-
-	// Calculate the effectiveMaxPayloadSize from the given
-	// maxPlaintextBytesPerRecord. It must be less than or equal to
-	// tlsRecordMaxPayloadSize
-	effectiveMaxPayloadSize := maxPlaintextBytesPerRecord + tlsRecordTypeSize + tlsTagSize
-	if effectiveMaxPayloadSize > tlsRecordMaxPayloadSize {
-		return 0, errors.New("Effective payload size exceeds TLS max payload size")
-	}
-	effectiveMaxRecordSize := effectiveMaxPayloadSize + tlsRecordHeaderSize
+func (p *conn) writeTLSRecord(b []byte, recordType byte) (n int, err error) {
 	// Set p.outRecordBuf to the size of a single record.
-	p.outRecordBuf = make([]byte, effectiveMaxRecordSize)
+	p.outRecordBuf = make([]byte, tlsRecordMaxSize)
 
 	// Create a record of only header, record type, and tag if given empty
 	// byte array.
 	if len(b) == 0 {
-		recordEndIndex, err := p.buildRecord(b, recordType, effectiveMaxPayloadSize)
+		recordEndIndex, err := p.buildRecord(b, recordType)
 		if err != nil {
 			return 0, err
 		}
 
 		// Write the bytes stored in outRecordBuf to p.Conn. Since we return
 		// the number of plaintext bytes written without overhead, we will
-		// always return 0 while Write returns the entire record length.
+		// always return 0 while p.Conn.Write returns the entire record length.
 		_, err = p.Conn.Write(p.outRecordBuf[:recordEndIndex])
 		return 0, err
 	}
 
-	partialBSize := int(math.Min(float64(len(b)), float64(maxPlaintextBytesPerRecord)))
+	partialBSize := int(math.Min(float64(len(b)), float64(tlsRecordMaxPlaintextSize)))
 	for bStart := 0; bStart < len(b); bStart += partialBSize {
 		bEnd := bStart + partialBSize
 		if bEnd > len(b) {
 			bEnd = len(b)
 		}
 		partialB := b[bStart:bEnd]
-		recordEndIndex, err := p.buildRecord(partialB, recordType, maxPlaintextBytesPerRecord)
+		recordEndIndex, err := p.buildRecord(partialB, recordType)
 		if err != nil {
-			// Return the amount of bytes written previously.
+			// Return the amount of bytes written prior to the error.
 			return bStart, err
 		}
 		// Write the bytes stored in outRecordBuf to p.Conn. If there is an
@@ -371,8 +356,8 @@ func (p *conn) writeTLSRecord(b []byte, recordType byte, maxPlaintextBytesPerRec
 		// records successfully written to the peer and return it.
 		numberOfBytesWrittenToPeer, err := p.Conn.Write(p.outRecordBuf[:recordEndIndex])
 		if err != nil {
-			numberOfCompletedRecords := int(math.Floor(float64(numberOfBytesWrittenToPeer) / float64(effectiveMaxRecordSize)))
-			return bStart + numberOfCompletedRecords*maxPlaintextBytesPerRecord, err
+			numberOfCompletedRecords := int(math.Floor(float64(numberOfBytesWrittenToPeer) / float64(tlsRecordMaxSize)))
+			return bStart + numberOfCompletedRecords*tlsRecordMaxPlaintextSize, err
 		}
 	}
 	return len(b), nil
@@ -382,11 +367,11 @@ func (p *conn) writeTLSRecord(b []byte, recordType byte, maxPlaintextBytesPerRec
 // and writes the record to outRecordBuf. The record will have at most 
 // maxPlaintextSize bytes of payload. It returns the index of outRecordBuf
 // where the current record ends.
-func (p *conn) buildRecord(plaintext []byte, recordType byte, maxPlaintextSize int) (int, error) {
+func (p *conn) buildRecord(plaintext []byte, recordType byte) (int, error) {
 	// Construct the payload, which consists of application data and record type.
 	dataLen := len(plaintext)
-	if dataLen > maxPlaintextSize {
-		dataLen = maxPlaintextSize
+	if dataLen > tlsRecordMaxPlaintextSize {
+		dataLen = tlsRecordMaxPlaintextSize
 	}
 	buff := make([]byte, dataLen)
 	copy(buff, plaintext[:dataLen])
@@ -394,8 +379,7 @@ func (p *conn) buildRecord(plaintext []byte, recordType byte, maxPlaintextSize i
 
 	payload := append(buff, recordType)
 	// Construct the header.
-	maxPayloadSize := maxPlaintextSize + tlsRecordTypeSize + tlsTagSize
-	header, err := p.buildHeader(len(payload), maxPayloadSize)
+	header, err := p.buildHeader(len(payload))
 	if err != nil {
 		return 0, err
 	}
@@ -421,8 +405,8 @@ func (p *conn) encryptPayload(payload, header []byte) ([]byte, error) {
 
 // buildHeader returns the TLS 1.3 record header built from a payload of size
 // payloadSize
-func (p *conn) buildHeader(payloadSize, maxPayloadSize int) (header []byte, err error) {
-	if payloadSize > maxPayloadSize {
+func (p *conn) buildHeader(payloadSize int) (header []byte, err error) {
+	if payloadSize > tlsRecordMaxPayloadSize {
 		return nil, errors.New("payload length exceeds max allowed size")
 	}
 	p.outRecordBuf[0] = tlsApplicationData
