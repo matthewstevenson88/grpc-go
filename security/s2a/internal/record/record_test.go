@@ -46,7 +46,7 @@ func (c *fakeConn) Read(b []byte) (n int, err error) {
 	if n < len(c.in[c.inCount]) {
 		// For testing, we want to make sure that each buffer is copied in its
 		// entirety.
-		return 0, errors.New("copy copied less bytes than expected:")
+		return 0, errors.New("copy copied less bytes than expected")
 	}
 	c.inCount++
 	return n, nil
@@ -1394,7 +1394,7 @@ func TestRoundtrip(t *testing.T) {
 			outBytesWritten: []int{6, 9},
 		},
 		{
-			desc:             "CHACHA20-POLY1305-SHA256different traffic secrets",
+			desc:             "CHACHA20-POLY1305-SHA256 different traffic secrets",
 			ciphersuite:      s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
 			inTrafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			outTrafficSecret: testutil.Dehex("1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b"),
