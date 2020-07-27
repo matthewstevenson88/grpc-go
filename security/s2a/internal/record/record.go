@@ -118,6 +118,7 @@ const (
 )
 
 const (
+	// outBufMaxSize is the maximum outRecordsBuf size in bytes.
 	outBufMaxSize = 16 * tlsRecordMaxSize
 )
 
@@ -360,7 +361,6 @@ func (p *conn) writeTLSRecord(b []byte, recordType byte) (n int, err error) {
 
 	totalNumOfRecordBytes := len(b) + int(math.Ceil(float64(len(b))/float64(tlsRecordMaxPlaintextSize)))*p.overheadSize
 	partialBSize := int(math.Min(float64(len(b)), float64(outBufMaxSize/tlsRecordMaxSize*tlsRecordMaxPlaintextSize)))
-
 	if totalNumOfRecordBytes > outBufMaxSize {
 		totalNumOfRecordBytes = outBufMaxSize
 	}
@@ -424,21 +424,6 @@ func (p *conn) buildRecord(plaintext []byte, recordType byte, recordStartIndex i
 	recordStartIndex += len(header) + len(encryptedPayload)
 	return recordStartIndex, remainingPlaintext, nil
 }
-
-/*
-// buildHeader returns the TLS 1.3 record header built from a payload of size
-// payloadSize
-func (p *conn) buildHeader(payloadSize int, recordNumber int) (header []byte, err error) {
-	if payloadSize > tlsRecordMaxPayloadSize {
-		return nil, errors.New("payload length exceeds max allowed size")
-	}
-	p.outRecordsBuf[0] = tlsApplicationData
-	p.outRecordsBuf[tlsRecordTypeSize] = tlsLegacyRecordVersion
-	p.outRecordsBuf[tlsRecordTypeSize+1] = tlsLegacyRecordVersion
-	binary.BigEndian.PutUint16(p.outRecordsBuf[tlsRecordTypeSize+tlsRecordHeaderLegacyRecordVersionSize:], uint16(payloadSize+tlsTagSize))
-
-	return p.outRecordsBuf[:tlsRecordHeaderSize], nil
-}*/
 
 func (p *conn) Close() error {
 	// TODO: Implement close with locks.
