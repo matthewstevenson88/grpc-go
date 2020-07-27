@@ -1010,7 +1010,7 @@ func TestConnReadKeyUpdate(t *testing.T) {
 	}
 }
 
-func TestBuildValidHeader(t *testing.T) {
+func TestBuildHeader(t *testing.T) {
 	for _, tc := range []struct {
 		desc           string
 		payloadLength  int
@@ -1040,40 +1040,6 @@ func TestBuildValidHeader(t *testing.T) {
 			trafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			ciphersuite:    s2apb.Ciphersuite_AES_128_GCM_SHA256,
 		},
-	} {
-		t.Run(tc.desc, func(t *testing.T) {
-			fConn := &fakeConn{}
-			newConn, err := NewConn(&ConnParameters{
-				NetConn:          fConn,
-				Ciphersuite:      tc.ciphersuite,
-				TLSVersion:       s2apb.TLSVersion_TLS1_3,
-				InTrafficSecret:  tc.trafficSecret,
-				OutTrafficSecret: tc.trafficSecret,
-			})
-			c := newConn.(*conn)
-			if err != nil {
-				t.Fatalf("NewConn() failed: %v", err)
-			}
-			resultHeader, err := c.buildHeader(tc.payloadLength)
-			if !bytes.Equal(tc.expectedHeader, resultHeader) {
-				t.Errorf("Incorrect Header: Expected: %v, Received: %v", tc.expectedHeader, resultHeader)
-			}
-			if got, want := err == nil, tc.outErr == nil; got != want {
-				t.Errorf("Incorrect Error: Expected: %v, Received: %v", tc.outErr, err)
-			}
-		})
-	}
-}
-
-func TestBuildInvalidHeader(t *testing.T) {
-	for _, tc := range []struct {
-		desc           string
-		payloadLength  int
-		expectedHeader []byte
-		ciphersuite    s2apb.Ciphersuite
-		trafficSecret  []byte
-		outErr         error
-	}{
 		{
 			desc:          "Payload with length greater than max payload size",
 			payloadLength: tlsRecordMaxPayloadSize + 1,
@@ -1106,7 +1072,7 @@ func TestBuildInvalidHeader(t *testing.T) {
 	}
 }
 
-func TestConnWrite(t *testing.T) {
+func TestWrite(t *testing.T) {
 	for _, tc := range []struct {
 		desc             string
 		ciphersuite      s2apb.Ciphersuite
@@ -1215,7 +1181,7 @@ func TestConnWrite(t *testing.T) {
 			for i, plaintext := range tc.plaintexts {
 				bytesWritten, err := c.writeTLSRecord(plaintext, tlsApplicationData)
 				if got, want := err == nil, !tc.outErr; got != want {
-					t.Errorf("c.Write(plaintext) = (err=nil) = %v, want %v", err, want)
+					t.Errorf("c.Write(plaintext) = (err=nil) = %v, want %v", got, want)
 				}
 				if bytesWritten != tc.outBytesWritten[i] {
 					t.Errorf("Incorrect number of bytes written: got: %v, want: %v", bytesWritten, tc.outBytesWritten[i])
