@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"errors"
 	"net"
+	"reflect"
 	"testing"
 
 	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
@@ -1027,10 +1028,257 @@ func TestConnReadKeyUpdate(t *testing.T) {
 	}
 }
 
-func TestConnWrite(t *testing.T) {
-	conn := &conn{}
-	if _, err := conn.Write(nil); err == nil {
-		t.Errorf("write is unimplemented")
+func TestBuildHeader(t *testing.T) {
+	for _, tc := range []struct {
+		desc           string
+		payloadLength  int
+		expectedHeader []byte
+		ciphersuite    s2apb.Ciphersuite
+		trafficSecret  []byte
+		outErr         error
+	}{
+		{
+			desc:           "Payload with length 0",
+			payloadLength:  0,
+			expectedHeader: []byte{tlsApplicationData, tlsLegacyRecordVersion, tlsLegacyRecordVersion, 0, 16},
+			trafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			ciphersuite:    s2apb.Ciphersuite_AES_128_GCM_SHA256,
+		},
+		{
+			desc:           "Payload with length 6",
+			payloadLength:  6,
+			expectedHeader: []byte{tlsApplicationData, tlsLegacyRecordVersion, tlsLegacyRecordVersion, 0, 22},
+			trafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			ciphersuite:    s2apb.Ciphersuite_AES_128_GCM_SHA256,
+		},
+		{
+			desc:           "Payload with length 256",
+			payloadLength:  256,
+			expectedHeader: []byte{tlsApplicationData, tlsLegacyRecordVersion, tlsLegacyRecordVersion, 1, 16},
+			trafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			ciphersuite:    s2apb.Ciphersuite_AES_128_GCM_SHA256,
+		},
+		{
+			desc:          "Payload with length greater than max payload size",
+			payloadLength: tlsRecordMaxPayloadSize + 1,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
+			outErr:        errors.New("payload length exceeds max allowed size"),
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			fConn := &fakeConn{}
+			newConn, err := NewConn(&ConnParameters{
+				NetConn:          fConn,
+				Ciphersuite:      tc.ciphersuite,
+				TLSVersion:       s2apb.TLSVersion_TLS1_3,
+				InTrafficSecret:  tc.trafficSecret,
+				OutTrafficSecret: tc.trafficSecret,
+			})
+			c := newConn.(*conn)
+			if err != nil {
+				t.Fatalf("NewConn() failed: %v", err)
+			}
+			resultHeader, err := c.buildHeader(tc.payloadLength)
+			if !bytes.Equal(tc.expectedHeader, resultHeader) {
+				t.Errorf("Incorrect Header: Expected: %v, Received: %v", tc.expectedHeader, resultHeader)
+			}
+			if got, want := err == nil, tc.outErr == nil; got != want {
+				t.Errorf("Incorrect Error: Expected: %v, Received: %v", tc.outErr, err)
+			}
+		})
+	}
+}
+
+func TestWrite(t *testing.T) {
+	for _, tc := range []struct {
+		desc             string
+		ciphersuite      s2apb.Ciphersuite
+		trafficSecret    []byte
+		plaintexts       [][]byte
+		maxPlaintextSize int
+		outRecords       [][]byte
+		outBytesWritten  []int
+		outErr           bool
+	}{
+		// The traffic secrets were chosen randomly and are equivalent to the
+		// ones used in C++ and Java. The ciphertext was constructed using an
+		// existing TLS library.
+		{
+			desc:          "AES-128-GCM-SHA256",
+			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			plaintexts: [][]byte{
+				[]byte("123456"),
+				[]byte("789123456"),
+			},
+			outRecords: [][]byte{
+				testutil.Dehex("1703030017f2e4e411ac6760e4e3f074a36574c45ee4c1906103db0d"),
+				testutil.Dehex("170303001ad7853afd6d7ceaabab950a0b6707905d2b908894871c7c62021f"),
+			},
+			outBytesWritten: []int{6, 9},
+		},
+		{
+			desc:          "AES-128-GCM-SHA256 empty",
+			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			plaintexts: [][]byte{
+				[]byte(""),
+			},
+			outRecords: [][]byte{
+				testutil.Dehex("1703030011d47cb2ec040f26cc8989330339c669dd4e"),
+			},
+			outBytesWritten: []int{0},
+		},
+		{
+			desc:          "AES-256-GCM-SHA384",
+			ciphersuite:   s2apb.Ciphersuite_AES_256_GCM_SHA384,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			plaintexts: [][]byte{
+				[]byte("123456"),
+				[]byte("789123456"),
+			},
+			outRecords: [][]byte{
+				testutil.Dehex("170303001724efee5af1a62170ad5a95f899d038b965386a1a7daed9"),
+				testutil.Dehex("170303001a832a5fd271b6442e74bc02111a8e8b52a74b14dd3eca8598b293"),
+			},
+			outBytesWritten: []int{6, 9},
+		},
+		{
+			desc:          "AES-256-GCM-SHA384 empty",
+			ciphersuite:   s2apb.Ciphersuite_AES_256_GCM_SHA384,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			plaintexts: [][]byte{
+				[]byte(""),
+			},
+			outRecords: [][]byte{
+				testutil.Dehex("170303001102a04134d38c1118f36b01d177c5d2dcf7"),
+			},
+			outBytesWritten: []int{0},
+		},
+		{
+			desc:          "CHACHA20-POLY1305-SHA256",
+			ciphersuite:   s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			plaintexts: [][]byte{
+				[]byte("123456"),
+				[]byte("789123456"),
+			},
+			outRecords: [][]byte{
+				testutil.Dehex("1703030017c947ffa470304370338bb07ce468e6b8a0944a338ba402"),
+				testutil.Dehex("170303001a0cedeb922170c110c172262542c67916b78fa0d1c1261709cd00"),
+			},
+			outBytesWritten: []int{6, 9},
+		},
+		{
+			desc:          "CHACHA20-POLY1305-SHA256 empty",
+			ciphersuite:   s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			plaintexts: [][]byte{
+				[]byte(""),
+			},
+			outRecords: [][]byte{
+				testutil.Dehex("1703030011ef8f7a428ddc84ee5968cd6306bf1d2d1b"),
+			},
+			outBytesWritten: []int{0},
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			fConn := &fakeConn{}
+			newConn, err := NewConn(&ConnParameters{
+				NetConn:          fConn,
+				Ciphersuite:      tc.ciphersuite,
+				TLSVersion:       s2apb.TLSVersion_TLS1_3,
+				InTrafficSecret:  tc.trafficSecret,
+				OutTrafficSecret: tc.trafficSecret,
+			})
+			c := newConn.(*conn)
+			if err != nil {
+				t.Fatalf("NewConn() failed: %v", err)
+			}
+			for i, plaintext := range tc.plaintexts {
+				bytesWritten, err := c.writeTLSRecord(plaintext, tlsApplicationData)
+				if got, want := err == nil, !tc.outErr; got != want {
+					t.Errorf("c.Write(plaintext) = (err=nil) = %v, want %v", got, want)
+				}
+				if bytesWritten != tc.outBytesWritten[i] {
+					t.Errorf("Incorrect number of bytes written: got: %v, want: %v", bytesWritten, tc.outBytesWritten[i])
+				}
+			}
+			if !reflect.DeepEqual(fConn.out, tc.outRecords) {
+				t.Errorf("Incorrect Record: got: %v, want: %v", fConn.out, tc.outRecords)
+			}
+		})
+	}
+}
+
+func TestExceedBufferSize(t *testing.T) {
+	for _, tc := range []struct {
+		desc                     string
+		ciphersuite              s2apb.Ciphersuite
+		trafficSecret            []byte
+		plaintext                []byte
+		maxPlaintextSize         int
+		expectedOutRecordBufSize int
+		expectedNumRecords       int
+		outErr                   bool
+	}{
+		// plaintext is set to 16385, 1 byte more than the maximum number of
+		// plaintext bytes in a single record, expectedOutRecordBufSize is set
+		// to 16406, as it is the maximum size of a single record.
+
+		{
+			desc:                     "AES-128-GCM-SHA256",
+			ciphersuite:              s2apb.Ciphersuite_AES_128_GCM_SHA256,
+			trafficSecret:            testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			plaintext:                make([]byte, 16385),
+			expectedOutRecordBufSize: 16406,
+			expectedNumRecords:       2,
+		},
+		{
+			desc:                     "AES-256-GCM-SHA384",
+			ciphersuite:              s2apb.Ciphersuite_AES_256_GCM_SHA384,
+			trafficSecret:            testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			plaintext:                make([]byte, 16385),
+			expectedOutRecordBufSize: 16406,
+			expectedNumRecords:       2,
+		},
+		{
+			desc:                     "CHACHA20-POLY1305-SHA256",
+			ciphersuite:              s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			trafficSecret:            testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			plaintext:                make([]byte, 16385),
+			expectedOutRecordBufSize: 16406,
+			expectedNumRecords:       2,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			fConn := &fakeConn{}
+			newConn, err := NewConn(&ConnParameters{
+				NetConn:          fConn,
+				Ciphersuite:      tc.ciphersuite,
+				TLSVersion:       s2apb.TLSVersion_TLS1_3,
+				InTrafficSecret:  tc.trafficSecret,
+				OutTrafficSecret: tc.trafficSecret,
+			})
+			c := newConn.(*conn)
+			if err != nil {
+				t.Fatalf("NewConn() failed: %v", err)
+			}
+			bytesWritten, err := c.writeTLSRecord(tc.plaintext, tlsApplicationData)
+			if got, want := err == nil, !tc.outErr; got != want {
+				t.Errorf("c.Write(plaintext) = (err=nil) = %v, want %v", err, want)
+			}
+			if bytesWritten != len(tc.plaintext) {
+				t.Errorf("Incorrect number of bytes written: got: %v, want: %v", bytesWritten, len(tc.plaintext))
+			}
+			if len(c.outRecordBuf) != tc.expectedOutRecordBufSize {
+				t.Errorf("Incorrect buf size: got: %v, want: %v", len(c.outRecordBuf), tc.expectedOutRecordBufSize)
+			}
+			if len(fConn.out) != tc.expectedNumRecords {
+				t.Errorf("Inforrect number of records: got: %v, want: %v,", len(fConn.out), tc.expectedNumRecords)
+			}
+		})
 	}
 }
 
