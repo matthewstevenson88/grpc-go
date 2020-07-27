@@ -208,14 +208,14 @@ func NewConn(o *ConnParameters) (net.Conn, error) {
 	}
 
 	s2aConn := &conn{
-		Conn:         o.NetConn,
-		inConn:       inConn,
-		outConn:      outConn,
-		unusedBuf:    unusedBuf,
+		Conn:          o.NetConn,
+		inConn:        inConn,
+		outConn:       outConn,
+		unusedBuf:     unusedBuf,
 		outRecordsBuf: make([]byte, tlsRecordMaxSize),
-		nextRecord:   unusedBuf,
-		overheadSize: overheadSize,
-		hsAddr:       o.HSAddr,
+		nextRecord:    unusedBuf,
+		overheadSize:  overheadSize,
+		hsAddr:        o.HSAddr,
 	}
 	return s2aConn, nil
 }
@@ -346,7 +346,7 @@ func (p *conn) writeTLSRecord(b []byte, recordType byte) (n int, err error) {
 	// Create a record of only header, record type, and tag if given empty
 	// byte array.
 	if len(b) == 0 {
-		recordEndIndex, _, err := p.buildRecord(b, recordType,0)
+		recordEndIndex, _, err := p.buildRecord(b, recordType, 0)
 		if err != nil {
 			return 0, err
 		}
@@ -360,12 +360,12 @@ func (p *conn) writeTLSRecord(b []byte, recordType byte) (n int, err error) {
 
 	totalNumOfRecordBytes := len(b) + int(math.Ceil(float64(len(b))/float64(tlsRecordMaxPlaintextSize)))*p.overheadSize
 	partialBSize := int(math.Min(float64(len(b)), float64(outBufMaxSize/tlsRecordMaxSize*tlsRecordMaxPlaintextSize)))
-	
+
 	if totalNumOfRecordBytes > outBufMaxSize {
 		totalNumOfRecordBytes = outBufMaxSize
 	}
-	if len(p.outRecordsBuf) < totalNumOfRecordBytes {	
-		p.outRecordsBuf = make([]byte, totalNumOfRecordBytes)	
+	if len(p.outRecordsBuf) < totalNumOfRecordBytes {
+		p.outRecordsBuf = make([]byte, totalNumOfRecordBytes)
 	}
 	for bStart := 0; bStart < len(b); bStart += partialBSize {
 		bEnd := bStart + partialBSize

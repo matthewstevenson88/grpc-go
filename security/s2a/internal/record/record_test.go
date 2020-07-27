@@ -1158,7 +1158,7 @@ func TestExceedBufferSize(t *testing.T) {
 		plaintext                []byte
 		maxPlaintextSize         int
 		expectedOutRecordBufSize int
-		expectedNumWrites       int
+		expectedNumWrites        int
 		outErr                   bool
 	}{
 		// plaintext is set to 16385, 1 byte more than the maximum number of
@@ -1171,7 +1171,7 @@ func TestExceedBufferSize(t *testing.T) {
 			trafficSecret:            testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			plaintext:                make([]byte, 16385*16),
 			expectedOutRecordBufSize: 262496,
-			expectedNumWrites:       2,
+			expectedNumWrites:        2,
 		},
 		{
 			desc:                     "AES-256-GCM-SHA384",
@@ -1179,7 +1179,7 @@ func TestExceedBufferSize(t *testing.T) {
 			trafficSecret:            testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			plaintext:                make([]byte, 16385*16),
 			expectedOutRecordBufSize: 262496,
-			expectedNumWrites:       2,
+			expectedNumWrites:        2,
 		},
 		{
 			desc:                     "CHACHA20-POLY1305-SHA256",
@@ -1187,7 +1187,7 @@ func TestExceedBufferSize(t *testing.T) {
 			trafficSecret:            testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			plaintext:                make([]byte, 16385*16),
 			expectedOutRecordBufSize: 262496,
-			expectedNumWrites:       2,
+			expectedNumWrites:        2,
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
