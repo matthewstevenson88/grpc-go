@@ -321,9 +321,6 @@ func (p *conn) Write(b []byte) (n int, err error) {
 // to the peer. It returns the number of plaintext bytes that were successfully
 // sent to the peer. maxPlaintextBytesPerRecord MUST be greater than zero.
 func (p *conn) writeTLSRecord(b []byte, recordType byte) (n int, err error) {
-	// Set p.outRecordBuf to the size of a single record.
-	p.outRecordBuf = make([]byte, tlsRecordMaxSize)
-
 	// Create a record of only header, record type, and tag if given empty
 	// byte array.
 	if len(b) == 0 {
@@ -354,9 +351,9 @@ func (p *conn) writeTLSRecord(b []byte, recordType byte) (n int, err error) {
 		// Write the bytes stored in outRecordBuf to p.Conn. If there is an
 		// error, calculate the total number of plaintext bytes of complete
 		// records successfully written to the peer and return it.
-		numberOfBytesWrittenToPeer, err := p.Conn.Write(p.outRecordBuf[:recordEndIndex])
+		nn, err := p.Conn.Write(p.outRecordBuf[:recordEndIndex])
 		if err != nil {
-			numberOfCompletedRecords := int(math.Floor(float64(numberOfBytesWrittenToPeer) / float64(tlsRecordMaxSize)))
+			numberOfCompletedRecords := int(math.Floor(float64(nn) / float64(tlsRecordMaxSize)))
 			return bStart + numberOfCompletedRecords*tlsRecordMaxPlaintextSize, err
 		}
 	}
@@ -370,14 +367,10 @@ func (p *conn) writeTLSRecord(b []byte, recordType byte) (n int, err error) {
 func (p *conn) buildRecord(plaintext []byte, recordType byte) (int, error) {
 	// Construct the payload, which consists of application data and record type.
 	dataLen := len(plaintext)
-	if dataLen > tlsRecordMaxPlaintextSize {
-		dataLen = tlsRecordMaxPlaintextSize
-	}
-	buff := make([]byte, dataLen)
-	copy(buff, plaintext[:dataLen])
-	plaintext = plaintext[dataLen:]
 
-	payload := append(buff, recordType)
+	copy(p.outRecordBuf[tlsRecordHeaderSize:tlsRecordHeaderSize + dataLen],plaintext[:dataLen])
+	p.outRecordBuf[tlsRecordHeaderSize + dataLen] = recordType
+	payload := p.outRecordBuf[tlsRecordHeaderSize:tlsRecordHeaderSize + dataLen + 1]
 	// Construct the header.
 	header, err := p.buildHeader(len(payload))
 	if err != nil {
@@ -385,22 +378,12 @@ func (p *conn) buildRecord(plaintext []byte, recordType byte) (int, error) {
 	}
 
 	// Encrypt the payload using header as aad.
-	encryptedPayload, err := p.encryptPayload(payload, p.outRecordBuf[:tlsRecordHeaderSize])
+	encryptedPayload, err := p.outConn.Encrypt(p.outRecordBuf[tlsRecordHeaderSize : len(payload)+tlsTagSize][:0], payload, header)
 	if err != nil {
 		return 0, err
 	}
 	recordEndIndex := len(header) + len(encryptedPayload)
 	return recordEndIndex, nil
-}
-
-// encryptPayload returns the TLS 1.3 record built from header and the
-// (unencrypted) payload.
-func (p *conn) encryptPayload(payload, header []byte) ([]byte, error) {
-	encrypted, err := p.outConn.Encrypt(p.outRecordBuf[tlsRecordHeaderSize : len(payload)+tlsTagSize][:0], payload, header)
-	if err != nil {
-		return nil, err
-	}
-	return encrypted, err
 }
 
 // buildHeader returns the TLS 1.3 record header built from a payload of size
