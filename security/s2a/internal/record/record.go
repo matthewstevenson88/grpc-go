@@ -361,16 +361,16 @@ func (p *conn) writeTLSRecord(b []byte, recordType byte) (n int, err error) {
 }
 
 // buildRecord builds a TLS 1.3 record of type recordType from plaintext,
-// and writes the record to outRecordBuf. The record will have at most 
+// and writes the record to outRecordBuf. The record will have at most
 // maxPlaintextSize bytes of payload. It returns the index of outRecordBuf
 // where the current record ends.
 func (p *conn) buildRecord(plaintext []byte, recordType byte) (int, error) {
 	// Construct the payload, which consists of application data and record type.
 	dataLen := len(plaintext)
 
-	copy(p.outRecordBuf[tlsRecordHeaderSize:tlsRecordHeaderSize + dataLen],plaintext[:dataLen])
-	p.outRecordBuf[tlsRecordHeaderSize + dataLen] = recordType
-	payload := p.outRecordBuf[tlsRecordHeaderSize:tlsRecordHeaderSize + dataLen + 1]
+	copy(p.outRecordBuf[tlsRecordHeaderSize:], plaintext)
+	p.outRecordBuf[tlsRecordHeaderSize+dataLen] = recordType
+	payload := p.outRecordBuf[tlsRecordHeaderSize : tlsRecordHeaderSize+dataLen+1] // 1 is for the recordType.
 	// Construct the header.
 	header, err := p.buildHeader(len(payload))
 	if err != nil {
@@ -378,7 +378,7 @@ func (p *conn) buildRecord(plaintext []byte, recordType byte) (int, error) {
 	}
 
 	// Encrypt the payload using header as aad.
-	encryptedPayload, err := p.outConn.Encrypt(p.outRecordBuf[tlsRecordHeaderSize : len(payload)+tlsTagSize][:0], payload, header)
+	encryptedPayload, err := p.outConn.Encrypt(p.outRecordBuf[tlsRecordHeaderSize:][:0], payload, header)
 	if err != nil {
 		return 0, err
 	}
