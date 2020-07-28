@@ -32,8 +32,8 @@ import (
 )
 
 var (
-	port     = flag.String("port", "50050", "port number to use for connection")
-	s2a_port = flag.String("s2a_port", "50051", "port number to use for s2a connection")
+	port     = flag.String("server_address", "localhost:50051", "The address of the gRPC server.")
+	s2a_port = flag.String("s2a_server_address", "localhost:61365", "S2A server address")
 )
 
 // server is used to implement helloworld.GreeterServer.
@@ -44,16 +44,15 @@ type server struct {
 // SayHello implements helloworld.GreeterServer
 func (s *server) SayHello(ctx context.Context, in *pb.HelloRequest) (*pb.HelloReply, error) {
 	log.Printf("Received: %v", in.GetName())
-	return &pb.HelloReply{Message: "Hello " + in.GetName()}, nil
+	return &pb.HelloReply{Message: "Hello " + in.GetName() + "!"}, nil
 }
 
 func main() {
 	flag.Parse()
 
-	// Set up server options.
+	// Set up server-side S2A transport credentials.
 	serverOpts := &s2a.ServerOptions{
-		LocalIdentities:          []s2a.Identity{s2a.NewSpiffeID(*port)},
-		HandshakerServiceAddress: "localhost:" + *s2a_port,
+		HandshakerServiceAddress: *s2a_port,
 	}
 	creds, err := s2a.NewServerCreds(serverOpts)
 	if err != nil {
