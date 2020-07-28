@@ -1160,10 +1160,10 @@ func TestWriteTwoRecords(t *testing.T) {
 		outBytesWritten  int
 		outErr           bool
 	}{
-		// The traffic secrets were chosen randomly and are equivalent to the
-		// ones used in C++ and Java. The ciphertext was constructed using an
-		// existing TLS library.
-
+		// The plaintext of size 2^14 + 1 will be written to the underlying 
+		// connection in 2 TLS records: one containing 2^14 bytes of 
+		// plaintext, and the other containing 1 byte of plaintext, resulting 
+		// in 16429 total record bytes written, including the overheads.
 		{
 			desc:          "AES-128-GCM-SHA256",
 			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
