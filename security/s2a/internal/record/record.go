@@ -118,7 +118,7 @@ const (
 )
 
 const (
-	// outBufMaxSize is the maximum outRecordsBuf size in bytes.
+	// outBufMaxSize is the maximum size (in bytes) of the outRecordsBuf buffer.
 	outBufMaxSize = 16 * tlsRecordMaxSize
 )
 
@@ -411,9 +411,9 @@ func (p *conn) buildRecord(plaintext []byte, recordType byte, recordStartIndex i
 	payload := newRecordBuf[tlsRecordHeaderSize : tlsRecordHeaderSize+dataLen+1] // 1 is for the recordType.
 	// Construct the header.
 	newRecordBuf[0] = tlsApplicationData
-	newRecordBuf[tlsRecordTypeSize] = tlsLegacyRecordVersion
-	newRecordBuf[tlsRecordTypeSize+1] = tlsLegacyRecordVersion
-	binary.BigEndian.PutUint16(newRecordBuf[tlsRecordTypeSize+tlsRecordHeaderLegacyRecordVersionSize:], uint16(len(payload)+tlsTagSize))
+	newRecordBuf[1] = tlsLegacyRecordVersion
+	newRecordBuf[2] = tlsLegacyRecordVersion
+	binary.BigEndian.PutUint16(newRecordBuf[3:], uint16(len(payload)+tlsTagSize))
 	header := newRecordBuf[:tlsRecordHeaderSize]
 
 	// Encrypt the payload using header as aad.
