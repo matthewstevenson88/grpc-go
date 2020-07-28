@@ -16,7 +16,7 @@
  *
  */
 
-package main
+package service
 
 import (
 	"errors"
@@ -287,7 +287,7 @@ func TestSetupSession(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			hs := fakeHandshakerService{}
+			hs := FakeHandshakerService{}
 			stream := &fakeS2ASetupSessionServer{reqs: tc.reqs}
 			if got, want := hs.SetUpSession(stream) == nil, !tc.hasNonOKStatus; got != want {
 				t.Errorf("hs.SetUpSession(%v) = (err=nil) = %v, want %v", stream, got, want)

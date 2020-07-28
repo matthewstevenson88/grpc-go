@@ -25,6 +25,7 @@ import (
 	"net"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/security/s2a/internal/fakehandshaker/service"
 	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
 )
 
@@ -40,7 +41,7 @@ func main() {
 		log.Fatalf("failed to listen on port %s: %v", *port, err)
 	}
 	s := grpc.NewServer()
-	s2apb.RegisterS2AServiceServer(s, &fakeHandshakerService{})
+	s2apb.RegisterS2AServiceServer(s, &service.FakeHandshakerService{})
 	if err := s.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)
 	}
