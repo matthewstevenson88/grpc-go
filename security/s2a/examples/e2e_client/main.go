@@ -16,16 +16,15 @@
  *
  */
 
-// Package main runs a Greeter service that uses S2A to establish secure
-// connections with greeter clients.
+// Package main establishes a connection with a Greeter service using the S2A.
 package main
 
 import (
 	"context"
 	"flag"
-	"fmt"
 	"log"
-	"net"
+	"os"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/security/s2a"
@@ -37,36 +36,35 @@ var (
 	s2aServerAddr = flag.String("s2a_server_address", "localhost:61365", "S2A server address.")
 )
 
-// server is used to implement helloworld.GreeterServer.
-type server struct {
-	pb.UnimplementedGreeterServer
-}
-
-// SayHello implements helloworld.GreeterServer
-func (s *server) SayHello(ctx context.Context, in *pb.HelloRequest) (*pb.HelloReply, error) {
-	log.Printf("Received: %v", in.GetName())
-	return &pb.HelloReply{Message: "Hello, " + in.GetName() + "!"}, nil
-}
-
 func main() {
 	flag.Parse()
 
-	// Set up server-side S2A transport credentials.
-	serverOpts := &s2a.ServerOptions{
+	// Set up the client-side S2A transport credentials.
+	clientOpts := &s2a.ClientOptions{
 		HandshakerServiceAddress: *s2aServerAddr,
 	}
-	creds, err := s2a.NewServerCreds(serverOpts)
+	creds, err := s2a.NewClientCreds(clientOpts)
 	if err != nil {
-		log.Fatalf("NewServerCreds(%v) failed: %v", serverOpts, err)
+		log.Fatalf("could not create s2a client credentials: %v", err)
 	}
 
-	lis, err := net.Listen("tcp", fmt.Sprintf("%s", *serverAddr))
+	// Set up a connection to the server.
+	conn, err := grpc.Dial(*serverAddr, grpc.WithTransportCredentials(creds), grpc.WithBlock())
 	if err != nil {
-		log.Fatalf("failed to listen on address %s: %v", *serverAddr, err)
+		log.Fatalf("could not connect to server at %s: %v", *serverAddr, err)
 	}
-	s := grpc.NewServer(grpc.Creds(creds))
-	pb.RegisterGreeterServer(s, &server{})
-	if err := s.Serve(lis); err != nil {
-		log.Fatalf("failed to serve: %v", err)
+	defer conn.Close()
+	c := pb.NewGreeterClient(conn)
+
+	// Contact the server and print out its response.
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	r, err := c.SayHello(ctx, &pb.HelloRequest{Name: "S2A team"})
+	if err != nil {
+		log.Fatalf("could not greet: %v", err)
 	}
+	if r.String() != "Hello, S2A team!" {
+		os.Exit(1)
+	}
+	log.Printf("Greeting: %s", r.GetMessage())
 }
