@@ -16,7 +16,8 @@
  *
  */
 
-// Runs a Greeter service that uses S2A to establish secure connections with greeter clients.
+// Runs a Greeter service that uses S2A to establish secure connections with 
+// greeter clients.
 package main
 
 import (
