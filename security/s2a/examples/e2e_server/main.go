@@ -53,9 +53,12 @@ func main() {
 	// Set up server options.
 	serverOpts := &s2a.ServerOptions{
 		LocalIdentities:          []s2a.Identity{s2a.NewSpiffeID(*port)},
-		HandshakerServiceAddress: *s2a_port,
+		HandshakerServiceAddress: "localhost:" + *s2a_port,
 	}
 	creds, err := s2a.NewServerCreds(serverOpts)
+	if err != nil {
+		log.Fatalf("NewServerCreds(%v) failed: %v", serverOpts, err)
+	}
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", *port))
 	if err != nil {
