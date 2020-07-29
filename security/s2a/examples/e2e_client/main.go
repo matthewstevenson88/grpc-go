@@ -41,6 +41,7 @@ func main() {
 
 	// Set up the client-side S2A transport credentials.
 	clientOpts := &s2a.ClientOptions{
+		LocalIdentity:            s2a.NewHostname("local_identity"),
 		HandshakerServiceAddress: *s2aServerAddr,
 	}
 	creds, err := s2a.NewClientCreds(clientOpts)
@@ -63,7 +64,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("could not greet: %v", err)
 	}
-	if r.String() != "Hello, S2A team!" {
+	if r.GetMessage() != "Hello, S2A team!" {
 		os.Exit(1)
 	}
 	log.Printf("Greeting: %s", r.GetMessage())
