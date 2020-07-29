@@ -90,6 +90,6 @@ func toProtoIdentity(identity Identity) (*s2apb.Identity, error) {
 	case *hostname:
 		return &s2apb.Identity{IdentityOneof: &s2apb.Identity_Hostname{Hostname: id.Name()}}, nil
 	default:
-		return &s2apb.Identity{IdentityOneof: &s2apb.Identity_Hostname{Hostname: "local_identity"}}, nil
+		return new(s2apb.Identity), nil
 	}
 }
