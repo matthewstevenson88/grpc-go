@@ -19,8 +19,6 @@
 package s2a
 
 import (
-	"errors"
-
 	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
 )
 
@@ -92,6 +90,6 @@ func toProtoIdentity(identity Identity) (*s2apb.Identity, error) {
 	case *hostname:
 		return &s2apb.Identity{IdentityOneof: &s2apb.Identity_Hostname{Hostname: id.Name()}}, nil
 	default:
-		return nil, errors.New("unrecognized identity type")
+		return &s2apb.Identity{IdentityOneof: &s2apb.Identity_Hostname{Hostname: "local_identity"}}, nil
 	}
 }
