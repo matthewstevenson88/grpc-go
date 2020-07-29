@@ -286,7 +286,7 @@ func (p *conn) Read(b []byte) (n int, err error) {
 				}
 			}
 			// Clear the body of the alert message.
-			p.pendingApplicationData = p.pendingApplicationData[tlsAlertSize:]
+			p.pendingApplicationData = p.pendingApplicationData[:0]
 			// TODO: add support for more alert types.
 			return 0, nil
 		case handshake:
@@ -306,11 +306,12 @@ func (p *conn) Read(b []byte) (n int, err error) {
 					return 0, err
 				}
 				// Clear the body of the key update message.
-				p.pendingApplicationData = p.pendingApplicationData[tlsHandshakeMsgTypeSize+tlsHandshakeLengthSize+tlsHandshakeKeyUpdateMsgSize:]
+				p.pendingApplicationData = p.pendingApplicationData[:0]
 				return 0, nil
 			} else if handshakeMsgType == tlsHandshakeNewSessionTicket {
 				// TODO: implement this later.
 				grpclog.Infof("Session ticket was received")
+				p.pendingApplicationData = p.pendingApplicationData[:0]
 				return 0, nil
 			}
 			return 0, errors.New("unknown handshake message type")

@@ -950,6 +950,9 @@ func TestConnReadAlert(t *testing.T) {
 			if got, want := f.closed, tc.outClosed; got != want {
 				t.Errorf("f.closed = %v, want %v", got, want)
 			}
+			if got, want := len(c.(*conn).pendingApplicationData), 0; got != want {
+				t.Errorf("len(c.(*conn).pendingApplicationData = %v, want %v", got, want)
+			}
 		})
 	}
 }
@@ -1023,6 +1026,58 @@ func TestConnReadKeyUpdate(t *testing.T) {
 				if got, want := plaintext, outPlaintext; !bytes.Equal(got, want) {
 					t.Errorf("c.Read(plaintext) = %v, want %v", got, want)
 				}
+			}
+			if got, want := len(c.(*conn).pendingApplicationData), 0; got != want {
+				t.Errorf("len(c.(*conn).pendingApplicationData = %v, want %v", got, want)
+			}
+		})
+	}
+}
+
+func TestConnNewSessionTicket(t *testing.T) {
+	for _, tc := range []struct {
+		desc            string
+		ciphersuite     s2apb.Ciphersuite
+		trafficSecret   []byte
+		completedRecord []byte
+	}{
+		{
+			desc:            "AES-128-GCM-SHA256 new session ticket",
+			ciphersuite:     s2apb.Ciphersuite_AES_128_GCM_SHA256,
+			trafficSecret:   testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			completedRecord: testutil.Dehex("1703030016c7d6d72499478b3d80281cae5b7c1a3e5cd553aae716"),
+		},
+		{
+			desc:            "AES-256-GCM-SHA384 new session ticket",
+			ciphersuite:     s2apb.Ciphersuite_AES_256_GCM_SHA384,
+			trafficSecret:   testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			completedRecord: testutil.Dehex("170303001611dddd6fc4869be0e1c12a5a29db1aa2e5814e5894e5"),
+		},
+		{
+			desc:            "CHACHA20-POLY1305-SHA256 new session ticket",
+			ciphersuite:     s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			trafficSecret:   testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			completedRecord: testutil.Dehex("1703030016fc75cc914510008c6B45bb46b1f030921006c3556882"),
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			c, err := NewConn(&ConnParameters{
+				NetConn:          &fakeConn{in: [][]byte{tc.completedRecord}},
+				Ciphersuite:      tc.ciphersuite,
+				TLSVersion:       s2apb.TLSVersion_TLS1_3,
+				InTrafficSecret:  tc.trafficSecret,
+				OutTrafficSecret: tc.trafficSecret,
+			})
+			if err != nil {
+				t.Fatalf("NewConn() failed: %v", err)
+			}
+			plaintext := make([]byte, tlsRecordMaxPlaintextSize)
+			_, err = c.Read(plaintext)
+			if err != nil {
+				t.Fatalf("c.Read(plaintext) failed: %v", err)
+			}
+			if got, want := len(c.(*conn).pendingApplicationData), 0; got != want {
+				t.Errorf("len(c.(*conn).pendingApplicationData = %v, want %v", got, want)
 			}
 		})
 	}
