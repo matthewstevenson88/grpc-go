@@ -43,7 +43,7 @@ func TestToProtoIdentity(t *testing.T) {
 			},
 		},
 		{
-			identity: nil,
+			identity:    nil,
 			outIdentity: nil,
 		},
 	} {
