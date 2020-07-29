@@ -42,6 +42,10 @@ func TestToProtoIdentity(t *testing.T) {
 				IdentityOneof: &s2apb.Identity_Hostname{Hostname: "test_hostname"},
 			},
 		},
+		{
+			identity: nil,
+			outIdentity: nil,
+		},
 	} {
 		t.Run(tc.outIdentity.String(), func(t *testing.T) {
 			protoSpiffeID, err := toProtoIdentity(tc.identity)
