@@ -1357,9 +1357,6 @@ func TestExceedBufferSize(t *testing.T) {
 	}
 }
 
-// TODO(gud): Add roundtrip tests.
-// TODO(gud): Remember to test the case where the payload size is maximum (2^14)
-
 func TestRoundtrip(t *testing.T) {
 	for _, tc := range []struct {
 		desc             string
