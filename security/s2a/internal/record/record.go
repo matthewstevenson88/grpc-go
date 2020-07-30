@@ -360,14 +360,14 @@ func (p *conn) writeTLSRecord(b []byte, recordType byte) (n int, err error) {
 	}
 
 	numRecords := int(math.Ceil(float64(len(b))/float64(tlsRecordMaxPlaintextSize)))
-	totalRecordSize := len(b) + numRecords*p.overheadSize
+	totalRecordsSize := len(b) + numRecords*p.overheadSize
 	partialBSize := len(b)
-	if totalRecordSize > outBufMaxSize {
-		totalRecordSize = outBufMaxSize
+	if totalRecordsSize > outBufMaxSize {
+		totalRecordsSize = outBufMaxSize
 		partialBSize = outBufMaxSize/tlsRecordMaxSize * tlsRecordMaxPlaintextSize
 	}
-	if len(p.outRecordsBuf) < totalRecordSize {
-		p.outRecordsBuf = make([]byte, totalRecordSize)
+	if len(p.outRecordsBuf) < totalRecordsSize {
+		p.outRecordsBuf = make([]byte, totalRecordsSize)
 	}
 	for bStart := 0; bStart < len(b); bStart += partialBSize {
 		bEnd := bStart + partialBSize
