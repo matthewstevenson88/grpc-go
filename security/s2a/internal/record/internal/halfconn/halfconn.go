@@ -16,6 +16,8 @@
  *
  */
 
+// Package halfconn manages the inbound or outbound traffic of a TLS 1.3
+// connection.
 package halfconn
 
 import (
