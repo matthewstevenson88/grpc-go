@@ -123,8 +123,11 @@ const (
 )
 
 const (
+	// outBufMaxRecords is the maximum number of records that can fit in the
+	// ourRecordsBuf buffer.
+	outBufMaxRecords = 16
 	// outBufMaxSize is the maximum size (in bytes) of the outRecordsBuf buffer.
-	outBufMaxSize = 16 * tlsRecordMaxSize
+	outBufMaxSize = outBufMaxRecords * tlsRecordMaxSize
 )
 
 // preConstructedKeyUpdateMsg holds the key update message. This is needed as an
@@ -388,7 +391,7 @@ func (p *conn) writeTLSRecord(b []byte, recordType byte) (n int, err error) {
 	partialBSize := len(b)
 	if totalRecordsSize > outBufMaxSize {
 		totalRecordsSize = outBufMaxSize
-		partialBSize = outBufMaxSize / tlsRecordMaxSize * tlsRecordMaxPlaintextSize
+		partialBSize = outBufMaxRecords * tlsRecordMaxPlaintextSize
 	}
 	if len(p.outRecordsBuf) < totalRecordsSize {
 		p.outRecordsBuf = make([]byte, totalRecordsSize)
