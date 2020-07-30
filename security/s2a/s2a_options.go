@@ -86,6 +86,9 @@ func DefaultServerOptions(handshakerAddress string) *ServerOptions {
 }
 
 func toProtoIdentity(identity Identity) (*s2apb.Identity, error) {
+	if identity == nil {
+		return nil, nil
+	}
 	switch id := identity.(type) {
 	case *spiffeID:
 		return &s2apb.Identity{IdentityOneof: &s2apb.Identity_SpiffeId{SpiffeId: id.Name()}}, nil

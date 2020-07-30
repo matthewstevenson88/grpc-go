@@ -16,6 +16,8 @@
  *
  */
 
+// Package authinfo provides authentication and authorization information that
+// results from the TLS handshake.
 package authinfo
 
 import (
