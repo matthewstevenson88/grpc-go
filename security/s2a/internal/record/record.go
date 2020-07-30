@@ -120,8 +120,11 @@ const (
 )
 
 const (
+	// outBufMaxRecords is the maximum number of records that can fit in the
+	// ourRecordsBuf buffer.
+	outBufMaxRecords = 16
 	// outBufMaxSize is the maximum size (in bytes) of the outRecordsBuf buffer.
-	outBufMaxSize = 16 * tlsRecordMaxSize
+	outBufMaxSize = outBufMaxRecords * tlsRecordMaxSize
 )
 
 // conn represents a secured TLS connection. It implements the net.Conn
@@ -343,8 +346,8 @@ func (p *conn) Write(b []byte) (n int, err error) {
 }
 
 // writeTLSRecord divides b into segments of size maxPlaintextBytesPerRecord,
-// builds a TLS 1.3 record (of type recordType) from each segment, and sends 
-// the record to the peer. It returns the number of plaintext bytes that were 
+// builds a TLS 1.3 record (of type recordType) from each segment, and sends
+// the record to the peer. It returns the number of plaintext bytes that were
 // successfully sent to the peer.
 func (p *conn) writeTLSRecord(b []byte, recordType byte) (n int, err error) {
 	// Create a record of only header, record type, and tag if given empty
@@ -362,12 +365,12 @@ func (p *conn) writeTLSRecord(b []byte, recordType byte) (n int, err error) {
 		return 0, err
 	}
 
-	numRecords := int(math.Ceil(float64(len(b))/float64(tlsRecordMaxPlaintextSize)))
+	numRecords := int(math.Ceil(float64(len(b)) / float64(tlsRecordMaxPlaintextSize)))
 	totalRecordsSize := len(b) + numRecords*p.overheadSize
 	partialBSize := len(b)
 	if totalRecordsSize > outBufMaxSize {
 		totalRecordsSize = outBufMaxSize
-		partialBSize = outBufMaxSize/tlsRecordMaxSize * tlsRecordMaxPlaintextSize
+		partialBSize = outBufMaxRecords * tlsRecordMaxPlaintextSize
 	}
 	if len(p.outRecordsBuf) < totalRecordsSize {
 		p.outRecordsBuf = make([]byte, totalRecordsSize)
@@ -400,8 +403,8 @@ func (p *conn) writeTLSRecord(b []byte, recordType byte) (n int, err error) {
 
 // buildRecord builds a TLS 1.3 record of type recordType from plaintext,
 // and writes the record to outRecordsBuf at recordStartIndex. The record will
-// have at most tlsRecordMaxPlaintextSize bytes of payload. It returns the 
-// index of outRecordsBuf where the current record ends, as well as any 
+// have at most tlsRecordMaxPlaintextSize bytes of payload. It returns the
+// index of outRecordsBuf where the current record ends, as well as any
 // remaining plaintext bytes.
 func (p *conn) buildRecord(plaintext []byte, recordType byte, recordStartIndex int) (n int, remainingPlaintext []byte, err error) {
 	// Construct the payload, which consists of application data and record type.

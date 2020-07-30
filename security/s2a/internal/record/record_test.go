@@ -1227,9 +1227,9 @@ func TestWriteTwoRecords(t *testing.T) {
 		outBytesWritten  int
 		outErr           bool
 	}{
-		// The plaintext of size 2^14 + 1 will be written to the underlying 
-		// connection in 2 TLS records: one containing 2^14 bytes of 
-		// plaintext, and the other containing 1 byte of plaintext, resulting 
+		// The plaintext of size 2^14 + 1 will be written to the underlying
+		// connection in 2 TLS records: one containing 2^14 bytes of
+		// plaintext, and the other containing 1 byte of plaintext, resulting
 		// in 16429 total record bytes written, including the overheads.
 		{
 			desc:          "AES-128-GCM-SHA256",
@@ -1279,7 +1279,7 @@ func TestWriteTwoRecords(t *testing.T) {
 			if bytesWritten != tc.outBytesWritten {
 				t.Errorf("Incorrect number of bytes written: got: %v, want: %v", bytesWritten, tc.outBytesWritten)
 			}
-			if len(fConn.out[0])!=tc.outRecordsLength {
+			if len(fConn.out[0]) != tc.outRecordsLength {
 				t.Errorf("Incorrect number of bytes prepared: got: %v, want: %v", fConn.out, tc.outRecordsLength)
 			}
 		})
@@ -1305,7 +1305,7 @@ func TestExceedBufferSize(t *testing.T) {
 			desc:                     "AES-128-GCM-SHA256",
 			ciphersuite:              s2apb.Ciphersuite_AES_128_GCM_SHA256,
 			trafficSecret:            testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			plaintext:                make([]byte, 16385*16),
+			plaintext:                make([]byte, 16385*outBufMaxRecords),
 			expectedOutRecordBufSize: 262496,
 			expectedNumWrites:        2,
 		},
@@ -1313,7 +1313,7 @@ func TestExceedBufferSize(t *testing.T) {
 			desc:                     "AES-256-GCM-SHA384",
 			ciphersuite:              s2apb.Ciphersuite_AES_256_GCM_SHA384,
 			trafficSecret:            testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			plaintext:                make([]byte, 16385*16),
+			plaintext:                make([]byte, 16385*outBufMaxRecords),
 			expectedOutRecordBufSize: 262496,
 			expectedNumWrites:        2,
 		},
@@ -1321,7 +1321,7 @@ func TestExceedBufferSize(t *testing.T) {
 			desc:                     "CHACHA20-POLY1305-SHA256",
 			ciphersuite:              s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
 			trafficSecret:            testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			plaintext:                make([]byte, 16385*16),
+			plaintext:                make([]byte, 16385*outBufMaxRecords),
 			expectedOutRecordBufSize: 262496,
 			expectedNumWrites:        2,
 		},
