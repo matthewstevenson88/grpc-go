@@ -365,7 +365,6 @@ func (p *conn) Read(b []byte) (n int, err error) {
 
 	// Write as much application data as possible to b, the output buffer.
 	n += copy(b, p.pendingApplicationData)
-
 	p.pendingApplicationData = p.pendingApplicationData[:0]
 	return n, nil
 }
