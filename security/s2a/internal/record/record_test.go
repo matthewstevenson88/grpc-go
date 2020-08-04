@@ -20,7 +20,6 @@ package record
 
 import (
 	"bytes"
-	"errors"
 	"net"
 	"reflect"
 	"testing"
@@ -45,11 +44,10 @@ func (c *fakeConn) Read(b []byte) (n int, err error) {
 	n = copy(b, c.in[c.inCount])
 
 	if n < len(c.in[c.inCount]) {
-		// For testing, we want to make sure that each buffer is copied in its
-		// entirety.
-		return 0, errors.New("copy copied less bytes than expected")
+		c.in[c.inCount] = c.in[c.inCount][n:]
+	} else {
+		c.inCount++
 	}
-	c.inCount++
 	return n, nil
 }
 
@@ -1340,13 +1338,13 @@ func TestWrite(t *testing.T) {
 
 func TestWriteTwoRecords(t *testing.T) {
 	for _, tc := range []struct {
-		desc             string
-		ciphersuite      s2apb.Ciphersuite
-		trafficSecret    []byte
-		plaintext        []byte
-		outRecordsLength int
-		outBytesWritten  int
-		outErr           bool
+		desc            string
+		ciphersuite     s2apb.Ciphersuite
+		trafficSecret   []byte
+		plaintext       []byte
+		numRecordBytes  int
+		outBytesWritten int
+		outErr          bool
 	}{
 		// The plaintext of size 2^14 + 1 will be written to the underlying
 		// connection in 2 TLS records: one containing 2^14 bytes of
@@ -1358,8 +1356,8 @@ func TestWriteTwoRecords(t *testing.T) {
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			plaintext:     make([]byte, 16385), // 2^14+1
 
-			outRecordsLength: 16429,
-			outBytesWritten:  16385,
+			numRecordBytes:  16429,
+			outBytesWritten: 16385,
 		},
 		{
 			desc:          "AES-256-GCM-SHA384",
@@ -1367,8 +1365,8 @@ func TestWriteTwoRecords(t *testing.T) {
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			plaintext:     make([]byte, 16385), // 2^14+1
 
-			outRecordsLength: 16429,
-			outBytesWritten:  16385,
+			numRecordBytes:  16429,
+			outBytesWritten: 16385,
 		},
 		{
 			desc:          "CHACHA20-POLY1305-SHA256",
@@ -1376,8 +1374,8 @@ func TestWriteTwoRecords(t *testing.T) {
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			plaintext:     make([]byte, 16385), // 2^14+1
 
-			outRecordsLength: 16429,
-			outBytesWritten:  16385,
+			numRecordBytes:  16429,
+			outBytesWritten: 16385,
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
@@ -1400,8 +1398,8 @@ func TestWriteTwoRecords(t *testing.T) {
 			if bytesWritten != tc.outBytesWritten {
 				t.Errorf("Incorrect number of bytes written: got: %v, want: %v", bytesWritten, tc.outBytesWritten)
 			}
-			if len(fConn.out[0]) != tc.outRecordsLength {
-				t.Errorf("Incorrect number of bytes prepared: got: %v, want: %v", fConn.out, tc.outRecordsLength)
+			if len(fConn.out[0]) != tc.numRecordBytes {
+				t.Errorf("Incorrect number of bytes prepared: got: %v, want: %v", len(fConn.out[0]), tc.numRecordBytes)
 			}
 		})
 	}
@@ -1478,17 +1476,14 @@ func TestExceedBufferSize(t *testing.T) {
 
 func TestRoundtrip(t *testing.T) {
 	for _, tc := range []struct {
-		desc             string
-		ciphersuite      s2apb.Ciphersuite
-		inTrafficSecret  []byte
-		outTrafficSecret []byte
-		plaintexts       [][]byte
-		outBytesWritten  []int
-		outErr           bool
+		desc                  string
+		ciphersuite           s2apb.Ciphersuite
+		inTrafficSecret       []byte
+		outTrafficSecret      []byte
+		plaintexts            [][]byte
+		plaintextBytesWritten []int
+		numRecordBytes        []int
 	}{
-		// The traffic secrets were chosen randomly and are equivalent to the
-		// ones used in C++ and Java. The ciphertext was constructed using an
-		// existing TLS library.
 		{
 			desc:             "AES-128-GCM-SHA256",
 			ciphersuite:      s2apb.Ciphersuite_AES_128_GCM_SHA256,
@@ -1498,7 +1493,8 @@ func TestRoundtrip(t *testing.T) {
 				[]byte("123456"),
 				[]byte("789123456"),
 			},
-			outBytesWritten: []int{6, 9},
+			plaintextBytesWritten: []int{6, 9},
+			numRecordBytes:        []int{28, 31},
 		},
 		{
 			desc:             "AES-128-GCM-SHA256 different traffic secrets",
@@ -1509,7 +1505,8 @@ func TestRoundtrip(t *testing.T) {
 				[]byte("123456"),
 				[]byte("789123456"),
 			},
-			outBytesWritten: []int{6, 9},
+			plaintextBytesWritten: []int{6, 9},
+			numRecordBytes:        []int{28, 31},
 		},
 		{
 			desc:             "AES-128-GCM-SHA256 empty",
@@ -1519,7 +1516,19 @@ func TestRoundtrip(t *testing.T) {
 			plaintexts: [][]byte{
 				[]byte(""),
 			},
-			outBytesWritten: []int{0},
+			plaintextBytesWritten: []int{0},
+			numRecordBytes:        []int{22},
+		},
+		{
+			desc:             "AES-128-GCM-SHA256 max buffer size",
+			ciphersuite:      s2apb.Ciphersuite_AES_128_GCM_SHA256,
+			inTrafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			outTrafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			plaintexts: [][]byte{
+				make([]byte, 16384*outBufMaxRecords),
+			},
+			plaintextBytesWritten: []int{16384 * outBufMaxRecords},
+			numRecordBytes:        []int{outBufMaxSize},
 		},
 		{
 			desc:             "AES-128-GCM-SHA256 exceed buffer size",
@@ -1527,9 +1536,10 @@ func TestRoundtrip(t *testing.T) {
 			inTrafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			outTrafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			plaintexts: [][]byte{
-				make([]byte, 16384),
+				make([]byte, 16385*outBufMaxRecords),
 			},
-			outBytesWritten: []int{16384},
+			plaintextBytesWritten: []int{16385 * outBufMaxRecords},
+			numRecordBytes:        []int{outBufMaxSize, 38},
 		},
 		{
 			desc:             "AES-256-GCM-SHA384",
@@ -1540,7 +1550,8 @@ func TestRoundtrip(t *testing.T) {
 				[]byte("123456"),
 				[]byte("789123456"),
 			},
-			outBytesWritten: []int{6, 9},
+			plaintextBytesWritten: []int{6, 9},
+			numRecordBytes:        []int{28, 31},
 		},
 		{
 			desc:             "AES-256-GCM-SHA384 different traffic secrets",
@@ -1551,7 +1562,8 @@ func TestRoundtrip(t *testing.T) {
 				[]byte("123456"),
 				[]byte("789123456"),
 			},
-			outBytesWritten: []int{6, 9},
+			plaintextBytesWritten: []int{6, 9},
+			numRecordBytes:        []int{28, 31},
 		},
 		{
 			desc:             "AES-256-GCM-SHA384 empty",
@@ -1561,7 +1573,19 @@ func TestRoundtrip(t *testing.T) {
 			plaintexts: [][]byte{
 				[]byte(""),
 			},
-			outBytesWritten: []int{0},
+			plaintextBytesWritten: []int{0},
+			numRecordBytes:        []int{22},
+		},
+		{
+			desc:             "AES-256-GCM-SHA384 max buffer size",
+			ciphersuite:      s2apb.Ciphersuite_AES_256_GCM_SHA384,
+			inTrafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			outTrafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			plaintexts: [][]byte{
+				make([]byte, 16384*outBufMaxRecords),
+			},
+			plaintextBytesWritten: []int{16384 * outBufMaxRecords},
+			numRecordBytes:        []int{outBufMaxSize},
 		},
 		{
 			desc:             "AES-256-GCM-SHA384 exceed buffer size",
@@ -1569,9 +1593,10 @@ func TestRoundtrip(t *testing.T) {
 			inTrafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			outTrafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			plaintexts: [][]byte{
-				make([]byte, 16384),
+				make([]byte, 16385*outBufMaxRecords),
 			},
-			outBytesWritten: []int{16384},
+			plaintextBytesWritten: []int{16385 * outBufMaxRecords},
+			numRecordBytes:        []int{outBufMaxSize, 38},
 		},
 		{
 			desc:             "CHACHA20-POLY1305-SHA256",
@@ -1582,7 +1607,8 @@ func TestRoundtrip(t *testing.T) {
 				[]byte("123456"),
 				[]byte("789123456"),
 			},
-			outBytesWritten: []int{6, 9},
+			plaintextBytesWritten: []int{6, 9},
+			numRecordBytes:        []int{28, 31},
 		},
 		{
 			desc:             "CHACHA20-POLY1305-SHA256 different traffic secrets",
@@ -1593,7 +1619,8 @@ func TestRoundtrip(t *testing.T) {
 				[]byte("123456"),
 				[]byte("789123456"),
 			},
-			outBytesWritten: []int{6, 9},
+			plaintextBytesWritten: []int{6, 9},
+			numRecordBytes:        []int{28, 31},
 		},
 		{
 			desc:             "CHACHA20-POLY1305-SHA256 empty",
@@ -1603,17 +1630,30 @@ func TestRoundtrip(t *testing.T) {
 			plaintexts: [][]byte{
 				[]byte(""),
 			},
-			outBytesWritten: []int{0},
+			plaintextBytesWritten: []int{0},
+			numRecordBytes:        []int{22},
 		},
 		{
-			desc:             "CHACHA20-POLY1305-SHA256 exceed buffer size",
+			desc:             "CHACHA20-POLY1305-SHA256 max buffer size",
 			ciphersuite:      s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
 			inTrafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			outTrafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			plaintexts: [][]byte{
-				make([]byte, 16384),
+				make([]byte, 16384*outBufMaxRecords),
 			},
-			outBytesWritten: []int{16384},
+			plaintextBytesWritten: []int{16384 * outBufMaxRecords},
+			numRecordBytes:        []int{outBufMaxSize},
+		},
+		{
+			desc:             "CHACHA20-POLY1305-SHA256 max buffer size",
+			ciphersuite:      s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			inTrafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			outTrafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			plaintexts: [][]byte{
+				make([]byte, 16385*outBufMaxRecords),
+			},
+			plaintextBytesWritten: []int{16385 * outBufMaxRecords},
+			numRecordBytes:        []int{outBufMaxSize, 38},
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
@@ -1625,6 +1665,9 @@ func TestRoundtrip(t *testing.T) {
 				InTrafficSecret:  tc.inTrafficSecret,
 				OutTrafficSecret: tc.outTrafficSecret,
 			})
+			if err != nil {
+				t.Fatalf("NewConn() failed: %v", err)
+			}
 			server, err := NewConn(&ConnParameters{
 				NetConn:          fConn,
 				Ciphersuite:      tc.ciphersuite,
@@ -1638,51 +1681,65 @@ func TestRoundtrip(t *testing.T) {
 			// Send records from client to server.
 			for i, plaintext := range tc.plaintexts {
 				bytesWritten, err := client.Write(plaintext)
-				if got, want := err == nil, !tc.outErr; got != want {
-					t.Errorf("c.Write(plaintext) = (err=nil) = %v, want %v", got, want)
+				if got, want := err == nil, true; got != want {
+					t.Errorf("c.Write(plaintext) = (err=nil) = %v, want %v", err, want)
 				}
 
-				if bytesWritten != tc.outBytesWritten[i] {
-					t.Errorf("Incorrect number of bytes written: got: %v, want: %v", bytesWritten, tc.outBytesWritten[i])
+				if bytesWritten != tc.plaintextBytesWritten[i] {
+					t.Errorf("Incorrect number of bytes written: got: %v, want: %v", bytesWritten, tc.plaintextBytesWritten[i])
+				}
+
+				if len(fConn.out[i]) != tc.numRecordBytes[i] {
+					t.Errorf("Incorrect number of bytes prepared: got: %v, want: %v", len(fConn.out[i]), tc.numRecordBytes[i])
 				}
 			}
 			for _, outPlaintext := range tc.plaintexts {
-				plaintext := make([]byte, tlsRecordMaxPlaintextSize)
-				n, err := server.Read(plaintext)
-				if got, want := err == nil, !tc.outErr; got != want {
-					t.Errorf("c.Read(plaintext) = (err=nil) = %v, want %v", got, want)
-				}
-				if err != nil {
-					return
-				}
-				plaintext = plaintext[:n]
-				if got, want := plaintext, outPlaintext; !bytes.Equal(got, want) {
-					t.Errorf("c.Read(plaintext) = %v, want %v", got, want)
+				n := 0
+				for n < len(outPlaintext) {
+					plaintext := make([]byte, tlsRecordMaxPlaintextSize)
+					dn, err := server.Read(plaintext)
+					if got, want := err == nil, true; got != want {
+						t.Errorf("c.Read(plaintext) = (err=nil) = %v, want %v", err, want)
+					}
+					if err != nil {
+						return
+					}
+					if got, want := plaintext[:dn], outPlaintext[n:n+dn]; !bytes.Equal(got, want) {
+						t.Errorf("c.Read(plaintext) = %v, want %v", len(got), len(want))
+					}
+					n += dn
 				}
 			}
 			// Send records from server to client.
 			for i, plaintext := range tc.plaintexts {
 				bytesWritten, err := server.Write(plaintext)
-				if got, want := err == nil, !tc.outErr; got != want {
-					t.Errorf("c.Write(plaintext) = (err=nil) = %v, want %v", got, want)
+				if got, want := err == nil, true; got != want {
+					t.Errorf("c.Write(plaintext) = (err=nil) = %v, want %v", err, want)
 				}
 
-				if bytesWritten != tc.outBytesWritten[i] {
-					t.Errorf("Incorrect number of bytes written: got: %v, want: %v", bytesWritten, tc.outBytesWritten[i])
+				if bytesWritten != tc.plaintextBytesWritten[i] {
+					t.Errorf("Incorrect number of bytes written: got: %v, want: %v", bytesWritten, tc.plaintextBytesWritten[i])
+				}
+
+				if len(fConn.out[i]) != tc.numRecordBytes[i] {
+					t.Errorf("Incorrect number of bytes prepared: got: %v, want: %v", len(fConn.out[i]), tc.numRecordBytes[i])
 				}
 			}
 			for _, outPlaintext := range tc.plaintexts {
-				plaintext := make([]byte, tlsRecordMaxPlaintextSize)
-				n, err := client.Read(plaintext)
-				if got, want := err == nil, !tc.outErr; got != want {
-					t.Errorf("c.Read(plaintext) = (err=nil) = %v, want %v", got, want)
-				}
-				if err != nil {
-					return
-				}
-				plaintext = plaintext[:n]
-				if got, want := plaintext, outPlaintext; !bytes.Equal(got, want) {
-					t.Errorf("c.Read(plaintext) = %v, want %v", got, want)
+				n := 0
+				for n < len(outPlaintext) {
+					plaintext := make([]byte, tlsRecordMaxPlaintextSize)
+					dn, err := client.Read(plaintext)
+					if got, want := err == nil, true; got != want {
+						t.Errorf("c.Read(plaintext) = (err=nil) = %v, want %v", err, want)
+					}
+					if err != nil {
+						return
+					}
+					if got, want := plaintext[:dn], outPlaintext[n:n+dn]; !bytes.Equal(got, want) {
+						t.Errorf("c.Read(plaintext) = %v, want %v", len(got), len(want))
+					}
+					n += dn
 				}
 			}
 		})

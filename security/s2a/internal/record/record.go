@@ -269,6 +269,7 @@ func (p *conn) Read(b []byte) (n int, err error) {
 		}
 		// Decrypt the ciphertext.
 		p.pendingApplicationData, err = p.inConn.Decrypt(payload[:0], payload, header)
+
 		if err != nil {
 			return 0, err
 		}
@@ -352,8 +353,9 @@ func (p *conn) Read(b []byte) (n int, err error) {
 	}
 
 	// Write as much application data as possible to b, the output buffer.
-	n = copy(b, p.pendingApplicationData)
-	p.pendingApplicationData = p.pendingApplicationData[n:]
+	n += copy(b, p.pendingApplicationData)
+
+	p.pendingApplicationData = p.pendingApplicationData[:0]
 	return n, nil
 }
 
