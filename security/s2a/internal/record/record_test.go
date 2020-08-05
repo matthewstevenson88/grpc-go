@@ -20,6 +20,7 @@ package record
 
 import (
 	"bytes"
+	"errors"
 	"net"
 	"reflect"
 	"testing"
@@ -1680,32 +1681,31 @@ func TestRoundtrip(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewConn() failed: %v", err)
 			}
-			sendRecordsRoundtrip(t, client, server, fConn, tc.plaintexts, tc.plaintextBytesWritten, tc.numRecordBytes)
-			sendRecordsRoundtrip(t, server, client, fConn, tc.plaintexts, tc.plaintextBytesWritten, tc.numRecordBytes)
+			err = sendRecordsRoundtrip(t, client, server, fConn, tc.plaintexts, tc.plaintextBytesWritten, tc.numRecordBytes)
+			if err == nil {
+				sendRecordsRoundtrip(t, server, client, fConn, tc.plaintexts, tc.plaintextBytesWritten, tc.numRecordBytes)
+			}
 
 		})
 	}
 }
 
-func sendRecordsRoundtrip(t *testing.T, src net.Conn, dst net.Conn, fConn *fakeConn, plaintexts [][]byte, plaintextbytesWritten []int, recordBytes []int) {
-	src = src.(*conn)
-	dst = dst.(*conn)
-
+func sendRecordsRoundtrip(t *testing.T, src net.Conn, dst net.Conn, fConn *fakeConn, plaintexts [][]byte, plaintextbytesWritten []int, recordBytes []int) error {
 	for i, plaintext := range plaintexts {
 		bytesWritten, err := src.Write(plaintext)
 		if got, want := err == nil, true; got != want {
 			t.Errorf("c.Write(plaintext) = (err=nil) = %v, want %v", err, want)
-			return
+			return errors.New("Write returned unexpected output")
 		}
 
 		if bytesWritten != plaintextbytesWritten[i] {
 			t.Errorf("Incorrect number of bytes written: got: %v, want: %v", bytesWritten, plaintextbytesWritten[i])
-			return
+			return errors.New("Write returned unexpected output")
 		}
 
 		if len(fConn.out[i]) != recordBytes[i] {
 			t.Errorf("Incorrect number of bytes prepared: got: %v, want: %v", len(fConn.out[i]), recordBytes[i])
-			return
+			return errors.New("Write returned unexpected output")
 		}
 	}
 	for _, outPlaintext := range plaintexts {
@@ -1715,14 +1715,14 @@ func sendRecordsRoundtrip(t *testing.T, src net.Conn, dst net.Conn, fConn *fakeC
 			dn, err := dst.Read(plaintext)
 			if got, want := err == nil, true; got != want {
 				t.Errorf("c.Read(plaintext) = (err=nil) = %v, want %v", err, want)
-				return
+				return errors.New("Read returned unexpected output")
 			}
 			if got, want := plaintext[:dn], outPlaintext[n:n+dn]; !bytes.Equal(got, want) {
 				t.Errorf("c.Read(plaintext) = %v, want %v", len(got), len(want))
-				return
+				return errors.New("Read returned unexpected output")
 			}
 			n += dn
 		}
 	}
-
+	return nil
 }
