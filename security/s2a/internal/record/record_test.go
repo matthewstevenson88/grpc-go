@@ -44,20 +44,20 @@ type fakeConn struct {
 func (c *fakeConn) Read(b []byte) (n int, err error) {
 	n = copy(b, c.in[c.inCount])
 	if n < len(c.in[c.inCount]) {
-		// For testing, we want to make sure that each buffer is copied in its
-		// entirety.
-		return 0, errors.New("copy copied less bytes than expected")
+		c.in[c.inCount] = c.in[c.inCount][n:]
+	} else {
+		c.inCount++
 	}
-	c.inCount++
 	return n, nil
 }
 
 // Write copies the given buffer b, stores it in the `out` buffer, and returns
 // the number of bytes copied.
 func (c *fakeConn) Write(b []byte) (n int, err error) {
-	outBuf := make([]byte, len(b))
-	n = copy(outBuf, b)
-	c.out = append(c.out, outBuf)
+	buf := make([]byte, len(b))
+	n = copy(buf, b)
+	c.out = append(c.out, buf)
+	c.in = append(c.in, buf)
 	return n, nil
 }
 
@@ -1338,44 +1338,45 @@ func TestWrite(t *testing.T) {
 
 func TestWriteTwoRecords(t *testing.T) {
 	for _, tc := range []struct {
-		desc             string
-		ciphersuite      s2apb.Ciphersuite
-		trafficSecret    []byte
-		plaintext        []byte
-		outRecordsLength int
-		outBytesWritten  int
-		outErr           bool
+		desc            string
+		ciphersuite     s2apb.Ciphersuite
+		trafficSecret   []byte
+		plaintext       []byte
+		numRecordBytes  int
+		outBytesWritten int
+		outErr          bool
 	}{
-		// The plaintext of size 2^14 + 1 will be written to the underlying
-		// connection in 2 TLS records: one containing 2^14 bytes of
-		// plaintext, and the other containing 1 byte of plaintext, resulting
-		// in 16429 total record bytes written, including the overheads.
+		// The plaintext of size tlsRecordMaxPlaintextSize + 1 will be written
+		// to the underlying connection in 2 TLS records: one containing 2^14
+		// bytes of plaintext, and the other containing 1 byte of plaintext,
+		// resulting in 23+tlsRecordMaxSize total record bytes written,
+		// including the overheads.
 		{
 			desc:          "AES-128-GCM-SHA256",
 			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			plaintext:     make([]byte, 16385), // 2^14+1
+			plaintext:     make([]byte, 1+tlsRecordMaxPlaintextSize), // 2^14+1
 
-			outRecordsLength: 16429,
-			outBytesWritten:  16385,
+			numRecordBytes:  23 + tlsRecordMaxSize,
+			outBytesWritten: 1 + tlsRecordMaxPlaintextSize,
 		},
 		{
 			desc:          "AES-256-GCM-SHA384",
 			ciphersuite:   s2apb.Ciphersuite_AES_256_GCM_SHA384,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			plaintext:     make([]byte, 16385), // 2^14+1
+			plaintext:     make([]byte, 1+tlsRecordMaxPlaintextSize), // 2^14+1
 
-			outRecordsLength: 16429,
-			outBytesWritten:  16385,
+			numRecordBytes:  23 + tlsRecordMaxSize,
+			outBytesWritten: 1 + tlsRecordMaxPlaintextSize,
 		},
 		{
 			desc:          "CHACHA20-POLY1305-SHA256",
 			ciphersuite:   s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
 			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			plaintext:     make([]byte, 16385), // 2^14+1
+			plaintext:     make([]byte, 1+tlsRecordMaxPlaintextSize), // 2^14+1
 
-			outRecordsLength: 16429,
-			outBytesWritten:  16385,
+			numRecordBytes:  23 + tlsRecordMaxSize,
+			outBytesWritten: 1 + tlsRecordMaxPlaintextSize,
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
@@ -1398,8 +1399,8 @@ func TestWriteTwoRecords(t *testing.T) {
 			if bytesWritten != tc.outBytesWritten {
 				t.Errorf("Incorrect number of bytes written: got: %v, want: %v", bytesWritten, tc.outBytesWritten)
 			}
-			if len(fConn.out[0]) != tc.outRecordsLength {
-				t.Errorf("Incorrect number of bytes prepared: got: %v, want: %v", fConn.out, tc.outRecordsLength)
+			if len(fConn.out[0]) != tc.numRecordBytes {
+				t.Errorf("Incorrect number of bytes prepared: got: %v, want: %v", len(fConn.out[0]), tc.numRecordBytes)
 			}
 		})
 	}
@@ -1411,12 +1412,11 @@ func TestExceedBufferSize(t *testing.T) {
 		ciphersuite              s2apb.Ciphersuite
 		trafficSecret            []byte
 		plaintext                []byte
-		maxPlaintextSize         int
 		expectedOutRecordBufSize int
 		expectedNumWrites        int
 		outErr                   bool
 	}{
-		// plaintext is set to 16385, 1 byte more than the maximum number of
+		// plaintext is set to 1+tlsRecordMaxPlaintextSize, 1 byte more than the maximum number of
 		// plaintext bytes in a single record, expectedOutRecordBufSize is set
 		// to 16406, as it is the maximum size of a single record.
 
@@ -1424,24 +1424,24 @@ func TestExceedBufferSize(t *testing.T) {
 			desc:                     "AES-128-GCM-SHA256",
 			ciphersuite:              s2apb.Ciphersuite_AES_128_GCM_SHA256,
 			trafficSecret:            testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			plaintext:                make([]byte, 16385*outBufMaxRecords),
-			expectedOutRecordBufSize: 262496,
+			plaintext:                make([]byte, 1+tlsRecordMaxPlaintextSize*outBufMaxRecords),
+			expectedOutRecordBufSize: outBufMaxSize,
 			expectedNumWrites:        2,
 		},
 		{
 			desc:                     "AES-256-GCM-SHA384",
 			ciphersuite:              s2apb.Ciphersuite_AES_256_GCM_SHA384,
 			trafficSecret:            testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			plaintext:                make([]byte, 16385*outBufMaxRecords),
-			expectedOutRecordBufSize: 262496,
+			plaintext:                make([]byte, 1+tlsRecordMaxPlaintextSize*outBufMaxRecords),
+			expectedOutRecordBufSize: outBufMaxSize,
 			expectedNumWrites:        2,
 		},
 		{
 			desc:                     "CHACHA20-POLY1305-SHA256",
 			ciphersuite:              s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
 			trafficSecret:            testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			plaintext:                make([]byte, 16385*outBufMaxRecords),
-			expectedOutRecordBufSize: 262496,
+			plaintext:                make([]byte, 1+tlsRecordMaxPlaintextSize*outBufMaxRecords),
+			expectedOutRecordBufSize: outBufMaxSize,
 			expectedNumWrites:        2,
 		},
 	} {
@@ -1475,5 +1475,255 @@ func TestExceedBufferSize(t *testing.T) {
 	}
 }
 
-// TODO(gud): Add roundtrip tests.
-// TODO(gud): Remember to test the case where the payload size is maximum (2^14)
+func TestRoundtrip(t *testing.T) {
+	for _, tc := range []struct {
+		desc                  string
+		ciphersuite           s2apb.Ciphersuite
+		inTrafficSecret       []byte
+		outTrafficSecret      []byte
+		plaintexts            [][]byte
+		plaintextBytesWritten []int
+		numRecordBytes        []int
+	}{
+		// numRecordBytes is calculated as
+		// len(plaintext)+header(5)+tag(16)+record_type(1)
+		{
+			desc:             "AES-128-GCM-SHA256",
+			ciphersuite:      s2apb.Ciphersuite_AES_128_GCM_SHA256,
+			inTrafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			outTrafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			plaintexts: [][]byte{
+				[]byte("123456"),
+				[]byte("789123456"),
+			},
+			plaintextBytesWritten: []int{6, 9},
+			numRecordBytes:        []int{28, 31},
+		},
+		{
+			desc:             "AES-128-GCM-SHA256 different traffic secrets",
+			ciphersuite:      s2apb.Ciphersuite_AES_128_GCM_SHA256,
+			inTrafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			outTrafficSecret: testutil.Dehex("1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b"),
+			plaintexts: [][]byte{
+				[]byte("123456"),
+				[]byte("789123456"),
+			},
+			plaintextBytesWritten: []int{6, 9},
+			numRecordBytes:        []int{28, 31},
+		},
+		{
+			desc:             "AES-128-GCM-SHA256 empty",
+			ciphersuite:      s2apb.Ciphersuite_AES_128_GCM_SHA256,
+			inTrafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			outTrafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			plaintexts: [][]byte{
+				[]byte(""),
+			},
+			plaintextBytesWritten: []int{0},
+			numRecordBytes:        []int{22},
+		},
+		{
+			desc:             "AES-128-GCM-SHA256 max buffer size",
+			ciphersuite:      s2apb.Ciphersuite_AES_128_GCM_SHA256,
+			inTrafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			outTrafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			plaintexts: [][]byte{
+				make([]byte, tlsRecordMaxPlaintextSize*outBufMaxRecords),
+			},
+			plaintextBytesWritten: []int{tlsRecordMaxPlaintextSize * outBufMaxRecords},
+			numRecordBytes:        []int{outBufMaxSize},
+		},
+		{
+			desc:             "AES-128-GCM-SHA256 exceed buffer size",
+			ciphersuite:      s2apb.Ciphersuite_AES_128_GCM_SHA256,
+			inTrafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			outTrafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			plaintexts: [][]byte{
+				make([]byte, 1+tlsRecordMaxPlaintextSize*outBufMaxRecords),
+			},
+			plaintextBytesWritten: []int{1 + tlsRecordMaxPlaintextSize*outBufMaxRecords},
+			numRecordBytes:        []int{outBufMaxSize, 23},
+		},
+		{
+			desc:             "AES-256-GCM-SHA384",
+			ciphersuite:      s2apb.Ciphersuite_AES_256_GCM_SHA384,
+			inTrafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			outTrafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			plaintexts: [][]byte{
+				[]byte("123456"),
+				[]byte("789123456"),
+			},
+			plaintextBytesWritten: []int{6, 9},
+			numRecordBytes:        []int{28, 31},
+		},
+		{
+			desc:             "AES-256-GCM-SHA384 different traffic secrets",
+			ciphersuite:      s2apb.Ciphersuite_AES_256_GCM_SHA384,
+			inTrafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			outTrafficSecret: testutil.Dehex("1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b"),
+			plaintexts: [][]byte{
+				[]byte("123456"),
+				[]byte("789123456"),
+			},
+			plaintextBytesWritten: []int{6, 9},
+			numRecordBytes:        []int{28, 31},
+		},
+		{
+			desc:             "AES-256-GCM-SHA384 empty",
+			ciphersuite:      s2apb.Ciphersuite_AES_256_GCM_SHA384,
+			inTrafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			outTrafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			plaintexts: [][]byte{
+				[]byte(""),
+			},
+			plaintextBytesWritten: []int{0},
+			numRecordBytes:        []int{22},
+		},
+		{
+			desc:             "AES-256-GCM-SHA384 max buffer size",
+			ciphersuite:      s2apb.Ciphersuite_AES_256_GCM_SHA384,
+			inTrafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			outTrafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			plaintexts: [][]byte{
+				make([]byte, tlsRecordMaxPlaintextSize*outBufMaxRecords),
+			},
+			plaintextBytesWritten: []int{tlsRecordMaxPlaintextSize * outBufMaxRecords},
+			numRecordBytes:        []int{outBufMaxSize},
+		},
+		{
+			desc:             "AES-256-GCM-SHA384 exceed buffer size",
+			ciphersuite:      s2apb.Ciphersuite_AES_256_GCM_SHA384,
+			inTrafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			outTrafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			plaintexts: [][]byte{
+				make([]byte, 1+tlsRecordMaxPlaintextSize*outBufMaxRecords),
+			},
+			plaintextBytesWritten: []int{1 + tlsRecordMaxPlaintextSize*outBufMaxRecords},
+			numRecordBytes:        []int{outBufMaxSize, 23},
+		},
+		{
+			desc:             "CHACHA20-POLY1305-SHA256",
+			ciphersuite:      s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			inTrafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			outTrafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			plaintexts: [][]byte{
+				[]byte("123456"),
+				[]byte("789123456"),
+			},
+			plaintextBytesWritten: []int{6, 9},
+			numRecordBytes:        []int{28, 31},
+		},
+		{
+			desc:             "CHACHA20-POLY1305-SHA256 different traffic secrets",
+			ciphersuite:      s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			inTrafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			outTrafficSecret: testutil.Dehex("1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b"),
+			plaintexts: [][]byte{
+				[]byte("123456"),
+				[]byte("789123456"),
+			},
+			plaintextBytesWritten: []int{6, 9},
+			numRecordBytes:        []int{28, 31},
+		},
+		{
+			desc:             "CHACHA20-POLY1305-SHA256 empty",
+			ciphersuite:      s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			inTrafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			outTrafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			plaintexts: [][]byte{
+				[]byte(""),
+			},
+			plaintextBytesWritten: []int{0},
+			numRecordBytes:        []int{22},
+		},
+		{
+			desc:             "CHACHA20-POLY1305-SHA256 max buffer size",
+			ciphersuite:      s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			inTrafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			outTrafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			plaintexts: [][]byte{
+				make([]byte, tlsRecordMaxPlaintextSize*outBufMaxRecords),
+			},
+			plaintextBytesWritten: []int{tlsRecordMaxPlaintextSize * outBufMaxRecords},
+			numRecordBytes:        []int{outBufMaxSize},
+		},
+		{
+			desc:             "CHACHA20-POLY1305-SHA256 max buffer size",
+			ciphersuite:      s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			inTrafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			outTrafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			plaintexts: [][]byte{
+				make([]byte, 1+tlsRecordMaxPlaintextSize*outBufMaxRecords),
+			},
+			plaintextBytesWritten: []int{1 + tlsRecordMaxPlaintextSize*outBufMaxRecords},
+			numRecordBytes:        []int{outBufMaxSize, 23},
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			fConn := &fakeConn{}
+			client, err := NewConn(&ConnParameters{
+				NetConn:          fConn,
+				Ciphersuite:      tc.ciphersuite,
+				TLSVersion:       s2apb.TLSVersion_TLS1_3,
+				InTrafficSecret:  tc.inTrafficSecret,
+				OutTrafficSecret: tc.outTrafficSecret,
+			})
+			if err != nil {
+				t.Fatalf("NewConn() failed: %v", err)
+			}
+			server, err := NewConn(&ConnParameters{
+				NetConn:          fConn,
+				Ciphersuite:      tc.ciphersuite,
+				TLSVersion:       s2apb.TLSVersion_TLS1_3,
+				InTrafficSecret:  tc.outTrafficSecret,
+				OutTrafficSecret: tc.inTrafficSecret,
+			})
+			if err != nil {
+				t.Fatalf("NewConn() failed: %v", err)
+			}
+			err = sendRecordsRoundtrip(t, client, server, fConn, tc.plaintexts, tc.plaintextBytesWritten, tc.numRecordBytes)
+			if err != nil {
+				return
+			}
+			sendRecordsRoundtrip(t, server, client, fConn, tc.plaintexts, tc.plaintextBytesWritten, tc.numRecordBytes)
+
+		})
+	}
+}
+
+func sendRecordsRoundtrip(t *testing.T, src net.Conn, dst net.Conn, fConn *fakeConn, plaintexts [][]byte, plaintextBytesWritten []int, recordBytes []int) error {
+	for i, plaintext := range plaintexts {
+		bytesWritten, err := src.Write(plaintext)
+		if got, want := err == nil, true; got != want {
+			t.Errorf("c.Write(plaintext) = (err=nil) = %v, want %v", err, want)
+			return errors.New("Write returned unexpected output")
+		}
+
+		if bytesWritten != plaintextBytesWritten[i] {
+			t.Errorf("Incorrect number of bytes written: got: %v, want: %v", bytesWritten, plaintextBytesWritten[i])
+			return errors.New("Write returned unexpected output")
+		}
+
+		if len(fConn.out[i]) != recordBytes[i] {
+			t.Errorf("Incorrect number of bytes prepared: got: %v, want: %v", len(fConn.out[i]), recordBytes[i])
+			return errors.New("Write returned unexpected output")
+		}
+	}
+	for _, outPlaintext := range plaintexts {
+		n := 0
+		for n < len(outPlaintext) {
+			plaintext := make([]byte, tlsRecordMaxPlaintextSize)
+			dn, err := dst.Read(plaintext)
+			if got, want := err == nil, true; got != want {
+				t.Errorf("c.Read(plaintext) = (err=nil) = %v, want %v", err, want)
+				return errors.New("Read returned unexpected output")
+			}
+			if got, want := plaintext[:dn], outPlaintext[n:n+dn]; !bytes.Equal(got, want) {
+				t.Errorf("c.Read(plaintext) = %v, want %v", len(got), len(want))
+				return errors.New("Read returned unexpected output")
+			}
+			n += dn
+		}
+	}
+	return nil
+}
