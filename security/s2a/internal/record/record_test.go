@@ -1682,15 +1682,16 @@ func TestRoundtrip(t *testing.T) {
 				t.Fatalf("NewConn() failed: %v", err)
 			}
 			err = sendRecordsRoundtrip(t, client, server, fConn, tc.plaintexts, tc.plaintextBytesWritten, tc.numRecordBytes)
-			if err == nil {
-				sendRecordsRoundtrip(t, server, client, fConn, tc.plaintexts, tc.plaintextBytesWritten, tc.numRecordBytes)
+			if err != nil {
+				return
 			}
+			sendRecordsRoundtrip(t, server, client, fConn, tc.plaintexts, tc.plaintextBytesWritten, tc.numRecordBytes)
 
 		})
 	}
 }
 
-func sendRecordsRoundtrip(t *testing.T, src net.Conn, dst net.Conn, fConn *fakeConn, plaintexts [][]byte, plaintextbytesWritten []int, recordBytes []int) error {
+func sendRecordsRoundtrip(t *testing.T, src net.Conn, dst net.Conn, fConn *fakeConn, plaintexts [][]byte, plaintextBytesWritten []int, recordBytes []int) error {
 	for i, plaintext := range plaintexts {
 		bytesWritten, err := src.Write(plaintext)
 		if got, want := err == nil, true; got != want {
@@ -1698,8 +1699,8 @@ func sendRecordsRoundtrip(t *testing.T, src net.Conn, dst net.Conn, fConn *fakeC
 			return errors.New("Write returned unexpected output")
 		}
 
-		if bytesWritten != plaintextbytesWritten[i] {
-			t.Errorf("Incorrect number of bytes written: got: %v, want: %v", bytesWritten, plaintextbytesWritten[i])
+		if bytesWritten != plaintextBytesWritten[i] {
+			t.Errorf("Incorrect number of bytes written: got: %v, want: %v", bytesWritten, plaintextBytesWritten[i])
 			return errors.New("Write returned unexpected output")
 		}
 
