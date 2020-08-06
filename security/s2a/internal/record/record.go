@@ -225,13 +225,12 @@ func NewConn(o *ConnParameters) (net.Conn, error) {
 	var unusedBuf []byte
 	if o.UnusedBuf == nil {
 		// We pre-allocate unusedBuf to be of size
-		// 2*tlsRecordMaxSize-1 during initialization. We only
-		// read from the network into unusedBuf when unusedBuf does not
-		// contain a complete record, which is at most
-		// tlsRecordMaxSize-1 (bytes). And we read at most
-		// tlsRecordMaxSize (bytes) data into unusedBuf at one
-		// time. Therefore, 2*tlsRecordMaxSize-1 is large enough
-		// to buffer data read from the network.
+		// 2*tlsRecordMaxSize-1 during initialization. We only read from the
+		// network into unusedBuf when unusedBuf does not contain a complete
+		// record and the incomplete record is at most tlsRecordMaxSize-1
+		// (bytes). And we read at most tlsRecordMaxSize bytes of data from the
+		// network into unusedBuf at one time. Therefore, 2*tlsRecordMaxSize-1
+		// is large enough to buffer data read from the network.
 		unusedBuf = make([]byte, 0, 2*tlsRecordMaxSize-1)
 	} else {
 		unusedBuf = make([]byte, len(o.UnusedBuf))
