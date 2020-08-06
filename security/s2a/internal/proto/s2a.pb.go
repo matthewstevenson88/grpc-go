@@ -4,8 +4,12 @@
 package s2a_proto
 
 import (
+	context "context"
 	fmt "fmt"
 	proto "github.com/golang/protobuf/proto"
+	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 	math "math"
 )
 
@@ -864,4 +868,134 @@ var fileDescriptor_16c1316ad13148df = []byte{
 	0x4b, 0x41, 0xfd, 0x92, 0x96, 0x58, 0x32, 0x6e, 0xba, 0xf1, 0xea, 0xde, 0x49, 0xe3, 0x43, 0x52,
 	0xff, 0x60, 0x6a, 0xdd, 0xb7, 0x9e, 0xf5, 0x4c, 0xe2, 0xc1, 0x7f, 0x01, 0x00, 0x00, 0xff, 0xff,
 	0xd9, 0xa5, 0x64, 0xb1, 0x8c, 0x09, 0x00, 0x00,
+}
+
+// Reference imports to suppress errors if they are not otherwise used.
+var _ context.Context
+var _ grpc.ClientConnInterface
+
+// This is a compile-time assertion to ensure that this generated file
+// is compatible with the grpc package it is being compiled against.
+const _ = grpc.SupportPackageIsVersion6
+
+// S2AServiceClient is the client API for S2AService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
+type S2AServiceClient interface {
+	// S2A service accepts a stream of session setup requests and returns a stream
+	// of session setup responses. The client of this service is expected to send
+	// exactly one client_start or server_start message followed by at least one
+	// next message. Applications running TLS clients can send requests with
+	// resumption_ticket messages only after the session is successfully set up.
+	//
+	// Every time S2A client sends a request, this service sends a response.
+	// However, clients do not have to wait for service response before sending
+	// the next request.
+	SetUpSession(ctx context.Context, opts ...grpc.CallOption) (S2AService_SetUpSessionClient, error)
+}
+
+type s2AServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewS2AServiceClient(cc grpc.ClientConnInterface) S2AServiceClient {
+	return &s2AServiceClient{cc}
+}
+
+func (c *s2AServiceClient) SetUpSession(ctx context.Context, opts ...grpc.CallOption) (S2AService_SetUpSessionClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_S2AService_serviceDesc.Streams[0], "/s2a.proto.S2AService/SetUpSession", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &s2AServiceSetUpSessionClient{stream}
+	return x, nil
+}
+
+type S2AService_SetUpSessionClient interface {
+	Send(*SessionReq) error
+	Recv() (*SessionResp, error)
+	grpc.ClientStream
+}
+
+type s2AServiceSetUpSessionClient struct {
+	grpc.ClientStream
+}
+
+func (x *s2AServiceSetUpSessionClient) Send(m *SessionReq) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *s2AServiceSetUpSessionClient) Recv() (*SessionResp, error) {
+	m := new(SessionResp)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+// S2AServiceServer is the server API for S2AService service.
+type S2AServiceServer interface {
+	// S2A service accepts a stream of session setup requests and returns a stream
+	// of session setup responses. The client of this service is expected to send
+	// exactly one client_start or server_start message followed by at least one
+	// next message. Applications running TLS clients can send requests with
+	// resumption_ticket messages only after the session is successfully set up.
+	//
+	// Every time S2A client sends a request, this service sends a response.
+	// However, clients do not have to wait for service response before sending
+	// the next request.
+	SetUpSession(S2AService_SetUpSessionServer) error
+}
+
+// UnimplementedS2AServiceServer can be embedded to have forward compatible implementations.
+type UnimplementedS2AServiceServer struct {
+}
+
+func (*UnimplementedS2AServiceServer) SetUpSession(srv S2AService_SetUpSessionServer) error {
+	return status.Errorf(codes.Unimplemented, "method SetUpSession not implemented")
+}
+
+func RegisterS2AServiceServer(s *grpc.Server, srv S2AServiceServer) {
+	s.RegisterService(&_S2AService_serviceDesc, srv)
+}
+
+func _S2AService_SetUpSession_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(S2AServiceServer).SetUpSession(&s2AServiceSetUpSessionServer{stream})
+}
+
+type S2AService_SetUpSessionServer interface {
+	Send(*SessionResp) error
+	Recv() (*SessionReq, error)
+	grpc.ServerStream
+}
+
+type s2AServiceSetUpSessionServer struct {
+	grpc.ServerStream
+}
+
+func (x *s2AServiceSetUpSessionServer) Send(m *SessionResp) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *s2AServiceSetUpSessionServer) Recv() (*SessionReq, error) {
+	m := new(SessionReq)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+var _S2AService_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "s2a.proto.S2AService",
+	HandlerType: (*S2AServiceServer)(nil),
+	Methods:     []grpc.MethodDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "SetUpSession",
+			Handler:       _S2AService_SetUpSession_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+	},
+	Metadata: "s2a.proto",
 }
