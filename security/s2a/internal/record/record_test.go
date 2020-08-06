@@ -34,9 +34,9 @@ import (
 type fakeConn struct {
 	net.Conn
 	// readBufCount tracks the current index of the `in` buffer.
-	readBufCount int
+	readBufCount      int
 	readBuf, writeBuf [][]byte
-	closed  bool
+	closed            bool
 }
 
 // Read returns part of the `in` buffer in sequential order each time it is
@@ -58,7 +58,6 @@ func (c *fakeConn) Write(b []byte) (n int, err error) {
 	buf := make([]byte, len(b))
 	n = copy(buf, b)
 	c.writeBuf = append(c.writeBuf, buf)
-	//c.readBuf = append(c.readBuf, buf)
 	return n, nil
 }
 
@@ -1669,7 +1668,7 @@ func TestRoundtrip(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewConn() failed: %v", err)
 			}
-			fConnServer:=&fakeConn{}
+			fConnServer := &fakeConn{}
 			server, err := NewConn(&ConnParameters{
 				NetConn:          fConnServer,
 				Ciphersuite:      tc.ciphersuite,

@@ -224,7 +224,9 @@ func NewConn(o *ConnParameters) (net.Conn, error) {
 	overheadSize := tlsRecordHeaderSize + tlsRecordTypeSize + inConn.TagSize()
 	var unusedBuf []byte
 	// TODO(gud): Potentially optimize unusedBuf with pre-allocation
-	if o.UnusedBuf != nil {
+	if o.UnusedBuf == nil {
+		unusedBuf = make([]byte, 0, outBufMaxSize)
+	} else {
 		unusedBuf = make([]byte, len(o.UnusedBuf))
 		copy(unusedBuf, o.UnusedBuf)
 	}
@@ -279,7 +281,6 @@ func (p *conn) Read(b []byte) (n int, err error) {
 		}
 		// Decrypt the ciphertext.
 		p.pendingApplicationData, err = p.inConn.Decrypt(payload[:0], payload, header)
-
 		if err != nil {
 			return 0, err
 		}
@@ -364,8 +365,8 @@ func (p *conn) Read(b []byte) (n int, err error) {
 	}
 
 	// Write as much application data as possible to b, the output buffer.
-	n += copy(b, p.pendingApplicationData)
-	p.pendingApplicationData = p.pendingApplicationData[:0]
+	n = copy(b, p.pendingApplicationData)
+	p.pendingApplicationData = p.pendingApplicationData[n:]
 	return n, nil
 }
 
