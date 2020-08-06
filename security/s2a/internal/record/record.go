@@ -223,9 +223,8 @@ func NewConn(o *ConnParameters) (net.Conn, error) {
 	// The tag size for the in/out connections should be the same.
 	overheadSize := tlsRecordHeaderSize + tlsRecordTypeSize + inConn.TagSize()
 	var unusedBuf []byte
-	// TODO(gud): Potentially optimize unusedBuf with pre-allocation
 	if o.UnusedBuf == nil {
-		unusedBuf = make([]byte, 0, outBufMaxSize)
+		unusedBuf = make([]byte, 0, 2*tlsRecordMaxSize-1)
 	} else {
 		unusedBuf = make([]byte, len(o.UnusedBuf))
 		copy(unusedBuf, o.UnusedBuf)
