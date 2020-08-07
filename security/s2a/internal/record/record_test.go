@@ -33,21 +33,23 @@ import (
 // fakeConn is a fake implementation of the net.Conn interface used for testing.
 type fakeConn struct {
 	net.Conn
-	// readBufCount tracks the current index of the `in` buffer.
-	readBufCount      int
-	readBuf, writeBuf [][]byte
-	closed            bool
+	// bufCount tracks the current index of the buf.
+	bufCount int
+	buf      [][]byte
+	// additionalBuf is used to store records sent through the fakeConn
+	additionalBuf [][]byte
+	closed        bool
 }
 
 // Read returns part of the `in` buffer in sequential order each time it is
 // called.
 func (c *fakeConn) Read(b []byte) (n int, err error) {
-	n = copy(b, c.readBuf[c.readBufCount])
+	n = copy(b, c.buf[c.bufCount])
 
-	if n < len(c.readBuf[c.readBufCount]) {
-		c.readBuf[c.readBufCount] = c.readBuf[c.readBufCount][n:]
+	if n < len(c.buf[c.bufCount]) {
+		c.buf[c.bufCount] = c.buf[c.bufCount][n:]
 	} else {
-		c.readBufCount++
+		c.bufCount++
 	}
 	return n, nil
 }
@@ -57,7 +59,7 @@ func (c *fakeConn) Read(b []byte) (n int, err error) {
 func (c *fakeConn) Write(b []byte) (n int, err error) {
 	buf := make([]byte, len(b))
 	n = copy(buf, b)
-	c.writeBuf = append(c.writeBuf, buf)
+	c.additionalBuf = append(c.additionalBuf, buf)
 	return n, nil
 }
 
@@ -418,7 +420,7 @@ func TestReadCompletedRecord(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			fConn := &fakeConn{readBuf: tc.connBufs}
+			fConn := &fakeConn{buf: tc.connBufs}
 			c := &conn{Conn: fConn, nextRecord: tc.nextRecord, unusedBuf: tc.unusedBuf}
 			for _, outCompletedRecord := range tc.outCompletedRecords {
 				completedRecord, err := c.readFullRecord()
@@ -798,7 +800,7 @@ func TestConnReadApplicationData(t *testing.T) {
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			c, err := NewConn(&ConnParameters{
-				NetConn:          &fakeConn{readBuf: tc.completedRecords},
+				NetConn:          &fakeConn{buf: tc.completedRecords},
 				Ciphersuite:      tc.ciphersuite,
 				TLSVersion:       s2apb.TLSVersion_TLS1_3,
 				InTrafficSecret:  tc.trafficSecret,
@@ -929,7 +931,7 @@ func TestConnReadAlert(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			f := &fakeConn{readBuf: [][]byte{tc.completedRecord}}
+			f := &fakeConn{buf: [][]byte{tc.completedRecord}}
 			c, err := NewConn(&ConnParameters{
 				NetConn:          f,
 				Ciphersuite:      tc.ciphersuite,
@@ -1093,7 +1095,7 @@ func TestConnReadKeyUpdate(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			fConn := &fakeConn{readBuf: tc.completedRecords}
+			fConn := &fakeConn{buf: tc.completedRecords}
 			c, err := NewConn(&ConnParameters{
 				NetConn:          fConn,
 				Ciphersuite:      tc.ciphersuite,
@@ -1127,8 +1129,8 @@ func TestConnReadKeyUpdate(t *testing.T) {
 					t.Fatalf("c.Write(plaintext) = %v, want %v", got, want)
 				}
 			}
-			if got, want := fConn.writeBuf, tc.outWriteBuf; !cmp.Equal(fConn.writeBuf, tc.outWriteBuf) {
-				t.Errorf("fConn.writeBuf = %x, want %x", got, want)
+			if got, want := fConn.additionalBuf, tc.outWriteBuf; !cmp.Equal(fConn.additionalBuf, tc.outWriteBuf) {
+				t.Errorf("fConn.additionalBuf = %x, want %x", got, want)
 			}
 			if got, want := len(c.(*conn).pendingApplicationData), 0; got != want {
 				t.Errorf("len(c.(*conn).pendingApplicationData) = %v, want %v", got, want)
@@ -1137,7 +1139,7 @@ func TestConnReadKeyUpdate(t *testing.T) {
 			// can be decrypted properly by a new Conn object. Also, verify that
 			// messages written by the original Conn object after the key update
 			// can be decrypted properly by the new Conn object.
-			fConn2 := &fakeConn{readBuf: tc.outWriteBuf}
+			fConn2 := &fakeConn{buf: tc.outWriteBuf}
 			c2, err := NewConn(&ConnParameters{
 				NetConn:          fConn2,
 				Ciphersuite:      tc.ciphersuite,
@@ -1187,7 +1189,7 @@ func TestConnNewSessionTicket(t *testing.T) {
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			c, err := NewConn(&ConnParameters{
-				NetConn:          &fakeConn{readBuf: [][]byte{tc.completedRecord}},
+				NetConn:          &fakeConn{buf: [][]byte{tc.completedRecord}},
 				Ciphersuite:      tc.ciphersuite,
 				TLSVersion:       s2apb.TLSVersion_TLS1_3,
 				InTrafficSecret:  tc.trafficSecret,
@@ -1329,8 +1331,8 @@ func TestWrite(t *testing.T) {
 					t.Errorf("Incorrect number of bytes written: got: %v, want: %v", bytesWritten, tc.outBytesWritten[i])
 				}
 			}
-			if !reflect.DeepEqual(fConn.writeBuf, tc.outRecords) {
-				t.Errorf("Incorrect Record: got: %v, want: %v", fConn.writeBuf, tc.outRecords)
+			if !reflect.DeepEqual(fConn.additionalBuf, tc.outRecords) {
+				t.Errorf("Incorrect Record: got: %v, want: %v", fConn.additionalBuf, tc.outRecords)
 			}
 		})
 	}
@@ -1396,8 +1398,8 @@ func TestWriteTwoRecords(t *testing.T) {
 			if bytesWritten != tc.outBytesWritten {
 				t.Errorf("Incorrect number of bytes written: got: %v, want: %v", bytesWritten, tc.outBytesWritten)
 			}
-			if len(fConn.writeBuf[0]) != tc.numRecordBytes {
-				t.Errorf("Incorrect number of bytes prepared: got: %v, want: %v", len(fConn.writeBuf[0]), tc.numRecordBytes)
+			if len(fConn.additionalBuf[0]) != tc.numRecordBytes {
+				t.Errorf("Incorrect number of bytes prepared: got: %v, want: %v", len(fConn.additionalBuf[0]), tc.numRecordBytes)
 			}
 		})
 	}
@@ -1465,8 +1467,8 @@ func TestExceedBufferSize(t *testing.T) {
 			if len(c.outRecordsBuf) != tc.expectedOutRecordBufSize {
 				t.Errorf("Incorrect buf size: got: %v, want: %v", len(c.outRecordsBuf), tc.expectedOutRecordBufSize)
 			}
-			if len(fConn.writeBuf) != tc.expectedNumWrites {
-				t.Errorf("Inforrect number of records: got: %v, want: %v,", len(fConn.writeBuf), tc.expectedNumWrites)
+			if len(fConn.additionalBuf) != tc.expectedNumWrites {
+				t.Errorf("Inforrect number of records: got: %v, want: %v,", len(fConn.additionalBuf), tc.expectedNumWrites)
 			}
 		})
 	}
@@ -1702,12 +1704,12 @@ func sendRecordsRoundtrip(t *testing.T, src net.Conn, dst net.Conn, fConnSrc *fa
 			return errors.New("Write returned unexpected output")
 		}
 
-		if len(fConnSrc.writeBuf[i]) != recordBytes[i] {
-			t.Errorf("Incorrect number of bytes prepared: got: %v, want: %v", len(fConnSrc.writeBuf[i]), recordBytes[i])
+		if len(fConnSrc.additionalBuf[i]) != recordBytes[i] {
+			t.Errorf("Incorrect number of bytes prepared: got: %v, want: %v", len(fConnSrc.additionalBuf[i]), recordBytes[i])
 			return errors.New("Write returned unexpected output")
 		}
 	}
-	fConnDst.readBuf = fConnSrc.writeBuf
+	fConnDst.buf = fConnSrc.additionalBuf
 	for _, outPlaintext := range plaintexts {
 		n := 0
 		for n < len(outPlaintext) {
