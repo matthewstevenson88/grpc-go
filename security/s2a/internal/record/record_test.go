@@ -36,7 +36,8 @@ type fakeConn struct {
 	// bufCount tracks the current index of the buf.
 	bufCount int
 	buf      [][]byte
-	// additionalBuf is used to store records sent through the fakeConn
+	// additionalBuf is used to store records sent through the fakeConn. It is
+	// used in record write tests and TestConnReadKeyUpdates.
 	additionalBuf [][]byte
 	closed        bool
 }
