@@ -28,7 +28,6 @@ import (
 	"net"
 	"sync"
 
-	"google.golang.org/grpc/grpclog"
 	s2apb "google.golang.org/grpc/security/s2a/internal/proto"
 	"google.golang.org/grpc/security/s2a/internal/record/internal/halfconn"
 )
@@ -58,6 +57,17 @@ type alertDescription byte
 
 const (
 	closeNotify alertDescription = 0
+)
+
+// sessionTicketState is not defined in the TLS 1.3 RFC. This is used to
+// determine whether a session ticket has not yet been received, is in the
+// process of being received, or has finished receiving.
+type sessionTicketState byte
+
+const (
+	ticketNotReceived sessionTicketState = 0
+	ticketReceiving   sessionTicketState = 1
+	ticketReceived    sessionTicketState = 2
 )
 
 const (
@@ -103,12 +113,12 @@ const (
 const (
 	// These are TLS 1.3 handshake-specific constants.
 
-	// tlsHandshakeNewSessionTicket is the prefix of a handshake new session
+	// tlsHandshakeNewSessionTicketType is the prefix of a handshake new session
 	// ticket message of TLS 1.3.
-	tlsHandshakeNewSessionTicket = 4
-	// tlsHandshakeKeyUpdatePrefix is the prefix of a handshake key update
-	// message of TLS 1.3.
-	tlsHandshakeKeyUpdatePrefix = 24
+	tlsHandshakeNewSessionTicketType = 4
+	// tlsHandshakeKeyUpdateType is the prefix of a handshake key update message
+	// of TLS 1.3.
+	tlsHandshakeKeyUpdateType = 24
 	// tlsHandshakeMsgTypeSize is the size in bytes of the TLS 1.3 handshake
 	// message type field.
 	tlsHandshakeMsgTypeSize = 1
@@ -169,6 +179,18 @@ type conn struct {
 	// since Close may be called during a Write, and also because a key update
 	// message may be written during a Read.
 	writeMutex sync.Mutex
+	// handshakeHeaderBuf holds up to 4 bytes from the handshake header when it
+	// is fragmented across multiple records.
+	handshakeHeaderBuf []byte
+	// ticketState holds the current processing state of the session tickets.
+	ticketState sessionTicketState
+	// ticketBuf is a buffer used to hold session tickets while they are being
+	// read across records.
+	ticketBuf []byte
+	// ticketRemainingSize is the remaining size of the current session ticket
+	// being processed. This is used to determine how much of a fragmented
+	// ticket remains to be processed.
+	ticketRemainingSize uint32
 }
 
 // ConnParameters holds the parameters used for creating a new conn object.
@@ -238,14 +260,18 @@ func NewConn(o *ConnParameters) (net.Conn, error) {
 	}
 
 	s2aConn := &conn{
-		Conn:          o.NetConn,
-		inConn:        inConn,
-		outConn:       outConn,
-		unusedBuf:     unusedBuf,
-		outRecordsBuf: make([]byte, tlsRecordMaxSize),
-		nextRecord:    unusedBuf,
-		overheadSize:  overheadSize,
-		hsAddr:        o.HSAddr,
+		Conn:               o.NetConn,
+		inConn:             inConn,
+		outConn:            outConn,
+		unusedBuf:          unusedBuf,
+		outRecordsBuf:      make([]byte, tlsRecordMaxSize),
+		nextRecord:         unusedBuf,
+		overheadSize:       overheadSize,
+		hsAddr:             o.HSAddr,
+		handshakeHeaderBuf: make([]byte, 0, tlsHandshakePrefixSize),
+		ticketState:        ticketNotReceived,
+		// TODO: figure out a better size for this buffer.
+		ticketBuf: make([]byte, 0, 16*tlsRecordMaxSize),
 	}
 	return s2aConn, nil
 }
@@ -301,6 +327,12 @@ func (p *conn) Read(b []byte) (n int, err error) {
 		if len(p.pendingApplicationData) > tlsRecordMaxPlaintextSize {
 			return 0, errors.New("plaintext size larger than maximum")
 		}
+		// Stop receiving session tickets when a non-handshake message is
+		// received.
+		if p.ticketState == ticketReceiving && msgType != handshake {
+			p.ticketState = ticketReceived
+			// TODO: send tickets to handshaker
+		}
 		// The expected message types are application data, alert, and
 		// handshake. For application data, the bytes are directly copied into
 		// b. For an alert, the type of the alert is checked and the connection
@@ -313,63 +345,19 @@ func (p *conn) Read(b []byte) (n int, err error) {
 		case applicationData:
 			// Do nothing if the type is application data.
 		case alert:
-			if len(p.pendingApplicationData) != tlsAlertSize {
-				return 0, errors.New("invalid alert message size")
+			if err = p.handleAlertMessage(); err != nil {
+				return 0, err
 			}
-			if p.pendingApplicationData[1] == byte(closeNotify) {
-				if err = p.Conn.Close(); err != nil {
-					return 0, err
-				}
-			}
-			// Clear the body of the alert message.
-			p.pendingApplicationData = p.pendingApplicationData[:0]
-			// TODO: add support for more alert types.
 			return 0, nil
 		case handshake:
-			handshakeMsgType := p.pendingApplicationData[0]
-			if handshakeMsgType == tlsHandshakeKeyUpdatePrefix {
-				msgLen := bigEndianInt24(p.pendingApplicationData[tlsHandshakeMsgTypeSize : tlsHandshakeMsgTypeSize+tlsHandshakeLengthSize])
-				if msgLen != tlsHandshakeKeyUpdateMsgSize {
-					return 0, errors.New("invalid handshake key update message length")
-				}
-				keyUpdateRequest := p.pendingApplicationData[tlsHandshakeMsgTypeSize+tlsHandshakeLengthSize]
-				if keyUpdateRequest != byte(updateNotRequested) &&
-					keyUpdateRequest != byte(updateRequested) {
-					return 0, errors.New("invalid handshake key update message")
-				}
-				if err = p.inConn.UpdateKey(); err != nil {
-					return 0, err
-				}
-				// Send a key update message back to the peer if requested.
-				if keyUpdateRequest == byte(updateRequested) {
-					p.writeMutex.Lock()
-					defer p.writeMutex.Unlock()
-					n, err := p.writeTLSRecord(preConstructedKeyUpdateMsg, byte(handshake))
-					if err != nil {
-						return 0, err
-					}
-					if n != tlsHandshakePrefixSize+tlsHandshakeKeyUpdateMsgSize {
-						return 0, errors.New("key update request message wrote less bytes than expected")
-					}
-					if err = p.outConn.UpdateKey(); err != nil {
-						return 0, err
-					}
-				}
-				// Clear the body of the key update message.
-				p.pendingApplicationData = p.pendingApplicationData[:0]
-				return 0, nil
-			} else if handshakeMsgType == tlsHandshakeNewSessionTicket {
-				// TODO: implement this later.
-				grpclog.Infof("Session ticket was received")
-				p.pendingApplicationData = p.pendingApplicationData[:0]
-				return 0, nil
+			if err = p.handleHandshakeMessage(); err != nil {
+				return 0, err
 			}
-			return 0, errors.New("unknown handshake message type")
+			return 0, nil
 		default:
 			return 0, errors.New("unknown record type")
 		}
 	}
-
 	// Write as much application data as possible to b, the output buffer.
 	n = copy(b, p.pendingApplicationData)
 	p.pendingApplicationData = p.pendingApplicationData[n:]
@@ -584,14 +572,138 @@ func splitAndValidateHeader(record []byte) (header, payload []byte, err error) {
 	return header, payload, nil
 }
 
+// handleAlertMessage handles an alert message.
+func (p *conn) handleAlertMessage() error {
+	if len(p.pendingApplicationData) != tlsAlertSize {
+		return errors.New("invalid alert message size")
+	}
+	if p.pendingApplicationData[1] == byte(closeNotify) {
+		if err := p.Conn.Close(); err != nil {
+			return err
+		}
+	}
+	// Clear the body of the alert message.
+	p.pendingApplicationData = p.pendingApplicationData[:0]
+	// TODO: add support for more alert types.
+	return nil
+}
+
+// parseHandshakeHeader parses a handshake header (4 bytes). It returns the
+// message type, the message length, and a flag indicating whether the header
+// has been fully parsed or not.
+func (p *conn) parseHandshakeHeader() (msgType byte, msgLen uint32, ok bool) {
+	// Handle the case where the 4 byte handshake header is fragmented.
+	if len(p.handshakeHeaderBuf)+len(p.pendingApplicationData) < tlsHandshakePrefixSize {
+		p.handshakeHeaderBuf = append(p.handshakeHeaderBuf, p.pendingApplicationData...)
+		p.pendingApplicationData = p.pendingApplicationData[:0]
+		return 0, 0, false
+	}
+	lenFromPendingAppData := tlsHandshakePrefixSize - len(p.handshakeHeaderBuf)
+	p.handshakeHeaderBuf = append(p.handshakeHeaderBuf, p.pendingApplicationData[:lenFromPendingAppData]...)
+	msgType = p.handshakeHeaderBuf[0]
+	msgLen = bigEndianInt24(p.handshakeHeaderBuf[tlsHandshakeMsgTypeSize : tlsHandshakeMsgTypeSize+tlsHandshakeLengthSize])
+	p.pendingApplicationData = p.pendingApplicationData[lenFromPendingAppData:]
+	p.handshakeHeaderBuf = p.handshakeHeaderBuf[:0]
+	return msgType, msgLen, true
+}
+
+// handleHandshakeMessage handles a handshake message.
+func (p *conn) handleHandshakeMessage() error {
+	// Several handshake messages may be coalesced into a single record.
+	// Continue reading them until the application data buffer is empty.
+	for len(p.pendingApplicationData) > 0 {
+		// If a ticket is fragmented from the previous record, process
+		// that before handling any other handshake messages.
+		if p.ticketRemainingSize > 0 {
+			appendSize := min(int(p.ticketRemainingSize), len(p.pendingApplicationData))
+			p.ticketBuf = append(p.ticketBuf, p.pendingApplicationData[:appendSize]...)
+			p.ticketRemainingSize -= uint32(appendSize)
+			p.pendingApplicationData = p.pendingApplicationData[appendSize:]
+			continue
+		}
+
+		handshakeMsgType, msgLen, ok := p.parseHandshakeHeader()
+		// The handshake header could not be fully parsed, so read in another
+		// record and try again later.
+		if !ok {
+			break
+		}
+		switch handshakeMsgType {
+		case tlsHandshakeKeyUpdateType:
+			// Stop receiving session tickets when a key update message
+			// is received.
+			if p.ticketState == ticketReceiving {
+				p.ticketState = ticketReceived
+				// TODO: send tickets to handshaker
+			}
+			if msgLen != tlsHandshakeKeyUpdateMsgSize {
+				return errors.New("invalid handshake key update message length")
+			}
+			keyUpdateRequest := p.pendingApplicationData[0]
+			if keyUpdateRequest != byte(updateNotRequested) &&
+				keyUpdateRequest != byte(updateRequested) {
+				return errors.New("invalid handshake key update message")
+			}
+			if err := p.inConn.UpdateKey(); err != nil {
+				return err
+			}
+			// Send a key update message back to the peer if requested.
+			if keyUpdateRequest == byte(updateRequested) {
+				p.writeMutex.Lock()
+				if err := p.sendKeyUpdateMessage(); err != nil {
+					p.writeMutex.Unlock()
+					return err
+				}
+				p.writeMutex.Unlock()
+			}
+			// Clear the body of the handshake message.
+			p.pendingApplicationData = p.pendingApplicationData[tlsHandshakeKeyUpdateMsgSize:]
+		case tlsHandshakeNewSessionTicketType:
+			// TODO: What is the number of tickets that we allow? We need to
+			// stop collecting tickets once that limit is reached.
+			switch p.ticketState {
+			case ticketNotReceived, ticketReceiving:
+				p.ticketState = ticketReceiving
+				appendSize := min(int(msgLen), len(p.pendingApplicationData))
+				p.ticketBuf = append(p.ticketBuf, p.pendingApplicationData[:appendSize]...)
+			}
+			if msgLen > uint32(len(p.pendingApplicationData)) {
+				p.ticketRemainingSize = msgLen - uint32(len(p.pendingApplicationData))
+				p.pendingApplicationData = p.pendingApplicationData[:0]
+			} else {
+				p.pendingApplicationData = p.pendingApplicationData[msgLen:]
+			}
+		default:
+			return errors.New("unknown handshake message type")
+		}
+	}
+	return nil
+}
+
 func buildKeyUpdateRequest() []byte {
 	b := make([]byte, tlsHandshakePrefixSize+tlsHandshakeKeyUpdateMsgSize)
-	b[0] = tlsHandshakeKeyUpdatePrefix
+	b[0] = tlsHandshakeKeyUpdateType
 	b[1] = 0
 	b[2] = 0
 	b[3] = tlsHandshakeKeyUpdateMsgSize
 	b[4] = byte(updateNotRequested)
 	return b
+}
+
+// sendKeyUpdateMessage sends a key update message to the peer and updates the
+// outbound traffic secret.
+func (p *conn) sendKeyUpdateMessage() error {
+	n, err := p.writeTLSRecord(preConstructedKeyUpdateMsg, byte(handshake))
+	if err != nil {
+		return err
+	}
+	if n != tlsHandshakePrefixSize+tlsHandshakeKeyUpdateMsgSize {
+		return errors.New("key update request message wrote less bytes than expected")
+	}
+	if err = p.outConn.UpdateKey(); err != nil {
+		return err
+	}
+	return nil
 }
 
 // bidEndianInt24 converts the given byte buffer of at least size 3 and
