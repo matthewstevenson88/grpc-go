@@ -33,20 +33,24 @@ import (
 // fakeConn is a fake implementation of the net.Conn interface used for testing.
 type fakeConn struct {
 	net.Conn
-	// inCount tracks the current index of the `in` buffer.
-	inCount int
-	in, out [][]byte
-	closed  bool
+	// bufCount tracks the current index of the buf.
+	bufCount int
+	buf      [][]byte
+	// additionalBuf is used to store records sent through the fakeConn. It is
+	// used in record write tests and TestConnReadKeyUpdates.
+	additionalBuf [][]byte
+	closed        bool
 }
 
 // Read returns part of the `in` buffer in sequential order each time it is
 // called.
 func (c *fakeConn) Read(b []byte) (n int, err error) {
-	n = copy(b, c.in[c.inCount])
-	if n < len(c.in[c.inCount]) {
-		c.in[c.inCount] = c.in[c.inCount][n:]
+	n = copy(b, c.buf[c.bufCount])
+
+	if n < len(c.buf[c.bufCount]) {
+		c.buf[c.bufCount] = c.buf[c.bufCount][n:]
 	} else {
-		c.inCount++
+		c.bufCount++
 	}
 	return n, nil
 }
@@ -56,8 +60,7 @@ func (c *fakeConn) Read(b []byte) (n int, err error) {
 func (c *fakeConn) Write(b []byte) (n int, err error) {
 	buf := make([]byte, len(b))
 	n = copy(buf, b)
-	c.out = append(c.out, buf)
-	c.in = append(c.in, buf)
+	c.additionalBuf = append(c.additionalBuf, buf)
 	return n, nil
 }
 
@@ -418,8 +421,8 @@ func TestReadCompletedRecord(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			fc := &fakeConn{in: tc.connBufs}
-			c := &conn{Conn: fc, nextRecord: tc.nextRecord, unusedBuf: tc.unusedBuf}
+			fConn := &fakeConn{buf: tc.connBufs}
+			c := &conn{Conn: fConn, nextRecord: tc.nextRecord, unusedBuf: tc.unusedBuf}
 			for _, outCompletedRecord := range tc.outCompletedRecords {
 				completedRecord, err := c.readFullRecord()
 				if got, want := err == nil, !tc.outErr; got != want {
@@ -798,7 +801,7 @@ func TestConnReadApplicationData(t *testing.T) {
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			c, err := NewConn(&ConnParameters{
-				NetConn:          &fakeConn{in: tc.completedRecords},
+				NetConn:          &fakeConn{buf: tc.completedRecords},
 				Ciphersuite:      tc.ciphersuite,
 				TLSVersion:       s2apb.TLSVersion_TLS1_3,
 				InTrafficSecret:  tc.trafficSecret,
@@ -929,7 +932,7 @@ func TestConnReadAlert(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			f := &fakeConn{in: [][]byte{tc.completedRecord}}
+			f := &fakeConn{buf: [][]byte{tc.completedRecord}}
 			c, err := NewConn(&ConnParameters{
 				NetConn:          f,
 				Ciphersuite:      tc.ciphersuite,
@@ -1093,9 +1096,9 @@ func TestConnReadKeyUpdate(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			fc := &fakeConn{in: tc.completedRecords}
+			fConn := &fakeConn{buf: tc.completedRecords}
 			c, err := NewConn(&ConnParameters{
-				NetConn:          fc,
+				NetConn:          fConn,
 				Ciphersuite:      tc.ciphersuite,
 				TLSVersion:       s2apb.TLSVersion_TLS1_3,
 				InTrafficSecret:  tc.trafficSecret,
@@ -1127,8 +1130,8 @@ func TestConnReadKeyUpdate(t *testing.T) {
 					t.Fatalf("c.Write(plaintext) = %v, want %v", got, want)
 				}
 			}
-			if got, want := fc.out, tc.outWriteBuf; !cmp.Equal(fc.out, tc.outWriteBuf) {
-				t.Errorf("fc.out = %x, want %x", got, want)
+			if got, want := fConn.additionalBuf, tc.outWriteBuf; !cmp.Equal(fConn.additionalBuf, tc.outWriteBuf) {
+				t.Errorf("fConn.additionalBuf = %x, want %x", got, want)
 			}
 			if got, want := len(c.(*conn).pendingApplicationData), 0; got != want {
 				t.Errorf("len(c.(*conn).pendingApplicationData) = %v, want %v", got, want)
@@ -1137,9 +1140,9 @@ func TestConnReadKeyUpdate(t *testing.T) {
 			// can be decrypted properly by a new Conn object. Also, verify that
 			// messages written by the original Conn object after the key update
 			// can be decrypted properly by the new Conn object.
-			fc2 := &fakeConn{in: tc.outWriteBuf}
+			fConn2 := &fakeConn{buf: tc.outWriteBuf}
 			c2, err := NewConn(&ConnParameters{
-				NetConn:          fc2,
+				NetConn:          fConn2,
 				Ciphersuite:      tc.ciphersuite,
 				TLSVersion:       s2apb.TLSVersion_TLS1_3,
 				InTrafficSecret:  tc.trafficSecret,
@@ -1187,7 +1190,7 @@ func TestConnNewSessionTicket(t *testing.T) {
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			c, err := NewConn(&ConnParameters{
-				NetConn:          &fakeConn{in: [][]byte{tc.completedRecord}},
+				NetConn:          &fakeConn{buf: [][]byte{tc.completedRecord}},
 				Ciphersuite:      tc.ciphersuite,
 				TLSVersion:       s2apb.TLSVersion_TLS1_3,
 				InTrafficSecret:  tc.trafficSecret,
@@ -1329,8 +1332,8 @@ func TestWrite(t *testing.T) {
 					t.Errorf("Incorrect number of bytes written: got: %v, want: %v", bytesWritten, tc.outBytesWritten[i])
 				}
 			}
-			if !reflect.DeepEqual(fConn.out, tc.outRecords) {
-				t.Errorf("Incorrect Record: got: %v, want: %v", fConn.out, tc.outRecords)
+			if !reflect.DeepEqual(fConn.additionalBuf, tc.outRecords) {
+				t.Errorf("Incorrect Record: got: %v, want: %v", fConn.additionalBuf, tc.outRecords)
 			}
 		})
 	}
@@ -1352,29 +1355,26 @@ func TestWriteTwoRecords(t *testing.T) {
 		// resulting in 23+tlsRecordMaxSize total record bytes written,
 		// including the overheads.
 		{
-			desc:          "AES-128-GCM-SHA256",
-			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
-			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			plaintext:     make([]byte, 1+tlsRecordMaxPlaintextSize), // 2^14+1
-
+			desc:            "AES-128-GCM-SHA256",
+			ciphersuite:     s2apb.Ciphersuite_AES_128_GCM_SHA256,
+			trafficSecret:   testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			plaintext:       make([]byte, 1+tlsRecordMaxPlaintextSize), // 2^14+1
 			numRecordBytes:  23 + tlsRecordMaxSize,
 			outBytesWritten: 1 + tlsRecordMaxPlaintextSize,
 		},
 		{
-			desc:          "AES-256-GCM-SHA384",
-			ciphersuite:   s2apb.Ciphersuite_AES_256_GCM_SHA384,
-			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			plaintext:     make([]byte, 1+tlsRecordMaxPlaintextSize), // 2^14+1
-
+			desc:            "AES-256-GCM-SHA384",
+			ciphersuite:     s2apb.Ciphersuite_AES_256_GCM_SHA384,
+			trafficSecret:   testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			plaintext:       make([]byte, 1+tlsRecordMaxPlaintextSize), // 2^14+1
 			numRecordBytes:  23 + tlsRecordMaxSize,
 			outBytesWritten: 1 + tlsRecordMaxPlaintextSize,
 		},
 		{
-			desc:          "CHACHA20-POLY1305-SHA256",
-			ciphersuite:   s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
-			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			plaintext:     make([]byte, 1+tlsRecordMaxPlaintextSize), // 2^14+1
-
+			desc:            "CHACHA20-POLY1305-SHA256",
+			ciphersuite:     s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			trafficSecret:   testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			plaintext:       make([]byte, 1+tlsRecordMaxPlaintextSize), // 2^14+1
 			numRecordBytes:  23 + tlsRecordMaxSize,
 			outBytesWritten: 1 + tlsRecordMaxPlaintextSize,
 		},
@@ -1399,8 +1399,8 @@ func TestWriteTwoRecords(t *testing.T) {
 			if bytesWritten != tc.outBytesWritten {
 				t.Errorf("Incorrect number of bytes written: got: %v, want: %v", bytesWritten, tc.outBytesWritten)
 			}
-			if len(fConn.out[0]) != tc.numRecordBytes {
-				t.Errorf("Incorrect number of bytes prepared: got: %v, want: %v", len(fConn.out[0]), tc.numRecordBytes)
+			if len(fConn.additionalBuf[0]) != tc.numRecordBytes {
+				t.Errorf("Incorrect number of bytes prepared: got: %v, want: %v", len(fConn.additionalBuf[0]), tc.numRecordBytes)
 			}
 		})
 	}
@@ -1468,8 +1468,8 @@ func TestExceedBufferSize(t *testing.T) {
 			if len(c.outRecordsBuf) != tc.expectedOutRecordBufSize {
 				t.Errorf("Incorrect buf size: got: %v, want: %v", len(c.outRecordsBuf), tc.expectedOutRecordBufSize)
 			}
-			if len(fConn.out) != tc.expectedNumWrites {
-				t.Errorf("Inforrect number of records: got: %v, want: %v,", len(fConn.out), tc.expectedNumWrites)
+			if len(fConn.additionalBuf) != tc.expectedNumWrites {
+				t.Errorf("Inforrect number of records: got: %v, want: %v,", len(fConn.additionalBuf), tc.expectedNumWrites)
 			}
 		})
 	}
@@ -1660,9 +1660,9 @@ func TestRoundtrip(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			fConn := &fakeConn{}
+			fConnClient := &fakeConn{}
 			client, err := NewConn(&ConnParameters{
-				NetConn:          fConn,
+				NetConn:          fConnClient,
 				Ciphersuite:      tc.ciphersuite,
 				TLSVersion:       s2apb.TLSVersion_TLS1_3,
 				InTrafficSecret:  tc.inTrafficSecret,
@@ -1671,8 +1671,9 @@ func TestRoundtrip(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewConn() failed: %v", err)
 			}
+			fConnServer := &fakeConn{}
 			server, err := NewConn(&ConnParameters{
-				NetConn:          fConn,
+				NetConn:          fConnServer,
 				Ciphersuite:      tc.ciphersuite,
 				TLSVersion:       s2apb.TLSVersion_TLS1_3,
 				InTrafficSecret:  tc.outTrafficSecret,
@@ -1681,17 +1682,17 @@ func TestRoundtrip(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewConn() failed: %v", err)
 			}
-			err = sendRecordsRoundtrip(t, client, server, fConn, tc.plaintexts, tc.plaintextBytesWritten, tc.numRecordBytes)
+			err = sendRecordsRoundtrip(t, client, server, fConnClient, fConnServer, tc.plaintexts, tc.plaintextBytesWritten, tc.numRecordBytes)
 			if err != nil {
 				return
 			}
-			sendRecordsRoundtrip(t, server, client, fConn, tc.plaintexts, tc.plaintextBytesWritten, tc.numRecordBytes)
+			sendRecordsRoundtrip(t, server, client, fConnServer, fConnClient, tc.plaintexts, tc.plaintextBytesWritten, tc.numRecordBytes)
 
 		})
 	}
 }
 
-func sendRecordsRoundtrip(t *testing.T, src net.Conn, dst net.Conn, fConn *fakeConn, plaintexts [][]byte, plaintextBytesWritten []int, recordBytes []int) error {
+func sendRecordsRoundtrip(t *testing.T, src net.Conn, dst net.Conn, fConnSrc *fakeConn, fConnDst *fakeConn, plaintexts [][]byte, plaintextBytesWritten []int, recordBytes []int) error {
 	for i, plaintext := range plaintexts {
 		bytesWritten, err := src.Write(plaintext)
 		if got, want := err == nil, true; got != want {
@@ -1704,11 +1705,12 @@ func sendRecordsRoundtrip(t *testing.T, src net.Conn, dst net.Conn, fConn *fakeC
 			return errors.New("Write returned unexpected output")
 		}
 
-		if len(fConn.out[i]) != recordBytes[i] {
-			t.Errorf("Incorrect number of bytes prepared: got: %v, want: %v", len(fConn.out[i]), recordBytes[i])
+		if len(fConnSrc.additionalBuf[i]) != recordBytes[i] {
+			t.Errorf("Incorrect number of bytes prepared: got: %v, want: %v", len(fConnSrc.additionalBuf[i]), recordBytes[i])
 			return errors.New("Write returned unexpected output")
 		}
 	}
+	fConnDst.buf = fConnSrc.additionalBuf
 	for _, outPlaintext := range plaintexts {
 		n := 0
 		for n < len(outPlaintext) {

@@ -223,8 +223,16 @@ func NewConn(o *ConnParameters) (net.Conn, error) {
 	// The tag size for the in/out connections should be the same.
 	overheadSize := tlsRecordHeaderSize + tlsRecordTypeSize + inConn.TagSize()
 	var unusedBuf []byte
-	// TODO(gud): Potentially optimize unusedBuf with pre-allocation
-	if o.UnusedBuf != nil {
+	if o.UnusedBuf == nil {
+		// We pre-allocate unusedBuf to be of size
+		// 2*tlsRecordMaxSize-1 during initialization. We only read from the
+		// network into unusedBuf when unusedBuf does not contain a complete
+		// record and the incomplete record is at most tlsRecordMaxSize-1
+		// (bytes). And we read at most tlsRecordMaxSize bytes of data from the
+		// network into unusedBuf at one time. Therefore, 2*tlsRecordMaxSize-1
+		// is large enough to buffer data read from the network.
+		unusedBuf = make([]byte, 0, 2*tlsRecordMaxSize-1)
+	} else {
 		unusedBuf = make([]byte, len(o.UnusedBuf))
 		copy(unusedBuf, o.UnusedBuf)
 	}
