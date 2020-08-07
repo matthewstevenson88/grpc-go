@@ -30,6 +30,8 @@ import (
 	"google.golang.org/grpc/security/s2a/internal/record/internal/aeadcrypter/testutil"
 )
 
+var fakeConnEOFError = errors.New("fakeConn is out of bounds")
+
 // fakeConn is a fake implementation of the net.Conn interface used for testing.
 type fakeConn struct {
 	net.Conn
@@ -45,8 +47,10 @@ type fakeConn struct {
 // Read returns part of the `in` buffer in sequential order each time it is
 // called.
 func (c *fakeConn) Read(b []byte) (n int, err error) {
+	if c.bufCount >= len(c.buf) {
+		return 0, fakeConnEOFError
+	}
 	n = copy(b, c.buf[c.bufCount])
-
 	if n < len(c.buf[c.bufCount]) {
 		c.buf[c.bufCount] = c.buf[c.bufCount][n:]
 	} else {
@@ -1162,35 +1166,192 @@ func TestConnReadKeyUpdate(t *testing.T) {
 	}
 }
 
+// buildSessionTicket builds a new session ticket with the given bytes.
+func buildSessionTicket(msg []byte) []byte {
+	b := make([]byte, tlsHandshakePrefixSize+len(msg))
+	b[0] = tlsHandshakeNewSessionTicketType
+	v := len(msg)
+	b[1] = byte(v >> 16)
+	b[2] = byte(v >> 8)
+	b[3] = byte(v)
+	copy(b[4:], msg)
+	return b
+}
+
 func TestConnNewSessionTicket(t *testing.T) {
 	for _, tc := range []struct {
-		desc            string
-		ciphersuite     s2apb.Ciphersuite
-		trafficSecret   []byte
-		completedRecord []byte
+		desc              string
+		ciphersuite       s2apb.Ciphersuite
+		trafficSecret     []byte
+		completedRecords  [][]byte
+		outPlaintexts     [][]byte
+		finalTicketState  sessionTicketState
+		outSessionTickets [][]byte
 	}{
+		// All the session tickets below are []byte{0}. This is not a valid
+		// ticket, but is sufficient for testing since the the client does not
+		// care about the actual value of the ticket.
 		{
-			desc:            "AES-128-GCM-SHA256 new session ticket",
-			ciphersuite:     s2apb.Ciphersuite_AES_128_GCM_SHA256,
-			trafficSecret:   testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			completedRecord: testutil.Dehex("1703030016c7d6d72499478b3d80281cae5b7c1a3e5cd553aae716"),
+			desc:          "AES-128-GCM-SHA256 new session ticket",
+			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			completedRecords: [][]byte{
+				testutil.Dehex("1703030016c7d6d72499478b3d80281cae5b7c1a3e5cd553aae716"),
+			},
+			outPlaintexts: [][]byte{
+				[]byte(""),
+			},
+			finalTicketState: ticketReceiving,
+			outSessionTickets: [][]byte{
+				{0},
+			},
 		},
 		{
-			desc:            "AES-256-GCM-SHA384 new session ticket",
-			ciphersuite:     s2apb.Ciphersuite_AES_256_GCM_SHA384,
-			trafficSecret:   testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			completedRecord: testutil.Dehex("170303001611dddd6fc4869be0e1c12a5a29db1aa2e5814e5894e5"),
+			desc:          "AES-256-GCM-SHA384 new session ticket",
+			ciphersuite:   s2apb.Ciphersuite_AES_256_GCM_SHA384,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			completedRecords: [][]byte{
+				testutil.Dehex("170303001611dddd6fc4869be0e1c12a5a29db1aa2e5814e5894e5"),
+			},
+			outPlaintexts: [][]byte{
+				[]byte(""),
+			},
+			finalTicketState: ticketReceiving,
+			outSessionTickets: [][]byte{
+				{0},
+			},
 		},
 		{
-			desc:            "CHACHA20-POLY1305-SHA256 new session ticket",
-			ciphersuite:     s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
-			trafficSecret:   testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
-			completedRecord: testutil.Dehex("1703030016fc75cc914510008c6B45bb46b1f030921006c3556882"),
+			desc:          "CHACHA20-POLY1305-SHA256 new session ticket",
+			ciphersuite:   s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			completedRecords: [][]byte{
+				testutil.Dehex("1703030016fc75cc914510008c6B45bb46b1f030921006c3556882"),
+			},
+			outPlaintexts: [][]byte{
+				[]byte(""),
+			},
+			finalTicketState: ticketReceiving,
+			outSessionTickets: [][]byte{
+				{0},
+			},
 		},
+		{
+			desc:          "AES-128-GCM-SHA256 new session ticket followed by application data",
+			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			completedRecords: [][]byte{
+				testutil.Dehex("1703030016c7d6d72499478b3d80281cae5b7c1a3e5cd553aae716"),
+				testutil.Dehex("170303001ad7853afd6d7ceaabab950a0b6707905d2b908894871c7c62021f"),
+			},
+			outPlaintexts: [][]byte{
+				[]byte(""),
+				[]byte("789123456"),
+			},
+			finalTicketState: ticketReceived,
+			outSessionTickets: [][]byte{
+				{0},
+			},
+		},
+		{
+			desc:          "AES-256-GCM-SHA384 new session ticket followed by application data",
+			ciphersuite:   s2apb.Ciphersuite_AES_256_GCM_SHA384,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			completedRecords: [][]byte{
+				testutil.Dehex("170303001611dddd6fc4869be0e1c12a5a29db1aa2e5814e5894e5"),
+				testutil.Dehex("170303001a832a5fd271b6442e74bc02111a8e8b52a74b14dd3eca8598b293"),
+			},
+			outPlaintexts: [][]byte{
+				[]byte(""),
+				[]byte("789123456"),
+			},
+			finalTicketState: ticketReceived,
+			outSessionTickets: [][]byte{
+				{0},
+			},
+		},
+		{
+			desc:          "CHACHA20-POLY1305-SHA256 new session ticket followed by application data",
+			ciphersuite:   s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			completedRecords: [][]byte{
+				testutil.Dehex("1703030016fc75cc914510008c6B45bb46b1f030921006c3556882"),
+				testutil.Dehex("170303001a0cedeb922170c110c172262542c67916b78fa0d1c1261709cd00"),
+			},
+			outPlaintexts: [][]byte{
+				[]byte(""),
+				[]byte("789123456"),
+			},
+			finalTicketState: ticketReceived,
+			outSessionTickets: [][]byte{
+				{0},
+			},
+		},
+		{
+			desc:          "AES-128-GCM-SHA256 ticket, application data, then another ticket",
+			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			completedRecords: [][]byte{
+				testutil.Dehex("1703030016c7d6d72499478b3d80281cae5b7c1a3e5cd553aae716"),
+				testutil.Dehex("170303001ad7853afd6d7ceaabab950a0b6707905d2b908894871c7c62021f"),
+				testutil.Dehex("17030300169c4fb23ec187cec7a8443ae3cd6f45e9dca53023e952"),
+			},
+			outPlaintexts: [][]byte{
+				[]byte(""),
+				[]byte("789123456"),
+				[]byte(""),
+			},
+			finalTicketState: ticketReceived,
+			outSessionTickets: [][]byte{
+				{0},
+			},
+		},
+		{
+			desc:          "AES-256-GCM-SHA384 ticket, application data, then another ticket",
+			ciphersuite:   s2apb.Ciphersuite_AES_256_GCM_SHA384,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			completedRecords: [][]byte{
+				testutil.Dehex("170303001611dddd6fc4869be0e1c12a5a29db1aa2e5814e5894e5"),
+				testutil.Dehex("170303001a832a5fd271b6442e74bc02111a8e8b52a74b14dd3eca8598b293"),
+				testutil.Dehex("1703030016a5f3bdfc4ab1cb73dca49bc86a7fde6396e83d9eb6ac"),
+			},
+			outPlaintexts: [][]byte{
+				[]byte(""),
+				[]byte("789123456"),
+				[]byte(""),
+			},
+			finalTicketState: ticketReceived,
+			outSessionTickets: [][]byte{
+				{0},
+			},
+		},
+		{
+			desc:          "CHACHA20-POLY1305-SHA256 ticket, application data, then another ticket",
+			ciphersuite:   s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			completedRecords: [][]byte{
+				testutil.Dehex("1703030016fc75cc914510008c6B45bb46b1f030921006c3556882"),
+				testutil.Dehex("170303001a0cedeb922170c110c172262542c67916b78fa0d1c1261709cd00"),
+				testutil.Dehex("1703030016a1726a73d83b83e97018b7d4b9d33ec9528d7f10e8f2"),
+			},
+			outPlaintexts: [][]byte{
+				[]byte(""),
+				[]byte("789123456"),
+				[]byte(""),
+			},
+			finalTicketState: ticketReceived,
+			outSessionTickets: [][]byte{
+				{0},
+			},
+		},
+		// TODO(rnkim): Add test cases for handshake key update messages.
+		// Specifically, fragmented handshake messages and multiple handshake
+		// handshake messages in a single record (which should produce an
+		// error).
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			c, err := NewConn(&ConnParameters{
-				NetConn:          &fakeConn{buf: [][]byte{tc.completedRecord}},
+				NetConn:          &fakeConn{buf: tc.completedRecords},
 				Ciphersuite:      tc.ciphersuite,
 				TLSVersion:       s2apb.TLSVersion_TLS1_3,
 				InTrafficSecret:  tc.trafficSecret,
@@ -1199,19 +1360,284 @@ func TestConnNewSessionTicket(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewConn() failed: %v", err)
 			}
-			plaintext := make([]byte, tlsRecordMaxPlaintextSize)
-			n, err := c.Read(plaintext)
+			for _, outPlaintext := range tc.outPlaintexts {
+				plaintext := make([]byte, tlsRecordMaxPlaintextSize)
+				n, err := c.Read(plaintext)
+				if err != nil {
+					t.Fatalf("c.Read(plaintext) failed: %v", err)
+				}
+				plaintext = plaintext[:n]
+				if got, want := plaintext, outPlaintext; !bytes.Equal(got, want) {
+					t.Errorf("c.Read(plaintext) = %v, want %v", got, want)
+				}
+				if got, want := len(c.(*conn).pendingApplicationData), 0; got != want {
+					t.Errorf("len(c.(*conn).pendingApplicationData) = %v, want %v", got, want)
+				}
+			}
+			newConn := c.(*conn)
+			if got, want := newConn.ticketState, tc.finalTicketState; got != want {
+				t.Errorf("newConn.ticketState = %v, want %v", got, want)
+			}
+			if got, want := newConn.handshakeBuf, make([]byte, 0); !bytes.Equal(got, want) {
+				t.Errorf("newConn.handshakeBuf = %v, want %v", got, want)
+			}
+			if got, want := newConn.sessionTickets, tc.outSessionTickets; !cmp.Equal(got, want) {
+				t.Errorf("newConn.sessionTickets = %v, want %v", got, want)
+			}
+		})
+	}
+}
+
+func TestConnNewSessionTicketWithTicketBuilder(t *testing.T) {
+	for _, tc := range []struct {
+		desc              string
+		ciphersuite       s2apb.Ciphersuite
+		trafficSecret     []byte
+		sessionTickets    [][]byte
+		finalTicketState  sessionTicketState
+		outSessionTickets [][]byte
+	}{
+		{
+			desc:          "AES-128-GCM-SHA256 consecutive tickets",
+			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			sessionTickets: [][]byte{
+				buildSessionTicket([]byte("abc")),
+				buildSessionTicket([]byte("abc")),
+			},
+			finalTicketState: ticketReceiving,
+			outSessionTickets: [][]byte{
+				[]byte("abc"),
+				[]byte("abc"),
+			},
+		},
+		{
+			desc:          "AES-256-GCM-SHA384 consecutive tickets",
+			ciphersuite:   s2apb.Ciphersuite_AES_256_GCM_SHA384,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			sessionTickets: [][]byte{
+				buildSessionTicket([]byte("abc")),
+				buildSessionTicket([]byte("abc")),
+			},
+			finalTicketState: ticketReceiving,
+			outSessionTickets: [][]byte{
+				[]byte("abc"),
+				[]byte("abc"),
+			},
+		},
+		{
+			desc:          "CHACHA20-POLY1305-SHA256 consecutive tickets",
+			ciphersuite:   s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			sessionTickets: [][]byte{
+				buildSessionTicket([]byte("abc")),
+				buildSessionTicket([]byte("abc")),
+			},
+			finalTicketState: ticketReceiving,
+			outSessionTickets: [][]byte{
+				[]byte("abc"),
+				[]byte("abc"),
+			},
+		},
+		{
+			desc:          "AES-128-GCM-SHA256 multiple tickets in one record",
+			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			sessionTickets: [][]byte{
+				append(buildSessionTicket([]byte("abc")), buildSessionTicket([]byte("abc"))...),
+			},
+			finalTicketState: ticketReceiving,
+			outSessionTickets: [][]byte{
+				[]byte("abc"),
+				[]byte("abc"),
+			},
+		},
+		{
+			desc:          "AES-256-GCM-SHA384 multiple tickets in one record",
+			ciphersuite:   s2apb.Ciphersuite_AES_256_GCM_SHA384,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			sessionTickets: [][]byte{
+				append(buildSessionTicket([]byte("abc")), buildSessionTicket([]byte("abc"))...),
+			},
+			finalTicketState: ticketReceiving,
+			outSessionTickets: [][]byte{
+				[]byte("abc"),
+				[]byte("abc"),
+			},
+		},
+		{
+			desc:          "CHACHA20-POLY1305-SHA256 multiple tickets in one record",
+			ciphersuite:   s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			sessionTickets: [][]byte{
+				append(buildSessionTicket([]byte("abc")), buildSessionTicket([]byte("abc"))...),
+			},
+			finalTicketState: ticketReceiving,
+			outSessionTickets: [][]byte{
+				[]byte("abc"),
+				[]byte("abc"),
+			},
+		},
+		{
+			desc:          "AES-128-GCM-SHA256 fragmented tickets",
+			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			sessionTickets: [][]byte{
+				append(buildSessionTicket(make([]byte, tlsRecordMaxPlaintextSize/2)), buildSessionTicket(make([]byte, tlsRecordMaxPlaintextSize))...),
+			},
+			finalTicketState: ticketReceiving,
+			outSessionTickets: [][]byte{
+				make([]byte, tlsRecordMaxPlaintextSize/2),
+				make([]byte, tlsRecordMaxPlaintextSize),
+			},
+		},
+		{
+			desc:          "AES-256-GCM-SHA384 fragmented tickets",
+			ciphersuite:   s2apb.Ciphersuite_AES_256_GCM_SHA384,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			sessionTickets: [][]byte{
+				append(buildSessionTicket(make([]byte, tlsRecordMaxPlaintextSize/2)), buildSessionTicket(make([]byte, tlsRecordMaxPlaintextSize))...),
+			},
+			finalTicketState: ticketReceiving,
+			outSessionTickets: [][]byte{
+				make([]byte, tlsRecordMaxPlaintextSize/2),
+				make([]byte, tlsRecordMaxPlaintextSize),
+			},
+		},
+		{
+			desc:          "CHACHA20-POLY1305-SHA256 fragmented tickets",
+			ciphersuite:   s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			sessionTickets: [][]byte{
+				append(buildSessionTicket(make([]byte, tlsRecordMaxPlaintextSize/2)), buildSessionTicket(make([]byte, tlsRecordMaxPlaintextSize))...),
+			},
+			finalTicketState: ticketReceiving,
+			outSessionTickets: [][]byte{
+				make([]byte, tlsRecordMaxPlaintextSize/2),
+				make([]byte, tlsRecordMaxPlaintextSize),
+			},
+		},
+		{
+			desc:          "AES-128-GCM-SHA256 large ticket",
+			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			sessionTickets: [][]byte{
+				buildSessionTicket(make([]byte, tlsRecordMaxPlaintextSize*2)),
+			},
+			finalTicketState: ticketReceiving,
+			outSessionTickets: [][]byte{
+				make([]byte, tlsRecordMaxPlaintextSize*2),
+			},
+		},
+		{
+			desc:          "AES-256-GCM-SHA384 large ticket",
+			ciphersuite:   s2apb.Ciphersuite_AES_256_GCM_SHA384,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			sessionTickets: [][]byte{
+				buildSessionTicket(make([]byte, tlsRecordMaxPlaintextSize*2)),
+			},
+			finalTicketState: ticketReceiving,
+			outSessionTickets: [][]byte{
+				make([]byte, tlsRecordMaxPlaintextSize*2),
+			},
+		},
+		{
+			desc:          "CHACHA20-POLY1305-SHA256 large ticket",
+			ciphersuite:   s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			sessionTickets: [][]byte{
+				buildSessionTicket(make([]byte, tlsRecordMaxPlaintextSize*2)),
+			},
+			finalTicketState: ticketReceiving,
+			outSessionTickets: [][]byte{
+				make([]byte, tlsRecordMaxPlaintextSize*2),
+			},
+		},
+		{
+			desc:          "AES-128-GCM-SHA256 split in header",
+			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			sessionTickets: [][]byte{
+				buildSessionTicket([]byte("abc"))[:2],
+				buildSessionTicket([]byte("abc"))[2:],
+			},
+			finalTicketState: ticketReceiving,
+			outSessionTickets: [][]byte{
+				[]byte("abc"),
+			},
+		},
+		{
+			desc:          "AES-256-GCM-SHA384 split in header",
+			ciphersuite:   s2apb.Ciphersuite_AES_256_GCM_SHA384,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			sessionTickets: [][]byte{
+				buildSessionTicket([]byte("abc"))[:2],
+				buildSessionTicket([]byte("abc"))[2:],
+			},
+			finalTicketState: ticketReceiving,
+			outSessionTickets: [][]byte{
+				[]byte("abc"),
+			},
+		},
+		{
+			desc:          "CHACHA20-POLY1305-SHA256 split in header",
+			ciphersuite:   s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			sessionTickets: [][]byte{
+				buildSessionTicket([]byte("abc"))[:2],
+				buildSessionTicket([]byte("abc"))[2:],
+			},
+			finalTicketState: ticketReceiving,
+			outSessionTickets: [][]byte{
+				[]byte("abc"),
+			},
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			fc := &fakeConn{}
+			netConn, err := NewConn(&ConnParameters{
+				NetConn:          fc,
+				Ciphersuite:      tc.ciphersuite,
+				TLSVersion:       s2apb.TLSVersion_TLS1_3,
+				InTrafficSecret:  tc.trafficSecret,
+				OutTrafficSecret: tc.trafficSecret,
+			})
 			if err != nil {
-				t.Fatalf("c.Read(plaintext) failed: %v", err)
+				t.Fatalf("NewConn() failed: %v", err)
 			}
-			if got, want := n, 0; got != want {
-				t.Errorf("c.Read(plaintext) = %v, want %v", got, want)
+			c := netConn.(*conn)
+			for _, sessionTicket := range tc.sessionTickets {
+				_, err = c.writeTLSRecord(sessionTicket, byte(handshake))
+				if err != nil {
+					t.Fatal("c.writeTLSRecord(sessionTicket, byte(handshake)) failed")
+				}
 			}
-			if got, want := plaintext, make([]byte, tlsRecordMaxPlaintextSize); !bytes.Equal(got, want) {
-				t.Errorf("c.Read(plaintext) modified plaintext")
+			fc.buf = fc.additionalBuf
+			// Read until an EOF error occurs.
+			for {
+				plaintext := make([]byte, tlsRecordMaxPlaintextSize)
+				n, err := c.Read(plaintext)
+				if err != nil {
+					if err == fakeConnEOFError {
+						break
+					}
+					t.Fatalf("c.Read(plaintext) failed: %v", err)
+				}
+				if got, want := n, 0; got != want {
+					t.Errorf("c.Read(plaintext) = %v, want %v,", got, want)
+				}
+				if got, want := len(c.pendingApplicationData), 0; got != want {
+					t.Errorf("len(c.(*conn).pendingApplicationData) = %v, want %v", got, want)
+				}
 			}
-			if got, want := len(c.(*conn).pendingApplicationData), 0; got != want {
-				t.Errorf("len(c.(*conn).pendingApplicationData) = %v, want %v", got, want)
+			if got, want := c.ticketState, tc.finalTicketState; got != want {
+				t.Errorf("newConn.ticketState = %v, want %v", got, want)
+			}
+			if got, want := c.handshakeBuf, make([]byte, 0); !bytes.Equal(got, want) {
+				t.Errorf("newConn.handshakeBuf = %v, want %v", got, want)
+			}
+			if got, want := c.sessionTickets, tc.outSessionTickets; !cmp.Equal(got, want) {
+				t.Errorf("newConn.sessionTickets = %v, want %v", got, want)
 			}
 		})
 	}
