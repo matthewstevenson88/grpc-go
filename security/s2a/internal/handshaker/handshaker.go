@@ -239,6 +239,8 @@ func (h *s2aHandshaker) setUpSession(req *s2apb.SessionReq) (net.Conn, *s2apb.Se
 		InSequence:       result.GetState().GetInSequence(),
 		OutSequence:      result.GetState().GetOutSequence(),
 		HSAddr:           h.hsAddr,
+		ConnectionID:     result.GetState().GetConnectionId(),
+		LocalIdentity:    result.GetLocalIdentity(),
 	})
 	if err != nil {
 		return nil, nil, err
