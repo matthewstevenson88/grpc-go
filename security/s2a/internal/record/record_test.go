@@ -838,8 +838,6 @@ func TestConnReadAlert(t *testing.T) {
 		ciphersuite     s2apb.Ciphersuite
 		trafficSecret   []byte
 		completedRecord []byte
-		outClosed       bool
-		outErr          bool
 	}{
 		// The records below are TLS 1.3 records that hold the ciphertext
 		// obtained by encrypting (with or without padding) the close notify
@@ -850,42 +848,36 @@ func TestConnReadAlert(t *testing.T) {
 			ciphersuite:     s2apb.Ciphersuite_AES_128_GCM_SHA256,
 			trafficSecret:   testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			completedRecord: testutil.Dehex("1703030013c2d6c245fb80969de1dd9d14499261b67735b0"),
-			outClosed:       true,
 		},
 		{
 			desc:            "AES-128-GCM-SHA256 with padding",
 			ciphersuite:     s2apb.Ciphersuite_AES_128_GCM_SHA256,
 			trafficSecret:   testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			completedRecord: testutil.Dehex("170303001dc2d6c225995177e84726e4886d5ea79383e5d529cd8339fbbfcafe2418"),
-			outClosed:       true,
 		},
 		{
 			desc:            "AES-256-GCM-SHA384 with no padding",
 			ciphersuite:     s2apb.Ciphersuite_AES_256_GCM_SHA384,
 			trafficSecret:   testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			completedRecord: testutil.Dehex("170303001314ddc8f3b3856660bb5ac81533c157582f8b4c"),
-			outClosed:       true,
 		},
 		{
 			desc:            "AES-256-GCM-SHA384 with padding",
 			ciphersuite:     s2apb.Ciphersuite_AES_256_GCM_SHA384,
 			trafficSecret:   testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			completedRecord: testutil.Dehex("170303001d14ddc86ec49036e8a4d1f269933545f03b0fe9ffd8b02acd1e41f7139e"),
-			outClosed:       true,
 		},
 		{
 			desc:            "CHACHA20-POLY1305-SHA256 with no padding",
 			ciphersuite:     s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
 			trafficSecret:   testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			completedRecord: testutil.Dehex("1703030013f975d9cb2f116d85d4e3859f5288a9b013d778"),
-			outClosed:       true,
 		},
 		{
 			desc:            "CHACHA20-POLY1305-SHA256 with padding",
 			ciphersuite:     s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
 			trafficSecret:   testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			completedRecord: testutil.Dehex("170303001df975d990450654f063e7b6a0514c2714c9827e796071389802f451585a"),
-			outClosed:       true,
 		},
 		// The records below are TLS 1.3 records that hold the ciphertext
 		// obtained by encrypting the alert {0x01, 0x2c} using the keys derived
@@ -918,21 +910,18 @@ func TestConnReadAlert(t *testing.T) {
 			ciphersuite:     s2apb.Ciphersuite_AES_128_GCM_SHA256,
 			trafficSecret:   testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			completedRecord: testutil.Dehex("1703030012c2c351fc48d9ac84fa165adcc9a26ffbc3c7"),
-			outErr:          true,
 		},
 		{
 			desc:            "AES-256-GCM-SHA384 invalid",
 			ciphersuite:     s2apb.Ciphersuite_AES_256_GCM_SHA384,
 			trafficSecret:   testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			completedRecord: testutil.Dehex("170303001214c8476102a460b5cf9e9ba59e1726215ca9"),
-			outErr:          true,
 		},
 		{
 			desc:            "CHACHA20-POLY1305-SHA256 invalid",
 			ciphersuite:     s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
 			trafficSecret:   testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 			completedRecord: testutil.Dehex("1703030012f9606a83ac17b165a51f3fe764da8560c706"),
-			outErr:          true,
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
@@ -948,24 +937,9 @@ func TestConnReadAlert(t *testing.T) {
 				t.Fatalf("NewConn() failed: %v", err)
 			}
 			plaintext := make([]byte, tlsRecordMaxPlaintextSize)
-			n, err := c.Read(plaintext)
-			if got, want := err == nil, !tc.outErr; got != want {
+			_, err = c.Read(plaintext)
+			if got, want := err == nil, false; got != want {
 				t.Errorf("c.Read(plaintext) = (err=nil) = %v, want %v", got, want)
-			}
-			if err != nil {
-				return
-			}
-			if got, want := n, 0; got != want {
-				t.Errorf("c.Read(plaintext) = %v, want %v", got, want)
-			}
-			if got, want := plaintext, make([]byte, tlsRecordMaxPlaintextSize); !bytes.Equal(got, want) {
-				t.Errorf("c.Read(plaintext) modified plaintext")
-			}
-			if got, want := f.closed, tc.outClosed; got != want {
-				t.Errorf("f.closed = %v, want %v", got, want)
-			}
-			if got, want := len(c.(*conn).pendingApplicationData), 0; got != want {
-				t.Errorf("len(c.(*conn).pendingApplicationData) = %v, want %v", got, want)
 			}
 		})
 	}
