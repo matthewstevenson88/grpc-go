@@ -180,8 +180,6 @@ type conn struct {
 	// is computed as overheadSize = header size + record type byte + tag size.
 	// Note that there is no padding by zeros in the overhead calculation.
 	overheadSize int
-	// hsAddr stores the address of the S2A handshaker service.
-	hsAddr string
 	// readMutex guards against concurrent calls to Read. This is required since
 	// Close may be called during a Read.
 	readMutex sync.Mutex
@@ -196,6 +194,8 @@ type conn struct {
 	// sessionTickets holds the completed session tickets until they are sent to
 	// the handshaker service for processing.
 	sessionTickets [][]byte
+	// ticketSender sends session tickets to the S2A handshaker service.
+	ticketSender s2aTicketSender
 }
 
 // ConnParameters holds the parameters used for creating a new conn object.
@@ -228,6 +228,12 @@ type ConnParameters struct {
 	// HSAddr stores the address of the S2A handshaker service. This parameter
 	// is optional. If not provided, then TLS resumption is disabled.
 	HSAddr string
+	// ConnectionId is the connection identifier that was created and sent by
+	// S2A at the end of a handshake.
+	ConnectionID uint64
+	// LocalIdentity is the local identity that was used by S2A during session
+	// setup and included in the session result.
+	LocalIdentity *s2apb.Identity
 }
 
 func NewConn(o *ConnParameters) (net.Conn, error) {
@@ -272,7 +278,6 @@ func NewConn(o *ConnParameters) (net.Conn, error) {
 		outRecordsBuf: make([]byte, tlsRecordMaxSize),
 		nextRecord:    unusedBuf,
 		overheadSize:  overheadSize,
-		hsAddr:        o.HSAddr,
 		ticketState:   ticketsNotYetReceived,
 		// Pre-allocate the buffer for one session ticket message and the max
 		// plaintext size. This is the largest size that handshakeBuf will need
@@ -283,6 +288,11 @@ func NewConn(o *ConnParameters) (net.Conn, error) {
 		// completed. Therefore, the buffer size below should be large enough to
 		// buffer any handshake messages.
 		handshakeBuf: make([]byte, 0, tlsHandshakePrefixSize+tlsMaxSessionTicketSize+tlsRecordMaxPlaintextSize-1),
+		ticketSender: &ticketSender{
+			hsAddr:        o.HSAddr,
+			connectionID:  o.ConnectionID,
+			localIdentity: o.LocalIdentity,
+		},
 	}
 	return s2aConn, nil
 }
@@ -353,7 +363,7 @@ func (p *conn) Read(b []byte) (n int, err error) {
 			}
 			if p.ticketState == receivingTickets {
 				p.ticketState = notReceivingTickets
-				// TODO: send tickets to handshaker
+				p.ticketSender.sendTicketsToS2A(p.sessionTickets)
 			}
 		case alert:
 			return 0, p.handleAlertMessage()
@@ -656,7 +666,7 @@ func (p *conn) handleHandshakeMessage() error {
 			p.sessionTickets = append(p.sessionTickets, msg)
 			if len(p.sessionTickets) == maxAllowedTickets {
 				p.ticketState = notReceivingTickets
-				// TODO: send tickets to handshaker
+				p.ticketSender.sendTicketsToS2A(p.sessionTickets)
 			}
 		default:
 			return errors.New("unknown handshake message type")

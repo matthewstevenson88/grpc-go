@@ -73,6 +73,14 @@ func (c *fakeConn) Close() error {
 	return nil
 }
 
+type fakeTicketSender struct {
+	sessionTickets [][]byte
+}
+
+func (f *fakeTicketSender) sendTicketsToS2A(sessionTickets [][]byte) {
+	f.sessionTickets = sessionTickets
+}
+
 func TestNewS2ARecordConn(t *testing.T) {
 	for _, tc := range []struct {
 		desc                     string
@@ -80,6 +88,8 @@ func TestNewS2ARecordConn(t *testing.T) {
 		outUnusedBytesBuf        []byte
 		outOverheadSize          int
 		outHandshakerServiceAddr string
+		outConnectionID          uint64
+		outLocalIdentity         *s2apb.Identity
 		outErr                   bool
 	}{
 		{
@@ -131,11 +141,23 @@ func TestNewS2ARecordConn(t *testing.T) {
 				InTrafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 				OutTrafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 				HSAddr:           "test handshaker address",
+				ConnectionID:     1,
+				LocalIdentity: &s2apb.Identity{
+					IdentityOneof: &s2apb.Identity_SpiffeId{
+						SpiffeId: "test_spiffe_id",
+					},
+				},
 			},
 			// outOverheadSize = header size (5) + record type byte (1) +
 			// tag size (16).
 			outOverheadSize:          22,
 			outHandshakerServiceAddr: "test handshaker address",
+			outConnectionID:          1,
+			outLocalIdentity: &s2apb.Identity{
+				IdentityOneof: &s2apb.Identity_SpiffeId{
+					SpiffeId: "test_spiffe_id",
+				},
+			},
 		},
 		{
 			desc: "basic with AES-256-GCM-SHA384",
@@ -146,11 +168,23 @@ func TestNewS2ARecordConn(t *testing.T) {
 				InTrafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 				OutTrafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 				HSAddr:           "test handshaker address",
+				ConnectionID:     1,
+				LocalIdentity: &s2apb.Identity{
+					IdentityOneof: &s2apb.Identity_SpiffeId{
+						SpiffeId: "test_spiffe_id",
+					},
+				},
 			},
 			// outOverheadSize = header size (5) + record type byte (1) +
 			// tag size (16).
 			outOverheadSize:          22,
 			outHandshakerServiceAddr: "test handshaker address",
+			outConnectionID:          1,
+			outLocalIdentity: &s2apb.Identity{
+				IdentityOneof: &s2apb.Identity_SpiffeId{
+					SpiffeId: "test_spiffe_id",
+				},
+			},
 		},
 		{
 			desc: "basic with CHACHA20-POLY1305-SHA256",
@@ -161,11 +195,23 @@ func TestNewS2ARecordConn(t *testing.T) {
 				InTrafficSecret:  testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 				OutTrafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
 				HSAddr:           "test handshaker address",
+				ConnectionID:     1,
+				LocalIdentity: &s2apb.Identity{
+					IdentityOneof: &s2apb.Identity_SpiffeId{
+						SpiffeId: "test_spiffe_id",
+					},
+				},
 			},
 			// outOverheadSize = header size (5) + record type byte (1) +
 			// tag size (16).
 			outOverheadSize:          22,
 			outHandshakerServiceAddr: "test handshaker address",
+			outConnectionID:          1,
+			outLocalIdentity: &s2apb.Identity{
+				IdentityOneof: &s2apb.Identity_SpiffeId{
+					SpiffeId: "test_spiffe_id",
+				},
+			},
 		},
 		{
 			desc: "basic with unusedBytes",
@@ -200,8 +246,15 @@ func TestNewS2ARecordConn(t *testing.T) {
 			if got, want := conn.overheadSize, tc.outOverheadSize; got != want {
 				t.Errorf("conn.overheadSize = %v, want %v", got, want)
 			}
-			if got, want := conn.hsAddr, tc.outHandshakerServiceAddr; got != want {
-				t.Errorf("conn.HSAddr = %v, want %v", got, want)
+			ticketSender := conn.ticketSender.(*ticketSender)
+			if got, want := ticketSender.hsAddr, tc.outHandshakerServiceAddr; got != want {
+				t.Errorf("ticketSender.hsAddr = %v, want %v", got, want)
+			}
+			if got, want := ticketSender.connectionID, tc.outConnectionID; got != want {
+				t.Errorf("ticketSender.connectionID = %v, want %v", got, want)
+			}
+			if got, want := ticketSender.localIdentity, tc.outLocalIdentity; !cmp.Equal(got, want) {
+				t.Errorf("ticketSender.localIdentity = %v, want %v", got, want)
 			}
 		})
 	}
@@ -1161,6 +1214,7 @@ func TestConnNewSessionTicket(t *testing.T) {
 		outPlaintexts     [][]byte
 		finalTicketState  sessionTicketState
 		outSessionTickets [][]byte
+		ticketsSent       bool
 	}{
 		// All the session tickets below are []byte{0}. This is not a valid
 		// ticket, but is sufficient for testing since the the client does not
@@ -1226,6 +1280,7 @@ func TestConnNewSessionTicket(t *testing.T) {
 			outSessionTickets: [][]byte{
 				{0},
 			},
+			ticketsSent: true,
 		},
 		{
 			desc:          "AES-256-GCM-SHA384 new session ticket followed by application data",
@@ -1243,6 +1298,7 @@ func TestConnNewSessionTicket(t *testing.T) {
 			outSessionTickets: [][]byte{
 				{0},
 			},
+			ticketsSent: true,
 		},
 		{
 			desc:          "CHACHA20-POLY1305-SHA256 new session ticket followed by application data",
@@ -1260,6 +1316,7 @@ func TestConnNewSessionTicket(t *testing.T) {
 			outSessionTickets: [][]byte{
 				{0},
 			},
+			ticketsSent: true,
 		},
 		{
 			desc:          "AES-128-GCM-SHA256 ticket, application data, then another ticket",
@@ -1279,6 +1336,7 @@ func TestConnNewSessionTicket(t *testing.T) {
 			outSessionTickets: [][]byte{
 				{0},
 			},
+			ticketsSent: true,
 		},
 		{
 			desc:          "AES-256-GCM-SHA384 ticket, application data, then another ticket",
@@ -1298,6 +1356,7 @@ func TestConnNewSessionTicket(t *testing.T) {
 			outSessionTickets: [][]byte{
 				{0},
 			},
+			ticketsSent: true,
 		},
 		{
 			desc:          "CHACHA20-POLY1305-SHA256 ticket, application data, then another ticket",
@@ -1317,6 +1376,7 @@ func TestConnNewSessionTicket(t *testing.T) {
 			outSessionTickets: [][]byte{
 				{0},
 			},
+			ticketsSent: true,
 		},
 		// TODO(rnkim): Add test cases for handshake key update messages.
 		// Specifically, fragmented handshake messages and multiple handshake
@@ -1334,6 +1394,10 @@ func TestConnNewSessionTicket(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewConn() failed: %v", err)
 			}
+			newConn := c.(*conn)
+			// Replace the ticket sender with a fake.
+			fakeTicketSender := &fakeTicketSender{}
+			newConn.ticketSender = fakeTicketSender
 			for _, outPlaintext := range tc.outPlaintexts {
 				plaintext := make([]byte, tlsRecordMaxPlaintextSize)
 				n, err := c.Read(plaintext)
@@ -1348,7 +1412,6 @@ func TestConnNewSessionTicket(t *testing.T) {
 					t.Errorf("len(c.(*conn).pendingApplicationData) = %v, want %v", got, want)
 				}
 			}
-			newConn := c.(*conn)
 			if got, want := newConn.ticketState, tc.finalTicketState; got != want {
 				t.Errorf("newConn.ticketState = %v, want %v", got, want)
 			}
@@ -1357,6 +1420,11 @@ func TestConnNewSessionTicket(t *testing.T) {
 			}
 			if got, want := newConn.sessionTickets, tc.outSessionTickets; !cmp.Equal(got, want) {
 				t.Errorf("newConn.sessionTickets = %v, want %v", got, want)
+			}
+			if tc.ticketsSent {
+				if got, want := fakeTicketSender.sessionTickets, tc.outSessionTickets; !cmp.Equal(got, want) {
+					t.Errorf("fakeTicketSender.sessionTickets = %v, want %v", got, want)
+				}
 			}
 		})
 	}
@@ -1370,6 +1438,7 @@ func TestConnNewSessionTicketWithTicketBuilder(t *testing.T) {
 		sessionTickets    [][]byte
 		finalTicketState  sessionTicketState
 		outSessionTickets [][]byte
+		ticketsSent       bool
 	}{
 		{
 			desc:          "AES-128-GCM-SHA256 consecutive tickets",
@@ -1566,6 +1635,72 @@ func TestConnNewSessionTicketWithTicketBuilder(t *testing.T) {
 				[]byte("abc"),
 			},
 		},
+		{
+			desc:          "AES-128-GCM-SHA256 past max limit",
+			ciphersuite:   s2apb.Ciphersuite_AES_128_GCM_SHA256,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			sessionTickets: [][]byte{
+				buildSessionTicket([]byte("abc")),
+				buildSessionTicket([]byte("abc")),
+				buildSessionTicket([]byte("abc")),
+				buildSessionTicket([]byte("abc")),
+				buildSessionTicket([]byte("abc")),
+				buildSessionTicket([]byte("abc")),
+			},
+			finalTicketState: notReceivingTickets,
+			outSessionTickets: [][]byte{
+				[]byte("abc"),
+				[]byte("abc"),
+				[]byte("abc"),
+				[]byte("abc"),
+				[]byte("abc"),
+			},
+			ticketsSent: true,
+		},
+		{
+			desc:          "AES-256-GCM-SHA384 past max limit",
+			ciphersuite:   s2apb.Ciphersuite_AES_256_GCM_SHA384,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			sessionTickets: [][]byte{
+				buildSessionTicket([]byte("abc")),
+				buildSessionTicket([]byte("abc")),
+				buildSessionTicket([]byte("abc")),
+				buildSessionTicket([]byte("abc")),
+				buildSessionTicket([]byte("abc")),
+				buildSessionTicket([]byte("abc")),
+			},
+			finalTicketState: notReceivingTickets,
+			outSessionTickets: [][]byte{
+				[]byte("abc"),
+				[]byte("abc"),
+				[]byte("abc"),
+				[]byte("abc"),
+				[]byte("abc"),
+			},
+			ticketsSent: true,
+		},
+		{
+			desc:          "CHACHA20-POLY1305-SHA256 past max limit",
+			ciphersuite:   s2apb.Ciphersuite_CHACHA20_POLY1305_SHA256,
+			trafficSecret: testutil.Dehex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"),
+			sessionTickets: [][]byte{
+				buildSessionTicket([]byte("abc")),
+				buildSessionTicket([]byte("abc")),
+				buildSessionTicket([]byte("abc")),
+				buildSessionTicket([]byte("abc")),
+				buildSessionTicket([]byte("abc")),
+				buildSessionTicket([]byte("abc")),
+			},
+			finalTicketState: notReceivingTickets,
+			outSessionTickets: [][]byte{
+				[]byte("abc"),
+				[]byte("abc"),
+				[]byte("abc"),
+				[]byte("abc"),
+				[]byte("abc"),
+			},
+			ticketsSent: true,
+		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			fc := &fakeConn{}
@@ -1580,6 +1715,9 @@ func TestConnNewSessionTicketWithTicketBuilder(t *testing.T) {
 				t.Fatalf("NewConn() failed: %v", err)
 			}
 			c := netConn.(*conn)
+			// Replace the ticket sender with a fake.
+			fakeTicketSender := &fakeTicketSender{}
+			c.ticketSender = fakeTicketSender
 			for _, sessionTicket := range tc.sessionTickets {
 				_, err = c.writeTLSRecord(sessionTicket, byte(handshake))
 				if err != nil {
@@ -1612,6 +1750,11 @@ func TestConnNewSessionTicketWithTicketBuilder(t *testing.T) {
 			}
 			if got, want := c.sessionTickets, tc.outSessionTickets; !cmp.Equal(got, want) {
 				t.Errorf("newConn.sessionTickets = %v, want %v", got, want)
+			}
+			if tc.ticketsSent {
+				if got, want := fakeTicketSender.sessionTickets, tc.outSessionTickets; !cmp.Equal(got, want) {
+					t.Errorf("fakeTicketSender.sessionTickets = %v, want %v", got, want)
+				}
 			}
 		})
 	}
