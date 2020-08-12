@@ -356,10 +356,7 @@ func (p *conn) Read(b []byte) (n int, err error) {
 				// TODO: send tickets to handshaker
 			}
 		case alert:
-			if err = p.handleAlertMessage(); err != nil {
-				return 0, err
-			}
-			return 0, nil
+			return 0, p.handleAlertMessage()
 		case handshake:
 			if err = p.handleHandshakeMessage(); err != nil {
 				return 0, err
@@ -588,15 +585,15 @@ func (p *conn) handleAlertMessage() error {
 	if len(p.pendingApplicationData) != tlsAlertSize {
 		return errors.New("invalid alert message size")
 	}
-	if p.pendingApplicationData[1] == byte(closeNotify) {
-		if err := p.Conn.Close(); err != nil {
-			return err
-		}
-	}
+	alertType := p.pendingApplicationData[1]
 	// Clear the body of the alert message.
 	p.pendingApplicationData = p.pendingApplicationData[:0]
-	// TODO: add support for more alert types.
-	return nil
+	if alertType == byte(closeNotify) {
+		return errors.New("received a close notify alert")
+	} else {
+		// TODO: add support for more alert types.
+		return fmt.Errorf("received an unrecognized alert type: %v", alertType)
+	}
 }
 
 // parseHandshakeHeader parses a handshake message from the handshake buffer.
