@@ -26,7 +26,6 @@ import (
 	"io"
 	"net"
 	"sync"
-	"time"
 
 	grpc "google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -42,8 +41,12 @@ const (
 	// The maximum byte size of receive frames.
 	frameLimit              = 64 * 1024 // 64 KB
 	rekeyRecordProtocolName = "ALTSRP_GCM_AES128_REKEY"
-	queuedHandshakeTimeout  = 10 * time.Second
 )
+
+type queuedHandshake struct {
+	isReady     chan struct{}
+	isCancelled bool
+}
 
 var (
 	hsProtocol      = altspb.HandshakeProtocol_ALTS
@@ -63,7 +66,7 @@ var (
 	// handshakes once we have reached the cap.
 	mu                   sync.Mutex
 	concurrentHandshakes = int64(0)
-	queuedHandshakes     [](chan bool)
+	queuedHandshakes     [](*queuedHandshake)
 	// errDropped occurs when maxPendingHandshakes is reached.
 	errDropped = errors.New("maximum number of concurrent ALTS handshakes is reached")
 	// errOutOfBound occurs when the handshake service returns a consumed
@@ -79,7 +82,7 @@ func init() {
 	}
 }
 
-func acquire() bool {
+func acquire(ctx context.Context) bool {
 	mu.Lock()
 	// If we need n to be configurable, we can pass it as an argument.
 	n := int64(1)
@@ -92,14 +95,19 @@ func acquire() bool {
 	// If we have hit the max number of concurrent handshakes, queue this
 	// handshake and wait until it is popped from the queue or a timeout
 	// occurs.
-	handshakeIsReady := make(chan bool)
-	queuedHandshakes = append(queuedHandshakes, handshakeIsReady)
+	handshake := &queuedHandshake{
+		isReady:     make(chan struct{}),
+		isCancelled: false,
+	}
+	queuedHandshakes = append(queuedHandshakes, handshake)
 	mu.Unlock()
 
 	select {
-	case <-handshakeIsReady:
+	case <-handshake.isReady:
 		return true
-	case <-time.After(queuedHandshakeTimeout):
+	case <-ctx.Done():
+		handshake.isCancelled = true
+		close(handshake.isReady)
 		return false
 	}
 }
@@ -110,11 +118,13 @@ func release() {
 	// If we need n to be configurable, we can pass it as an argument.
 	n := int64(1)
 	// If there are queued handshakes, do not decrease the number of concurrent handshakes.
-	if len(queuedHandshakes) > 0 {
-		isHandshakeReady := queuedHandshakes[0]
+	for len(queuedHandshakes) > 0 {
+		handshake := queuedHandshakes[0]
 		queuedHandshakes = queuedHandshakes[1:]
-		isHandshakeReady <- true
-		return
+		if !handshake.isCancelled {
+			close(handshake.isReady)
+			return
+		}
 	}
 	concurrentHandshakes -= n
 	if concurrentHandshakes < 0 {
@@ -206,7 +216,7 @@ func NewServerHandshaker(ctx context.Context, conn *grpc.ClientConn, c net.Conn,
 // ClientHandshake starts and completes a client ALTS handshake for GCP. Once
 // done, ClientHandshake returns a secure connection.
 func (h *altsHandshaker) ClientHandshake(ctx context.Context) (net.Conn, credentials.AuthInfo, error) {
-	if !acquire() {
+	if !acquire(ctx) {
 		return nil, nil, errDropped
 	}
 	defer release()
@@ -259,7 +269,7 @@ func (h *altsHandshaker) ClientHandshake(ctx context.Context) (net.Conn, credent
 // ServerHandshake starts and completes a server ALTS handshake for GCP. Once
 // done, ServerHandshake returns a secure connection.
 func (h *altsHandshaker) ServerHandshake(ctx context.Context) (net.Conn, credentials.AuthInfo, error) {
-	if !acquire() {
+	if !acquire(ctx) {
 		return nil, nil, errDropped
 	}
 	defer release()

@@ -349,8 +349,9 @@ func (s) TestFullHandshake(t *testing.T) {
 // fake handshaker service.
 func (s) TestConcurrentHandshakes(t *testing.T) {
 	// If GOMAXPROCS is set to less than 3, do not run this test. This test
-	// requires at least 2 goroutines to succeed (one goroutine where a
-	// server listens, another goroutine where a client runs).
+	// requires at least 3 goroutines to succeed (one goroutine where a
+	// server listens, another goroutine where a client runs, and the test
+	// goroutine).
 	if runtime.GOMAXPROCS(0) < 3 {
 		return
 	}
@@ -365,10 +366,10 @@ func (s) TestConcurrentHandshakes(t *testing.T) {
 	})
 	vmOnGCP = true
 
-	// Set the max number of concurrent handshakes to 3, so that we can
+	// Set the max number of concurrent handshakes to 2, so that we can
 	// test the handshaker behavior when handshakes are queued by
-	// performing more than 3 concurrent handshakes (specifically, 10).
-	handshaker.SetMaxConcurrentHandshakesForTesting(int64(3))
+	// performing more than 2 concurrent handshakes (specifically, 5).
+	handshaker.SetMaxConcurrentHandshakesForTesting(int64(2))
 
 	// Start the fake handshaker service and the server.
 	var wait sync.WaitGroup
@@ -378,9 +379,10 @@ func (s) TestConcurrentHandshakes(t *testing.T) {
 	stopServer, serverAddress := startServer(t, handshakerAddress, &wait)
 	defer stopServer()
 
-	// Ping the server, authenticating with ALTS.
+	// Ping the server many times concurrently, each time authenticating
+	// with ALTS.
 	var waitForConnections sync.WaitGroup
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 5; i++ {
 		waitForConnections.Add(1)
 		go func() {
 			establishAltsConnection(t, handshakerAddress, serverAddress)
